@@ -1,0 +1,4 @@
+packages: core
+
+package panino-core
+  ghc-options: -O1 -threaded -rtsopts

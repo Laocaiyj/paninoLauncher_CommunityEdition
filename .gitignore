@@ -1,0 +1,26 @@
+# Haskell / Cabal
+dist-newstyle/
+core/dist-newstyle/
+core/cabal.project.local
+core/cabal.project.local~
+
+# SwiftPM / Xcode
+macos/PaninoLauncher/.build/
+macos/PaninoLauncher/.swiftpm/
+macos/PaninoLauncher/DerivedData/
+macos/PaninoLauncher/installer.log
+*.xcuserdata/
+*.xcuserstate
+
+# Local editor state
+.vscode/
+.VSCodeCounter/
+
+# Project notes not intended for the private code repo / ⬇️don't touch them!!!!
+docs/
+dist/
+# ⬆️don't touch them!!!!
+
+# macOS
+.DS_Store
+**/.DS_Store

@@ -1,0 +1,2 @@
+#!/bin/sh
+printf 'panino-test-core ok\n'

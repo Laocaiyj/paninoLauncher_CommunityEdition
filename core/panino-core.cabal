@@ -1,0 +1,210 @@
+cabal-version: 3.0
+name: panino-core
+version: 0.1.0.0
+synopsis: Core process for Panino Launcher
+description: Minimal P0 core executable for Panino Launcher.
+license: Apache-2.0
+author: Panino Launcher Contributors
+maintainer: dev@panino.local
+category: Game
+build-type: Simple
+
+common common-options
+  default-language: Haskell2010
+  ghc-options:
+    -threaded
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wmissing-export-lists
+    -Wpartial-fields
+    -Wredundant-constraints
+
+library
+  import: common-options
+  hs-source-dirs: src
+  exposed-modules:
+    Panino.Api.MinecraftStatus
+    Panino.Api.Params
+    Panino.Api.Response
+    Panino.Api.Routes.Configuration
+    Panino.Api.Routes.Compatibility
+    Panino.Api.Routes.Content
+    Panino.Api.Routes.Content.Cache
+    Panino.Api.Routes.Content.Common
+    Panino.Api.Routes.Content.InstallPlan
+    Panino.Api.Routes.Content.Targets
+    Panino.Api.Routes.Content.Task
+    Panino.Api.Routes.Content.UpdatePlan
+    Panino.Api.Routes.Health
+    Panino.Api.Routes.Diagnostics
+    Panino.Api.Routes.GraphicsTuning
+    Panino.Api.Routes.InstallPlan
+    Panino.Api.Routes.LaunchTuning
+    Panino.Api.Routes.Lockfile
+    Panino.Api.Routes.Local
+    Panino.Api.Routes.Minecraft
+    Panino.Api.Routes.Minecraft.Common
+    Panino.Api.Routes.Minecraft.InstallTask
+    Panino.Api.Routes.Minecraft.LaunchHooks
+    Panino.Api.Routes.Minecraft.LaunchTask
+    Panino.Api.Routes.Minecraft.Progress
+    Panino.Api.Routes.Network
+    Panino.Api.Routes.Performance
+    Panino.Api.Routes.PerformancePack
+    Panino.Api.Routes.Runtime
+    Panino.Api.Routes.Tasks
+    Panino.Api.Server
+    Panino.Api.Server.State
+    Panino.Api.Types
+    Panino.Content.Configuration.Preflight
+    Panino.Content.Configuration.Types
+    Panino.Content.Local
+    Panino.Content.Local.Conflict
+    Panino.Content.Local.Delete
+    Panino.Content.Local.Import
+    Panino.Content.Local.Java
+    Panino.Content.Local.Metadata
+    Panino.Content.Local.Path
+    Panino.Content.Local.Scan
+    Panino.Content.Local.Types
+    Panino.Content.Online
+    Panino.Content.Online.CurseForge
+    Panino.Content.Online.Errors
+    Panino.Content.Online.Http
+    Panino.Content.Online.Minecraft
+    Panino.Content.Online.Modrinth
+    Panino.Content.Online.Normalize
+    Panino.Content.Online.Types
+    Panino.Compatibility.Evaluate
+    Panino.Compatibility.Explain
+    Panino.Compatibility.Rules
+    Panino.Compatibility.Types
+    Panino.Core
+    Panino.CoreLogic.Determinism
+    Panino.Download.Manager
+    Panino.Download.Multipart
+    Panino.Download.Scheduler
+    Panino.Download.VerificationIndex
+    Panino.Diagnostics.Classify
+    Panino.Diagnostics.Types
+    Panino.Events.Bus
+    Panino.Graphics.Tuning.Options
+    Panino.Graphics.Tuning.Recommend
+    Panino.Graphics.Tuning.Types
+    Panino.Install.Plan.Executor
+    Panino.Install.Plan.Types
+    Panino.Lockfile.Explain
+    Panino.Lockfile.Apply
+    Panino.Lockfile.Plan
+    Panino.Lockfile.Solver
+    Panino.Lockfile.Store
+    Panino.Lockfile.Types
+    Panino.Launch.Arguments
+    Panino.Launch.Java
+    Panino.Launch.Tuning.Recommend
+    Panino.Launch.Tuning.Types
+    Panino.Minecraft.Install
+    Panino.Minecraft.InstallPreflight
+    Panino.Minecraft.InstallPlanGraph
+    Panino.Minecraft.InstanceMetadata
+    Panino.Minecraft.Layout
+    Panino.Minecraft.LoaderInstall
+    Panino.Minecraft.Manifest
+    Panino.Minecraft.ModPreflight
+    Panino.Minecraft.Types
+    Panino.Net.Http
+    Panino.Net.Probe
+    Panino.Net.Sources
+    Panino.Perf.Metrics
+    Panino.Performance.Candidate
+    Panino.Performance.CompanionProtocol
+    Panino.Performance.Experiment
+    Panino.Performance.Explain
+    Panino.Performance.Objective
+    Panino.Performance.Pack
+    Panino.Performance.Profile.Store
+    Panino.Performance.Profile.Types
+    Panino.Performance.RendererCapability
+    Panino.Performance.SafetyGate
+    Panino.Performance.Summary
+    Panino.Performance.Telemetry.Collect
+    Panino.Performance.Telemetry.GcLog
+    Panino.Performance.Telemetry.Types
+    Panino.Performance.ValidationMatrix
+    Panino.Platform.Hardware
+    Panino.Runtime.Java.Catalog
+    Panino.Runtime.Java.Install
+    Panino.Runtime.Java.Requirements
+    Panino.Runtime.Java.Resolve
+    Panino.Runtime.Java.Store
+    Panino.Runtime.Java.Types
+  build-depends:
+    aeson >= 2.2 && < 2.3,
+    async >= 2.2 && < 2.3,
+    base >= 4.18 && < 5,
+    bytestring >= 0.11 && < 0.13,
+    containers >= 0.6 && < 0.8,
+    cryptohash-sha1 >= 0.11 && < 0.12,
+    directory >= 1.3 && < 1.4,
+    filepath >= 1.4 && < 1.6,
+    http-types >= 0.12 && < 0.13,
+    http-client >= 0.7 && < 0.8,
+    http-client-tls >= 0.3 && < 0.4,
+    process >= 1.6 && < 1.7,
+    stm >= 2.5 && < 2.6,
+    text >= 2.0 && < 2.2,
+    time >= 1.12 && < 1.15,
+    unix >= 2.7 && < 2.9,
+    wai >= 3.2 && < 3.3,
+    warp >= 3.3 && < 3.5
+
+executable panino-core
+  import: common-options
+  ghc-options:
+    -rtsopts
+  hs-source-dirs: app
+  main-is: Main.hs
+  other-modules:
+    Paths_panino_core
+  autogen-modules:
+    Paths_panino_core
+  build-depends:
+    aeson >= 2.2 && < 2.3,
+    base >= 4.18 && < 5,
+    bytestring >= 0.11 && < 0.13,
+    text >= 2.0 && < 2.2,
+    panino-core
+
+test-suite panino-core-test
+  import: common-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Main.hs
+  build-depends:
+    aeson >= 2.2 && < 2.3,
+    base >= 4.18 && < 5,
+    bytestring >= 0.11 && < 0.13,
+    containers >= 0.6 && < 0.8,
+    directory >= 1.3 && < 1.4,
+    filepath >= 1.4 && < 1.6,
+    http-types >= 0.12 && < 0.13,
+    process >= 1.6 && < 1.7,
+    QuickCheck >= 2.14 && < 2.16,
+    stm >= 2.5 && < 2.6,
+    text >= 2.0 && < 2.2,
+    time >= 1.12 && < 1.13,
+    unix >= 2.7 && < 2.9,
+    wai >= 3.2 && < 3.3,
+    warp >= 3.3 && < 3.5,
+    panino-core
+  other-modules:
+    Property.Compatibility
+    Property.Diagnostics
+    Property.Generators
+    Property.Lockfile
+    Property.Performance
+    Property.Plan
+    Property.Runner

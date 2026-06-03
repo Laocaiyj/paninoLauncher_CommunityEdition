@@ -1,0 +1,8 @@
+cradle:
+  cabal:
+    - path: "./core/src"
+      component: "lib:panino-core"
+    - path: "./core/app"
+      component: "panino-core:exe:panino-core"
+    - path: "./core/test"
+      component: "panino-core:test:panino-core-test"

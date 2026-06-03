@@ -1,0 +1,5 @@
+packages: core
+
+package panino-core
+  optimization: 2
+  ghc-options: -O2 -threaded -rtsopts
