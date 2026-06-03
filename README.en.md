@@ -15,7 +15,11 @@
 > 别急着破防，你行你来同时把 **Haskell (硬核函数式 FP)** 和 **Swift (花心面向对象 OOP)** 强行塞进一个解耦架构里？在两个完全极端的脑回路之间疯狂来回劈叉，那酸爽的心智负担让人欲罢不能。在这种高强度的精神污染下，靠 AI 拯救我濒临坏掉的脑细胞，属于完全合法的紧急避险！
 > 如果您对 AI 极度过敏，或者自我膨胀到想来对老子指点江山——那么这位*坚持古法纯手工敲打无添加老代码的大神*，右上角点叉，您己开个仓库从零手敲去吧。祝您早日用指甲盖在远古打孔纸带上抠出属于你的传世经典。**别下载，也别来 Issue 区展示你贫瘠的脑容量。** 本开源项目纯属个人无偿奉献，爱用不用，别指望我给你们提供什么好脸色，Roll（滚）！
 
-Panino is a macOS-only launcher for Minecraft Java Edition. SwiftUI + Haskell Core architecture.
+
+
+Panino is a Minecraft Java Edition launcher exclusively for macOS, featuring multi-language support (currently supporting Simplified Chinese, English, French, Italian, and Spanish).
+
+Built with a SwiftUI + Haskell Core architecture.
 
 It is still community Alpha, not a finished product. It will make mistakes, expose unfinished edges, and still feel young in many places. But at least it is no longer just a UI shell: Core can install the game, schedule downloads, handle loaders, record tasks, run diagnostics, and start answering a more specific question:
 
