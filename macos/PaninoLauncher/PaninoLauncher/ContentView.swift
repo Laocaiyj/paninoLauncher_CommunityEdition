@@ -316,8 +316,6 @@ struct ContentView: View {
                 instanceStore.selectedInstanceID = targetInstance.id
             }
             versionStore.refreshAssets(for: instanceStore.selectedInstance)
-            selectedSection = .instances
-            appActions.focusInstanceContent(versionStore.selectedAssetKind)
         }
         if task.kind == "install" || task.kind == "launch" {
             configureVersionCoreBackend()
