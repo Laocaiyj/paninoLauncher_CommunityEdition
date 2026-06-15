@@ -83,7 +83,6 @@ import Panino.Performance.Profile.Types
   , PerformanceProfile(..)
   , defaultInstanceFingerprint
   , defaultPerformanceKnobs
-  , estimatedEvidence
   )
 import Panino.Performance.SafetyGate
   ( SafetyGateDecision(..)

@@ -5,6 +5,7 @@ core/cabal.project.local
 core/cabal.project.local~
 
 # SwiftPM / Xcode
+.build/
 macos/PaninoLauncher/.build/
 macos/PaninoLauncher/.swiftpm/
 macos/PaninoLauncher/DerivedData/

@@ -5,7 +5,6 @@ module Panino.Api.Routes.Content.Targets
   ) where
 
 import Data.List (sortOn)
-import Data.Maybe (Maybe(..))
 import Data.Ord (Down(..))
 import qualified Data.Text as Text
 import Panino.Api.Routes.Content.Common

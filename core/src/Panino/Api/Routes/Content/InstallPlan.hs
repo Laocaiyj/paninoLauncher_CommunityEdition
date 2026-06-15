@@ -11,12 +11,10 @@ module Panino.Api.Routes.Content.InstallPlan
 import Control.Applicative ((<|>))
 import Control.Exception (SomeException, try)
 import Data.List (find, foldl', isPrefixOf)
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isNothing, listToMaybe, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Network.HTTP.Client (Manager)
 import Panino.Api.Routes.Content.Common
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types

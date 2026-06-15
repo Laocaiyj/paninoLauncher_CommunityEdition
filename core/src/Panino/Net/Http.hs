@@ -145,6 +145,8 @@ data CacheEntry = CacheEntry
 type InFlightValue = Either SomeException (Int, BL.ByteString)
 
 {-# NOINLINE inFlightRequests #-}
+-- Process-local request coalescing cache. Keep the unsafePerformIO boundary
+-- isolated here until HTTP cache ownership moves into ServerState.
 inFlightRequests :: MVar (Map String (MVar InFlightValue))
 inFlightRequests =
   unsafePerformIO (newMVar Map.empty)

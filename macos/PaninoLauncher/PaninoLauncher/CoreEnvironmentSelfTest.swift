@@ -91,19 +91,62 @@ enum CoreEnvironmentSelfTest {
         let redacted = LogRedactor.redact(
             """
             --session-token secret-token --session-token=other-secret
+            Authorization: Bearer bearer-secret
             Authorization: Basic abc123
             Cookie: sid=secret
+            Set-Cookie: sid=set-cookie-secret
+            X-Api-Key: api-key-secret
+            X-Auth-Token: auth-token-secret
+            X-Ms-Token: ms-secret
             {"sessionToken":"json-secret","path":"/Users/sen/Library/Application Support/Panino Launcher"}
-            https://example.test/download?client_secret=url-secret&sig=abc
+            https://example.test/download?client_secret=url-secret&sig=query-sig&X-Amz-Signature=aws-secret&AWSAccessKeyId=key-secret
+            file:///Users/sen/Downloads/panino.log
             """
         )
         expect(!redacted.contains("secret-token"), "redactor should hide --session-token value", &failures)
         expect(!redacted.contains("other-secret"), "redactor should hide --session-token=value", &failures)
+        expect(!redacted.contains("bearer-secret"), "redactor should hide Authorization Bearer value", &failures)
         expect(!redacted.contains("abc123"), "redactor should hide Authorization Basic value", &failures)
         expect(!redacted.contains("sid=secret"), "redactor should hide Cookie value", &failures)
+        expect(!redacted.contains("set-cookie-secret"), "redactor should hide Set-Cookie value", &failures)
+        expect(!redacted.contains("api-key-secret"), "redactor should hide X-Api-Key value", &failures)
+        expect(!redacted.contains("auth-token-secret"), "redactor should hide X-Auth-Token value", &failures)
+        expect(!redacted.contains("ms-secret"), "redactor should hide X-Ms-* value", &failures)
         expect(!redacted.contains("json-secret"), "redactor should hide JSON sessionToken value", &failures)
         expect(!redacted.contains("/Users/sen"), "redactor should hide local user path", &failures)
         expect(!redacted.contains("url-secret"), "redactor should hide sensitive URL query values", &failures)
+        expect(!redacted.contains("query-sig"), "redactor should hide sig URL query values", &failures)
+        expect(!redacted.contains("aws-secret"), "redactor should hide X-Amz-Signature URL query values", &failures)
+        expect(!redacted.contains("key-secret"), "redactor should hide AWSAccessKeyId URL query values", &failures)
+        expect(redacted.contains("file://~"), "redactor should collapse file user paths", &failures)
+
+        let diagnosticData = (try? JSONSerialization.data(withJSONObject: [
+            "sessionToken": "diagnostic-secret",
+            "safe": "/Users/sen/Panino",
+            "nested": ["apiKey": "nested-secret"]
+        ], options: [])) ?? Data()
+        let diagnosticRedacted = String(data: DiagnosticRedactor.redactedData(diagnosticData), encoding: .utf8) ?? ""
+        expect(!diagnosticRedacted.contains("diagnostic-secret"), "diagnostic redactor should hide sessionToken JSON values", &failures)
+        expect(!diagnosticRedacted.contains("nested-secret"), "diagnostic redactor should hide nested apiKey JSON values", &failures)
+
+        expect(TaskRecordState.queued.isActive, "queued tasks should be active", &failures)
+        expect(TaskRecordState.running.isActive, "running tasks should be active", &failures)
+        expect(!TaskRecordState.succeeded.isActive, "succeeded tasks should not be active", &failures)
+        expect(TaskRecordState.succeeded.isTerminal, "succeeded tasks should be terminal", &failures)
+        expect(TaskRecordState.failed.needsAttention, "failed tasks should need attention", &failures)
+        expect(TaskRecordState.interrupted.needsAttention, "interrupted tasks should need attention", &failures)
+
+        expect(SafeFileComponent.sanitize("  My Pack: 1.21  ") == "My-Pack-1.21", "safe file component should sanitize display names", &failures)
+        expect(
+            SafeFileComponent.sanitize("  My Pack: 1.21  ", allowedExtraCharacters: "-_", collapseReplacementRuns: false, returnsTrimmedValue: false) == "--My-Pack--1-21--",
+            "safe file component should preserve legacy untrimmed behavior when requested",
+            &failures
+        )
+        expect(
+            SafeFileComponent.sanitize("..", fallback: "minecraft-instance", lowercased: true, trimCharacters: "-._") == "minecraft-instance",
+            "safe file component should fall back for empty sanitized names",
+            &failures
+        )
 
         return failures
     }

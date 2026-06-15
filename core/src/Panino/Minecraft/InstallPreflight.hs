@@ -97,6 +97,8 @@ data InstallerProbeCacheEntry = InstallerProbeCacheEntry
   } deriving (Eq, Show)
 
 {-# NOINLINE installerProbeCache #-}
+-- Process-local probe cache. Keep the unsafePerformIO boundary isolated here
+-- until this cache is moved into ServerState or an explicit preflight handle.
 installerProbeCache :: MVar (Map.Map Text InstallerProbeCacheEntry)
 installerProbeCache =
   unsafePerformIO (newMVar Map.empty)

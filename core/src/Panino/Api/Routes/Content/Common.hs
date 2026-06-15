@@ -36,8 +36,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 import Numeric (showHex)
 import Panino.Api.Types
-import Panino.Download.Manager (sha1HexFile)
-import System.Directory (doesFileExist, listDirectory, removeFile)
+import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (dropExtension, takeDirectory, takeExtension, takeFileName, (</>))
 
 allowedContentSubdirs :: [FilePath]

@@ -83,6 +83,8 @@ data VerificationIndexState = VerificationIndexState
   }
 
 {-# NOINLINE verificationIndexLock #-}
+-- Process-local verification index lock. Keep the unsafePerformIO boundary
+-- isolated here until the download verifier receives an explicit state handle.
 verificationIndexLock :: MVar VerificationIndexState
 verificationIndexLock =
   unsafePerformIO (newMVar (VerificationIndexState Nothing Map.empty False))

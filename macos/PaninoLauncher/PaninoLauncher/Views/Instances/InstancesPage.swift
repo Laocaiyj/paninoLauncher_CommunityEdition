@@ -757,16 +757,13 @@ private struct InstanceExportPage: View {
     }
 
     private func safeFileComponent(_ value: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
-        var result = ""
-        for scalar in value.unicodeScalars {
-            if allowed.contains(scalar) {
-                result.unicodeScalars.append(scalar)
-            } else {
-                result.append("-")
-            }
-        }
-        return result.trimmingCharacters(in: CharacterSet(charactersIn: "-")).isEmpty ? "instance" : result
+        SafeFileComponent.sanitize(
+            value,
+            allowedExtraCharacters: "-_",
+            fallback: "instance",
+            collapseReplacementRuns: false,
+            returnsTrimmedValue: false
+        )
     }
 
     private func timestamp() -> String {
@@ -930,16 +927,13 @@ private struct InstanceSavesPage: View {
     }
 
     private func safeFileComponent(_ value: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
-        var result = ""
-        for scalar in value.unicodeScalars {
-            if allowed.contains(scalar) {
-                result.unicodeScalars.append(scalar)
-            } else {
-                result.append("-")
-            }
-        }
-        return result.trimmingCharacters(in: CharacterSet(charactersIn: "-")).isEmpty ? "saves" : result
+        SafeFileComponent.sanitize(
+            value,
+            allowedExtraCharacters: "-_",
+            fallback: "saves",
+            collapseReplacementRuns: false,
+            returnsTrimmedValue: false
+        )
     }
 
     private func timestamp() -> String {
@@ -1527,17 +1521,11 @@ struct InstancesPage: View {
     }
 
     private func safeFileComponent(_ value: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
-        var result = ""
-        for scalar in value.unicodeScalars {
-            if allowed.contains(scalar) {
-                result.unicodeScalars.append(scalar)
-            } else if !result.hasSuffix("-") {
-                result.append("-")
-            }
-        }
-        let trimmed = result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return trimmed.isEmpty ? "instance" : trimmed
+        SafeFileComponent.sanitize(
+            value,
+            allowedExtraCharacters: "-_",
+            fallback: "instance"
+        )
     }
 
     private func timestamp() -> String {

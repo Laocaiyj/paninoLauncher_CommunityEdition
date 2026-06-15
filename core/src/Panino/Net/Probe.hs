@@ -63,6 +63,8 @@ data SourceProbe = SourceProbe
   } deriving (Eq, Show)
 
 {-# NOINLINE sourceProbeCache #-}
+-- Process-local source probe cache. Keep the unsafePerformIO boundary isolated
+-- here until source probing receives an explicit cache handle.
 sourceProbeCache :: MVar (Map String SourceProbe)
 sourceProbeCache =
   unsafePerformIO (newMVar Map.empty)

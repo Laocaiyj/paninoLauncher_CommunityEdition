@@ -17,7 +17,6 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time.Clock (getCurrentTime)
-import Panino.Api.Routes.Content.Common
 import Panino.Api.Routes.Content.InstallPlan (ContentInstallPlanBundle(..))
 import Panino.Api.Routes.Tasks (emitTaskProgress, taskIsCancelled)
 import Panino.Api.Server.State (ServerState(..))
@@ -27,7 +26,7 @@ import Panino.Install.Plan.Executor (InstallNodeResult(..), InstallNodeStatus(..
 import Panino.Minecraft.InstallPlanGraph (dedupeInstallPlanJobs)
 import qualified Panino.Install.Plan.Types as Plan
 import System.Directory (createDirectoryIfMissing, doesFileExist, removeFile, renameFile)
-import System.FilePath (takeDirectory, takeFileName, (</>))
+import System.FilePath (takeDirectory, (</>))
 
 runContentInstallTask :: ServerState -> TaskSnapshot -> ContentInstallRequest -> ContentInstallPlanBundle -> IO Text
 runContentInstallTask state task request planBundle = do
@@ -335,18 +334,6 @@ restoreBackup (target, backup) = do
   when backupExists $ do
     removeIfExists target
     renameFile backup target
-
-safeContentFileName :: Text -> FilePath
-safeContentFileName value =
-  case takeFileName (Text.unpack value) of
-    "" -> "download.bin"
-    "." -> "download.bin"
-    ".." -> "download.bin"
-    cleanName -> cleanName
-
-sumMaybe :: Num value => [Maybe value] -> Maybe value
-sumMaybe values =
-  sum <$> sequenceA values
 
 removeIfExists :: FilePath -> IO ()
 removeIfExists path =

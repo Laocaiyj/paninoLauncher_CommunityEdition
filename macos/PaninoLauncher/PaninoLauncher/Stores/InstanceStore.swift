@@ -951,17 +951,7 @@ final class InstanceStore: ObservableObject {
     }
 
     private func safeFileComponent(_ value: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
-        var result = ""
-        for scalar in value.unicodeScalars {
-            if allowed.contains(scalar) {
-                result.unicodeScalars.append(scalar)
-            } else if !result.hasSuffix("-") {
-                result.append("-")
-            }
-        }
-        let trimmed = result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return trimmed.isEmpty ? "instance" : trimmed
+        SafeFileComponent.sanitize(value)
     }
 
     private static func date(from value: String) -> Date? {

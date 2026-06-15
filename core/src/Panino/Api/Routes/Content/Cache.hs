@@ -39,7 +39,6 @@ import Panino.Api.MinecraftStatus (fetchInstalledMinecraftInstances, fetchMinecr
 import Panino.Api.Params (decodeBody)
 import Panino.Api.Response (contentSourceErrorResponse, jsonResponse)
 import Panino.Api.Server.State (ServerState(..))
-import Panino.Api.Types
 import Panino.Content.Online (contentLoaderMetadata, contentMinecraftPackage, contentMinecraftVersions, contentProject, contentSearch)
 import Panino.Content.Online.Types (ContentLoaderRequest(..), ContentProjectRequest(..), ContentSearchRequest(..), MinecraftPackageRequest(..), OnlineSearchPage(..))
 import Panino.Perf.Metrics (CacheStatus(..), cacheStatusHeader, cacheStatusText, recordApiMetric)
@@ -61,6 +60,8 @@ contentResponseMaxEntries :: Int
 contentResponseMaxEntries = 256
 
 {-# NOINLINE contentResponseCache #-}
+-- Process-local response cache. Keep the unsafePerformIO boundary isolated here
+-- until content route cache ownership moves into ServerState.
 contentResponseCache :: MVar (Map Text CachedContentResponse)
 contentResponseCache =
   unsafePerformIO (newMVar Map.empty)

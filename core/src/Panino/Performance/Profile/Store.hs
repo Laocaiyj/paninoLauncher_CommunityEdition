@@ -122,7 +122,7 @@ rollbackProfile gameDir rollbackRef = do
   case current of
     Nothing -> pure Nothing
     Just profile -> do
-      recordProfileCooldown gameDir (profileId profile)
+      _ <- recordProfileCooldown gameDir (profileId profile)
       let restored =
             profile
               { profileKind = ProfileUserOverride

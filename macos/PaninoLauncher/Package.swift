@@ -17,6 +17,11 @@ let package = Package(
             resources: [
                 .process("Assets.xcassets")
             ]
+        ),
+        .testTarget(
+            name: "PaninoLauncherTests",
+            dependencies: ["PaninoLauncher"],
+            path: "Tests/PaninoLauncherTests"
         )
     ]
 )

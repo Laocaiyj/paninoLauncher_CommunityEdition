@@ -20,7 +20,6 @@ module Panino.Api.Routes.Content
 
 import Data.Aeson (object, (.=))
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Network.HTTP.Types (status200, status202, status400)
 import Network.Wai (Request, Response)
 import Panino.Api.Params (decodeBody)

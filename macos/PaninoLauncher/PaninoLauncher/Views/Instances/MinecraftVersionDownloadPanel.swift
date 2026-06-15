@@ -96,16 +96,13 @@ struct MinecraftVersionDownloadPanel: View {
     }
 
     private func safeFileComponent(_ value: String) -> String {
-        var result = ""
-        for scalar in value.lowercased().unicodeScalars {
-            if CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-")).contains(scalar) {
-                result.unicodeScalars.append(scalar)
-            } else if !result.hasSuffix("-") {
-                result.append("-")
-            }
-        }
-        let trimmed = result.trimmingCharacters(in: CharacterSet(charactersIn: "-._"))
-        return trimmed.isEmpty ? "minecraft-instance" : trimmed
+        SafeFileComponent.sanitize(
+            value,
+            allowedExtraCharacters: "._-",
+            fallback: "minecraft-instance",
+            lowercased: true,
+            trimCharacters: "-._"
+        )
     }
 
     private func refreshVersions() {

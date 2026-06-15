@@ -17,6 +17,7 @@ module Panino.Diagnostics.Types
   ) where
 
 import Control.Exception (Exception)
+import Data.Char (isAlphaNum)
 import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
@@ -29,8 +30,6 @@ import Data.Aeson
   , (.=)
   )
 import Data.Data (Typeable)
-import Data.List (isInfixOf)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.CoreLogic.Determinism (stableSortDiagnostics)
@@ -68,10 +67,12 @@ data DiagnosticEvidence = DiagnosticEvidence
 
 instance ToJSON DiagnosticEvidence where
   toJSON evidence =
+    let sanitized = sanitizeDiagnosticEvidence evidence
+     in
     object
-      [ "key" .= diagnosticEvidenceKey evidence
-      , "value" .= diagnosticEvidenceValue evidence
-      , "redacted" .= diagnosticEvidenceRedacted evidence
+      [ "key" .= diagnosticEvidenceKey sanitized
+      , "value" .= diagnosticEvidenceValue sanitized
+      , "redacted" .= diagnosticEvidenceRedacted sanitized
       ]
 
 instance FromJSON DiagnosticEvidence where
@@ -178,7 +179,7 @@ diagnosticWithFilePath filePath diagnostic =
 
 diagnosticWithEvidence :: [DiagnosticEvidence] -> Diagnostic -> Diagnostic
 diagnosticWithEvidence evidence diagnostic =
-  diagnostic { diagnosticEvidence = stableDiagnosticEvidence (diagnosticEvidence diagnostic <> evidence) }
+  diagnostic { diagnosticEvidence = stableDiagnosticEvidence (diagnosticEvidence diagnostic <> map sanitizeDiagnosticEvidence evidence) }
 
 diagnosticCodeDetail :: Diagnostic -> (Maybe Text, Maybe Text)
 diagnosticCodeDetail diagnostic =
@@ -195,7 +196,7 @@ defaultDiagnosticAction =
 
 stableDiagnosticEvidence :: [DiagnosticEvidence] -> [DiagnosticEvidence]
 stableDiagnosticEvidence =
-  stableSortDiagnostics stableDiagnosticEvidenceKey
+  stableSortDiagnostics stableDiagnosticEvidenceKey . map sanitizeDiagnosticEvidence
 
 stableDiagnosticEvidenceKey :: DiagnosticEvidence -> Text
 stableDiagnosticEvidenceKey evidence =
@@ -208,32 +209,109 @@ stableDiagnosticEvidenceKey evidence =
 
 redactedText :: Text -> Text
 redactedText =
-  Text.unlines . map redactLine . Text.lines
+  Text.intercalate "\n" . map (redactLocalPaths . redactLine) . Text.lines
   where
     redactLine line
-      | any (`isInfixOf` lowered) sensitiveNeedles =
-          keyPart line <> "<redacted>"
+      | Just prefix <- sensitiveLinePrefix withUrlTokens =
+          prefix <> "<redacted>"
       | otherwise =
-          redactUrlToken line
+          redactCliSecretFlag "--session-token" withUrlTokens
       where
-        lowered = Text.unpack (Text.toLower line)
-    keyPart line =
-      fromMaybe "" $
-        case Text.breakOn "=" line of
-          (key, rest) | not (Text.null rest) -> Just (key <> "=")
-          _ ->
-            case Text.breakOn ":" line of
-              (key, rest) | not (Text.null rest) -> Just (key <> ": ")
-              _ -> Nothing
-    sensitiveNeedles =
-      [ "token"
-      , "access_token"
-      , "api_key"
-      , "apikey"
-      , "authorization"
-      , "password"
-      , "secret"
-      ]
-    redactUrlToken line =
-      Text.replace "access_token=" "access_token=<redacted>&" $
-        Text.replace "api_key=" "api_key=<redacted>&" line
+        withUrlTokens = redactUrlTokens line
+    sensitiveLinePrefix line =
+      case lineKeyPrefix "=" line of
+        Just (key, prefix) | sensitiveEvidenceKey key -> Just prefix
+        _ ->
+          case lineKeyPrefix ":" line of
+            Just (key, prefix) | sensitiveEvidenceKey key -> Just prefix
+            _ -> Nothing
+    lineKeyPrefix separator line =
+      case Text.breakOn separator line of
+        (key, rest)
+          | Text.null rest -> Nothing
+          | otherwise ->
+              let afterSeparator = Text.drop (Text.length separator) rest
+                  spaces = Text.takeWhile (== ' ') afterSeparator
+               in Just (key, key <> separator <> spaces)
+    redactUrlTokens line =
+      foldl (\current key -> redactUrlTokenKey key current)
+        line
+        [ "token"
+        , "access_token"
+        , "refresh_token"
+        , "client_secret"
+        , "signature"
+        , "sig"
+        , "X-Amz-Signature"
+        , "AWSAccessKeyId"
+        , "api_key"
+        ]
+
+sanitizeDiagnosticEvidence :: DiagnosticEvidence -> DiagnosticEvidence
+sanitizeDiagnosticEvidence evidence
+  | diagnosticEvidenceRedacted evidence || sensitiveEvidenceKey (diagnosticEvidenceKey evidence) =
+      evidence { diagnosticEvidenceValue = "<redacted>", diagnosticEvidenceRedacted = True }
+  | otherwise =
+      let redacted = redactedText (diagnosticEvidenceValue evidence)
+       in evidence { diagnosticEvidenceValue = redacted, diagnosticEvidenceRedacted = redacted /= diagnosticEvidenceValue evidence }
+
+sensitiveEvidenceKey :: Text -> Bool
+sensitiveEvidenceKey key =
+  any (`Text.isInfixOf` normalized)
+    [ "token"
+    , "secret"
+    , "apikey"
+    , "authorization"
+    , "cookie"
+    , "signature"
+    , "password"
+    , "awsaccesskeyid"
+    ]
+    || normalized == "sig"
+    || "xms" `Text.isPrefixOf` normalized
+    || normalized `elem` ["xauthtoken", "xapikey"]
+  where
+    normalized =
+      Text.filter isAlphaNum (Text.toLower key)
+
+redactUrlTokenKey :: Text -> Text -> Text
+redactUrlTokenKey key =
+  redactUrlTokenPrefix ("?" <> key <> "=") . redactUrlTokenPrefix ("&" <> key <> "=")
+
+redactUrlTokenPrefix :: Text -> Text -> Text
+redactUrlTokenPrefix prefix text =
+  case Text.breakOn prefix text of
+    (before, rest)
+      | Text.null rest -> text
+      | otherwise ->
+          let afterPrefix = Text.drop (Text.length prefix) rest
+              (value, suffix) = Text.break (`elem` ['&', ' ', '\n', '\t', '"', '\'']) afterPrefix
+           in before <> prefix <> if Text.null value then suffix else "<redacted>" <> redactUrlTokenPrefix prefix suffix
+
+redactCliSecretFlag :: Text -> Text -> Text
+redactCliSecretFlag flag =
+  redactTokenAfter (flag <> " ") . redactTokenAfter (flag <> "=")
+
+redactTokenAfter :: Text -> Text -> Text
+redactTokenAfter prefix text =
+  case Text.breakOn prefix text of
+    (before, rest)
+      | Text.null rest -> text
+      | otherwise ->
+          let afterPrefix = Text.drop (Text.length prefix) rest
+              (value, suffix) = Text.break (`elem` [' ', '\n', '\t', '"', '\'']) afterPrefix
+           in before <> prefix <> if Text.null value then suffix else "<redacted>" <> redactTokenAfter prefix suffix
+
+redactLocalPaths :: Text -> Text
+redactLocalPaths =
+  redactPathPrefix "file:///Users/" "file://~/" . redactPathPrefix "/Users/" "~/"
+
+redactPathPrefix :: Text -> Text -> Text -> Text
+redactPathPrefix prefix replacement text =
+  case Text.breakOn prefix text of
+    (before, rest)
+      | Text.null rest -> text
+      | otherwise ->
+          let afterPrefix = Text.drop (Text.length prefix) rest
+              (_, afterUser) = Text.break (== '/') afterPrefix
+           in before <> replacement <> redactPathPrefix prefix replacement (Text.dropWhile (== '/') afterUser)
