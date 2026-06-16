@@ -28,6 +28,7 @@ struct MinecraftVersionInstallDetailPage: View {
 
     @EnvironmentObject private var theme: ThemeSettings
     @State private var showingInstallPlanReview = false
+    private let versionMenuLimit = 80
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
@@ -230,10 +231,14 @@ struct MinecraftVersionInstallDetailPage: View {
                     isEmpty: selectedLoaderVersions.isEmpty,
                     emptyTitle: versionOptionsStatus.isEmpty ? localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando") : versionOptionsStatus
                 ) {
-                    ForEach(selectedLoaderVersions) { metadata in
+                    ForEach(visibleSelectedLoaderVersions) { metadata in
                         Button(loaderVersionTitle(metadata)) {
                             loaderVersion = metadata.loaderVersion
                         }
+                    }
+                    if hiddenSelectedLoaderVersionCount > 0 {
+                        Divider()
+                        Text(localizedString(theme.language, english: "Showing first \(versionMenuLimit) versions", chinese: "已显示前 \(versionMenuLimit) 个版本", italian: "Mostrate prime \(versionMenuLimit) versioni", french: "Affiche les \(versionMenuLimit) premieres versions", spanish: "Mostrando primeras \(versionMenuLimit) versiones"))
                     }
                 }
                 .disabled(selectedLoaderVersions.isEmpty)
@@ -250,10 +255,14 @@ struct MinecraftVersionInstallDetailPage: View {
                     isEmpty: shaderReleases.isEmpty,
                     emptyTitle: versionOptionsStatus.isEmpty ? localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando") : versionOptionsStatus
                 ) {
-                    ForEach(shaderReleases) { release in
+                    ForEach(visibleShaderReleases) { release in
                         Button(shaderReleaseTitle(release)) {
                             shaderLoaderVersion = release.id
                         }
+                    }
+                    if hiddenShaderReleaseCount > 0 {
+                        Divider()
+                        Text(localizedString(theme.language, english: "Showing first \(versionMenuLimit) releases", chinese: "已显示前 \(versionMenuLimit) 个 release", italian: "Mostrate prime \(versionMenuLimit) release", french: "Affiche les \(versionMenuLimit) premieres releases", spanish: "Mostrando primeras \(versionMenuLimit) releases"))
                     }
                 }
                 .disabled(shaderReleases.isEmpty)
@@ -290,6 +299,14 @@ struct MinecraftVersionInstallDetailPage: View {
         selectedLoaderOption?.versions ?? []
     }
 
+    private var visibleSelectedLoaderVersions: [LoaderMetadata] {
+        Array(selectedLoaderVersions.prefix(versionMenuLimit))
+    }
+
+    private var hiddenSelectedLoaderVersionCount: Int {
+        max(selectedLoaderVersions.count - visibleSelectedLoaderVersions.count, 0)
+    }
+
     private var selectedLoaderVersionTitle: String {
         if let selected = selectedLoaderVersions.first(where: { $0.loaderVersion == loaderVersion }) {
             return loaderVersionTitle(selected)
@@ -309,6 +326,14 @@ struct MinecraftVersionInstallDetailPage: View {
             return shaderReleaseTitle(selected)
         }
         return shaderReleases.first.map(shaderReleaseTitle) ?? "-"
+    }
+
+    private var visibleShaderReleases: [OnlineRelease] {
+        Array(shaderReleases.prefix(versionMenuLimit))
+    }
+
+    private var hiddenShaderReleaseCount: Int {
+        max(shaderReleases.count - visibleShaderReleases.count, 0)
     }
 
     private func shaderReleaseTitle(_ release: OnlineRelease) -> String {
@@ -647,13 +672,28 @@ struct MinecraftVersionInstallDetailPage: View {
 
     private func installChoiceState(from result: CoreLoaderInstallPreflightResponse?, fallback: CoreLoaderInstallPreflightResponse?) -> InstallChoicePreflightState {
         let resolved = result ?? fallback
-        if resolved?.isBlocked == true {
+        if let resolved, hasChoiceCompatibilityBlocker(resolved) {
             return .blocked
         }
-        if resolved?.status == "warning" || resolved?.warnings.isEmpty == false {
+        if resolved?.isBlocked == true || resolved?.status == "warning" || resolved?.warnings.isEmpty == false {
             return .warning
         }
         return .normal
+    }
+
+    private func hasChoiceCompatibilityBlocker(_ preflight: CoreLoaderInstallPreflightResponse) -> Bool {
+        preflight.blockedReasons.contains { reason in
+            let normalized = reason.lowercased()
+            return normalized.hasPrefix("loader_version_not_found")
+                || normalized.hasPrefix("loader_profile_not_found")
+                || normalized.hasPrefix("loader_profile_url_not_found")
+                || normalized.hasPrefix("loader_installer_not_found")
+                || normalized.hasPrefix("forge_installer_url_not_found")
+                || normalized.hasPrefix("neoforge_installer_url_not_found")
+                || normalized.hasPrefix("shader_loader_incompatible")
+                || normalized.hasPrefix("shader_release_not_found")
+                || normalized.hasPrefix("shader_dependency_unresolved")
+        }
     }
 
     private func preflightSummaryIcon(_ preflight: CoreLoaderInstallPreflightResponse) -> String {

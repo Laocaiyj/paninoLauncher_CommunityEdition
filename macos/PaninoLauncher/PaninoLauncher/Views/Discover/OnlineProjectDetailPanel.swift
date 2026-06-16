@@ -6,11 +6,12 @@ struct OnlineProjectDetailPanel: View {
     @Binding var selectedReleaseID: String?
     let currentMinecraftVersion: String?
     let targetResolution: CoreContentResolveTargetsResponse?
+    @Binding var selectedTargetID: String?
     let targetFailure: String?
     let projectFailure: String?
     let isLoading: Bool
     let retryLoad: () -> Void
-    let install: () -> Void
+    let install: (CoreContentTargetCandidate?) -> Void
     let openTasks: () -> Void
 
     @EnvironmentObject private var theme: ThemeSettings
@@ -74,6 +75,7 @@ struct OnlineProjectDetailPanel: View {
                     release: selectedRelease,
                     currentMinecraftVersion: currentMinecraftVersion,
                     targetResolution: targetResolution,
+                    selectedTargetID: $selectedTargetID,
                     targetFailure: targetFailure,
                     install: install,
                     openTasks: openTasks
@@ -471,8 +473,9 @@ private struct InstallTargetSection: View {
     let release: OnlineRelease
     let currentMinecraftVersion: String?
     let targetResolution: CoreContentResolveTargetsResponse?
+    @Binding var selectedTargetID: String?
     let targetFailure: String?
-    let install: () -> Void
+    let install: (CoreContentTargetCandidate?) -> Void
     let openTasks: () -> Void
 
     @EnvironmentObject private var theme: ThemeSettings
@@ -488,7 +491,7 @@ private struct InstallTargetSection: View {
         return target
     }
 
-    private var compatibleTargets: [CoreContentTargetCandidate] {
+    private var versionMatchedTargets: [CoreContentTargetCandidate] {
         guard let targetResolution else { return [] }
         var seen = Set<String>()
         var targets: [CoreContentTargetCandidate] = []
@@ -503,16 +506,25 @@ private struct InstallTargetSection: View {
         return targets
     }
 
-    private var visibleCompatibleTargets: [CoreContentTargetCandidate] {
-        showAllTargets ? compatibleTargets : Array(compatibleTargets.prefix(5))
+    private var selectedTarget: CoreContentTargetCandidate? {
+        guard let selectedTargetID else { return nil }
+        return versionMatchedTargets.first { $0.id == selectedTargetID }
     }
 
-    private var hiddenCompatibleTargetCount: Int {
-        max(compatibleTargets.count - visibleCompatibleTargets.count, 0)
+    private var activeTarget: CoreContentTargetCandidate? {
+        selectedTarget ?? recommendedTarget
+    }
+
+    private var visibleTargets: [CoreContentTargetCandidate] {
+        showAllTargets ? versionMatchedTargets : Array(versionMatchedTargets.prefix(5))
+    }
+
+    private var hiddenTargetCount: Int {
+        max(versionMatchedTargets.count - visibleTargets.count, 0)
     }
 
     private var hasVersionMatchedTarget: Bool {
-        !compatibleTargets.isEmpty
+        !versionMatchedTargets.isEmpty
     }
 
     private var canInstall: Bool {
@@ -526,7 +538,7 @@ private struct InstallTargetSection: View {
                     .font(.headline)
                 Spacer()
                 if hasVersionMatchedTarget {
-                    CountText(value: compatibleTargets.count, style: .download)
+                    CountText(value: versionMatchedTargets.count, style: .download)
                 }
             }
 
@@ -536,17 +548,26 @@ private struct InstallTargetSection: View {
                     .foregroundStyle(.orange)
                     .lineLimit(3)
             } else if targetResolution != nil {
-                if compatibleTargets.isEmpty {
+                if versionMatchedTargets.isEmpty {
                     Label(noMatchingInstanceMessage, systemImage: "tray")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(visibleCompatibleTargets) { target in
-                            TargetCandidateRow(target: target, highlighted: target.id == recommendedTarget?.id)
+                        ForEach(visibleTargets) { target in
+                            Button {
+                                selectedTargetID = target.id
+                            } label: {
+                                TargetCandidateRow(
+                                    target: target,
+                                    selected: target.id == activeTarget?.id,
+                                    recommended: target.id == recommendedTarget?.id
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
 
-                        if compatibleTargets.count > 5 {
+                        if versionMatchedTargets.count > 5 {
                             Button {
                                 withAnimation(PaninoMotion.noneWhenReduced(PaninoMotion.fast, reduceMotion: reduceMotion || theme.reducesInterfaceMotion)) {
                                     showAllTargets.toggle()
@@ -572,7 +593,9 @@ private struct InstallTargetSection: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    GlassButton(systemImage: primaryButtonIcon, title: primaryButtonTitle, prominent: true, action: install)
+                    GlassButton(systemImage: primaryButtonIcon, title: primaryButtonTitle, prominent: true) {
+                        install(activeTarget)
+                    }
                         .disabled(!canInstall)
                     GlassButton(systemImage: "list.bullet.rectangle", title: localizedString(theme.language, english: "Tasks", chinese: "任务", italian: "Attività", french: "Tâches", spanish: "Tareas"), action: openTasks)
                 }
@@ -590,18 +613,18 @@ private struct InstallTargetSection: View {
         if showAllTargets {
             return localizedString(theme.language, english: "Show Fewer Targets", chinese: "收起匹配实例", italian: "Mostra meno destinazioni", french: "Afficher moins de cibles", spanish: "Mostrar menos destinos")
         }
-        return localizedString(theme.language, english: "\(hiddenCompatibleTargetCount) more matching targets", chinese: "还有 \(hiddenCompatibleTargetCount) 个匹配实例", italian: "Altre \(hiddenCompatibleTargetCount) destinazioni", french: "\(hiddenCompatibleTargetCount) autres cibles", spanish: "\(hiddenCompatibleTargetCount) destinos más")
+        return localizedString(theme.language, english: "\(hiddenTargetCount) more matching targets", chinese: "还有 \(hiddenTargetCount) 个匹配实例", italian: "Altre \(hiddenTargetCount) destinazioni", french: "\(hiddenTargetCount) autres cibles", spanish: "\(hiddenTargetCount) destinos más")
     }
 
     private var primaryButtonTitle: String {
-        if recommendedTarget != nil {
-            return localizedString(theme.language, english: "Install to Matched Instance", chinese: "安装到匹配实例", italian: "Installa nell'istanza", french: "Installer dans l'instance", spanish: "Instalar en instancia")
+        if activeTarget != nil {
+            return localizedString(theme.language, english: "Install to Selected Instance", chinese: "安装到所选实例", italian: "Installa nell'istanza selezionata", french: "Installer dans l'instance choisie", spanish: "Instalar en instancia seleccionada")
         }
         return localizedString(theme.language, english: "Choose Folder and Install", chinese: "选择文件夹并安装", italian: "Scegli cartella e installa", french: "Choisir dossier et installer", spanish: "Elegir carpeta e instalar")
     }
 
     private var primaryButtonIcon: String {
-        recommendedTarget == nil ? "folder.badge.gearshape" : "arrow.down.circle"
+        activeTarget == nil ? "folder.badge.gearshape" : "arrow.down.circle"
     }
 
     private var noMatchingInstanceMessage: String {
@@ -627,7 +650,8 @@ private struct InstallTargetSection: View {
 
 private struct TargetCandidateRow: View {
     let target: CoreContentTargetCandidate
-    let highlighted: Bool
+    let selected: Bool
+    let recommended: Bool
 
     @EnvironmentObject private var theme: ThemeSettings
 
@@ -659,17 +683,19 @@ private struct TargetCandidateRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(highlighted ? 0.46 : 0.22), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(selected ? 0.46 : 0.22), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(highlighted ? theme.semanticSelectionColor.opacity(0.7) : Color(nsColor: .separatorColor).opacity(0.28), lineWidth: highlighted ? 1.5 : 1)
+                .stroke(selected ? theme.semanticSelectionColor.opacity(0.7) : Color(nsColor: .separatorColor).opacity(0.28), lineWidth: selected ? 1.5 : 1)
         }
         .help(target.gameDir)
     }
 
     private var statusTitle: String {
         if target.blockedReasons.isEmpty {
-            return highlighted
+            return selected
+                ? localizedString(theme.language, english: "Selected", chinese: "已选择", italian: "Selezionata", french: "Sélectionnée", spanish: "Seleccionada")
+                : recommended
                 ? localizedString(theme.language, english: "Recommended", chinese: "推荐", italian: "Consigliata", french: "Recommandée", spanish: "Recomendada")
                 : localizedString(theme.language, english: "Matched", chinese: "匹配", italian: "Compatibile", french: "Compatible", spanish: "Compatible")
         }

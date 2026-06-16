@@ -30,6 +30,7 @@ struct OnlineContentDiscoveryPage: View {
     @State var showingProjectDetail = false
     @State var targetResolution: CoreContentResolveTargetsResponse?
     @State var targetResolutionFailure: String?
+    @State var selectedContentTargetID: String?
     @State var targetResolutionTask: Task<Void, Never>?
     @State var searchDebounceTask: Task<Void, Never>?
     @State var selectedMinecraftVersion: MinecraftVersionInfo?
@@ -352,6 +353,7 @@ struct OnlineContentDiscoveryPage: View {
         onlinePage = targetPage
         targetResolution = nil
         targetResolutionFailure = nil
+        selectedContentTargetID = nil
         search(clearExisting: false) { success in
             if !success {
                 onlinePage = previousPage
@@ -384,6 +386,7 @@ struct OnlineContentDiscoveryPage: View {
         showingProjectDetail = false
         targetResolution = nil
         targetResolutionFailure = nil
+        selectedContentTargetID = nil
         onlineContentStore.clearSelection()
     }
 
@@ -939,6 +942,7 @@ struct OnlineContentDiscoveryPage: View {
         targetResolutionTask?.cancel()
         targetResolution = nil
         targetResolutionFailure = nil
+        selectedContentTargetID = nil
 
         guard let selectedProject,
               let selectedRelease,
@@ -971,35 +975,46 @@ struct OnlineContentDiscoveryPage: View {
                 await MainActor.run {
                     targetResolution = response
                     targetResolutionFailure = nil
+                    selectedContentTargetID = preferredContentTargetID(in: response, release: selectedRelease)
                 }
             } catch {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     targetResolution = nil
                     targetResolutionFailure = error.localizedDescription
+                    selectedContentTargetID = nil
                 }
             }
         }
     }
 
-    func installSelectedRelease() {
+    func installSelectedRelease(target selectedTarget: CoreContentTargetCandidate? = nil) {
         guard let selectedProject,
               let selectedRelease,
               let managedKind = selectedProject.projectType.managedAssetKind else { return }
-        let recommendedTarget = targetResolution?.recommended.flatMap { target in
-            isContentTargetVersionMatched(target, release: selectedRelease) ? target : nil
+        let resolvedTarget = selectedTarget ?? selectedContentTarget(release: selectedRelease)
+
+        if let resolvedTarget,
+           let request = coreInstallRequest(
+            project: selectedProject,
+            release: selectedRelease,
+            managedKind: managedKind,
+            gameDirectory: resolvedTarget.gameDir
+           ) {
+            presentContentInstallReview(request: request, release: selectedRelease, managedKind: managedKind)
+            return
         }
 
         let panel = NSOpenPanel()
         panel.title = localizedString(theme.language, english: "Choose target game instance folder", chinese: "确认安装到哪个游戏实例文件夹", italian: "Scegli la cartella dell'istanza", french: "Choisir le dossier de l'instance", spanish: "Elige la carpeta de la instancia")
-        panel.message = recommendedTarget == nil
+        panel.message = resolvedTarget == nil
             ? localizedString(theme.language, english: "Choose an isolated game instance folder compatible with the selected Minecraft version.", chinese: "请选择一个与当前 Minecraft 版本兼容的独立游戏实例文件夹。", italian: "Scegli una cartella istanza compatibile con la versione Minecraft selezionata.", french: "Choisissez un dossier d'instance compatible avec la version Minecraft choisie.", spanish: "Elige una carpeta de instancia compatible con la versión de Minecraft seleccionada.")
             : localizedString(theme.language, english: "Panino matched a local instance. Confirm it here, or choose another isolated instance folder.", chinese: "Panino 已匹配本地实例。请在这里确认，或选择另一个独立实例文件夹。", italian: "Panino ha trovato un'istanza locale. Confermala o scegline un'altra.", french: "Panino a trouvé une instance locale. Confirmez-la ou choisissez-en une autre.", spanish: "Panino encontró una instancia local. Confírmala o elige otra.")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        if let recommended = recommendedTarget {
-            panel.directoryURL = URL(fileURLWithPath: recommended.gameDir, isDirectory: true)
+        if let resolvedTarget {
+            panel.directoryURL = URL(fileURLWithPath: resolvedTarget.gameDir, isDirectory: true)
         } else if let selected = instanceStore.selectedInstance {
             panel.directoryURL = URL(fileURLWithPath: selected.gameDirectory, isDirectory: true)
         }
@@ -1013,6 +1028,10 @@ struct OnlineContentDiscoveryPage: View {
                 gameDirectory: targetURL.path
               ) else { return }
 
+        presentContentInstallReview(request: request, release: selectedRelease, managedKind: managedKind)
+    }
+
+    func presentContentInstallReview(request: CoreContentInstallRequest, release: OnlineRelease, managedKind: ManagedAssetKind) {
         Task {
             do {
                 let plan = try await viewModel.contentInstallPlan(request)
@@ -1020,7 +1039,7 @@ struct OnlineContentDiscoveryPage: View {
                     pendingContentInstallReview =
                         PendingContentInstallReview(
                             plan: plan,
-                            releaseVersionName: selectedRelease.versionName,
+                            releaseVersionName: release.versionName,
                             request: request,
                             managedKind: managedKind
                         )
@@ -1078,6 +1097,25 @@ struct OnlineContentDiscoveryPage: View {
         }
         guard !hasVersionMismatch else { return false }
         return release.gameVersions.isEmpty || release.gameVersions.contains(target.minecraftVersion)
+    }
+
+    func selectedContentTarget(release: OnlineRelease) -> CoreContentTargetCandidate? {
+        guard let selectedContentTargetID else { return nil }
+        return targetResolution?.candidates.first {
+            $0.id == selectedContentTargetID && isContentTargetVersionMatched($0, release: release)
+        }
+    }
+
+    func preferredContentTargetID(in response: CoreContentResolveTargetsResponse, release: OnlineRelease) -> String? {
+        if let selectedContentTargetID,
+           response.candidates.contains(where: { $0.id == selectedContentTargetID && isContentTargetVersionMatched($0, release: release) }) {
+            return selectedContentTargetID
+        }
+        if let recommended = response.recommended,
+           isContentTargetVersionMatched(recommended, release: release) {
+            return recommended.id
+        }
+        return response.candidates.first { isContentTargetVersionMatched($0, release: release) }?.id
     }
 
     func coreInstallRequest(

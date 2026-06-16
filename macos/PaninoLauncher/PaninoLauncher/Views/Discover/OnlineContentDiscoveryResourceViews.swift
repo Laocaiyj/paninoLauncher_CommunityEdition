@@ -196,6 +196,7 @@ extension OnlineContentDiscoveryPage {
                     selectedReleaseID: $selectedReleaseID,
                     currentMinecraftVersion: selectedContentMinecraftVersionID,
                     targetResolution: targetResolution,
+                    selectedTargetID: $selectedContentTargetID,
                     targetFailure: targetResolutionFailure,
                     projectFailure: onlineContentStore.projectFailure,
                     isLoading: onlineContentStore.isLoading,

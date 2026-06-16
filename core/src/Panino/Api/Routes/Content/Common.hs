@@ -131,13 +131,15 @@ shaderTargetCompatible releaseLoaderValues maybeTargetLoader
   | null releaseLoaderValues = True
   | otherwise =
       case maybeTargetLoader of
-        Nothing -> any ((== "optifine") . normalizeLoader) releaseLoaderValues
+        Nothing -> any (`elem` universalShaderPackLoaders) normalizedReleaseLoaders
         Just targetLoader ->
           let normalizedTarget = normalizeLoader targetLoader
-              normalizedReleaseLoaders = map normalizeLoader releaseLoaderValues
-           in any (`elem` normalizedReleaseLoaders) [normalizedTarget, "optifine"]
+           in any (`elem` normalizedReleaseLoaders) (normalizedTarget : universalShaderPackLoaders)
                 || ("iris" `elem` normalizedReleaseLoaders && normalizedTarget `elem` ["fabric", "quilt"])
                 || ("oculus" `elem` normalizedReleaseLoaders && normalizedTarget `elem` ["forge", "neoforge"])
+  where
+    normalizedReleaseLoaders = map normalizeLoader releaseLoaderValues
+    universalShaderPackLoaders = ["minecraft", "vanilla", "optifine"]
 
 inferLoaderFromVersionIds :: [Text] -> Maybe Text
 inferLoaderFromVersionIds versionIds

@@ -509,8 +509,14 @@ struct GlassButton: View {
     @EnvironmentObject private var theme: ThemeSettings
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
+        let tokens = theme.resolvedTokens(
+            reduceTransparency: reduceTransparency,
+            increasedContrast: colorSchemeContrast == .increased,
+            reduceMotion: reduceMotion
+        )
         Button(action: action) {
             if let systemImage {
                 Label(title, systemImage: systemImage)
@@ -526,9 +532,8 @@ struct GlassButton: View {
         .buttonStyle(
             GlassControlButtonStyle(
                 prominent: prominent,
-                accentColor: theme.semanticSelectionColor,
+                tokens: tokens,
                 density: theme.fontDensity,
-                material: reduceTransparency ? nil : theme.effectiveMaterialStrength.material,
                 reduceMotion: reduceMotion || theme.reducesInterfaceMotion
             )
         )
@@ -539,38 +544,47 @@ struct GlassButton: View {
 
 private struct GlassControlButtonStyle: ButtonStyle {
     let prominent: Bool
-    let accentColor: Color
+    let tokens: ResolvedThemeTokens
     let density: FontDensity
-    let material: Material?
     let reduceMotion: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.callout.weight(.medium))
             .padding(.horizontal, density.buttonHorizontalPadding)
-            .frame(minHeight: density.buttonMinHeight)
+            .frame(minHeight: tokens.buttonMinHeight)
             .foregroundStyle(prominent ? .white : .primary)
             .background {
                 buttonBackground(isPressed: configuration.isPressed)
             }
-            .clipShape(RoundedRectangle(cornerRadius: PaninoTokens.Radius.control, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: PaninoTokens.Radius.control, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous))
+            .overlay {
+                if !prominent {
+                    RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous)
+                        .strokeBorder(tokens.strokeColor.opacity(tokens.strokeOpacity * 0.75), lineWidth: tokens.strokeWidth)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous))
             .opacity(configuration.isPressed ? 0.78 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
-            .animation(PaninoMotion.noneWhenReduced(PaninoMotion.fast, reduceMotion: reduceMotion), value: configuration.isPressed)
+            .animation(PaninoMotion.noneWhenReduced(tokens.animation ?? PaninoMotion.fast, reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 
     @ViewBuilder
     private func buttonBackground(isPressed: Bool) -> some View {
-        let shape = RoundedRectangle(cornerRadius: PaninoTokens.Radius.control, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous)
         if prominent {
-            shape.fill(accentColor.opacity(isPressed ? 0.82 : 0.94))
-        } else if let material {
+            shape.fill(tokens.selectionColor.opacity(isPressed ? 0.82 : 0.94))
+                .overlay {
+                    shape.strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+                }
+        } else if let material = tokens.surfaceMaterial {
             shape.fill(material)
-            shape.strokeBorder(Color(nsColor: .separatorColor).opacity(0.55))
+                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.72))
+                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.65))
         } else {
-            shape.fill(Color(nsColor: .controlBackgroundColor))
-            shape.strokeBorder(Color(nsColor: .separatorColor))
+            shape.fill(tokens.surfaceFill.opacity(tokens.surfaceFillOpacity))
+                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.45))
         }
     }
 }
@@ -581,6 +595,7 @@ struct GlassPanel<Content: View>: View {
 
     @EnvironmentObject private var theme: ThemeSettings
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     init(showsShadow: Bool = true, @ViewBuilder content: () -> Content) {
@@ -589,37 +604,33 @@ struct GlassPanel<Content: View>: View {
     }
 
     var body: some View {
+        let tokens = theme.resolvedTokens(
+            reduceTransparency: reduceTransparency,
+            increasedContrast: colorSchemeContrast == .increased,
+            reduceMotion: reduceMotion
+        )
         content
             .padding(theme.fontDensity.panelPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                panelBackground
+                RoundedRectangle(cornerRadius: tokens.panelCornerRadius, style: .continuous)
+                    .fill(Color.clear)
+                    .paninoGlassSurface(tokens: tokens, cornerRadius: tokens.panelCornerRadius)
+                    .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity))
+                    .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.55))
+                    .paninoDepthOverlay(tokens: tokens, cornerRadius: tokens.panelCornerRadius)
             }
-            .clipShape(RoundedRectangle(cornerRadius: PaninoTokens.Radius.panel, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: tokens.panelCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: tokens.panelCornerRadius, style: .continuous)
+                    .strokeBorder(tokens.strokeColor.opacity(tokens.strokeOpacity), lineWidth: tokens.strokeWidth)
+            }
             .shadow(
-                color: Color.black.opacity(shadowOpacity),
-                radius: showsShadow ? 18 : 0,
+                color: Color.black.opacity(showsShadow ? tokens.shadowOpacity : 0),
+                radius: showsShadow ? tokens.shadowRadius : 0,
                 x: 0,
-                y: showsShadow ? 8 : 0
+                y: showsShadow ? tokens.shadowYOffset : 0
             )
-    }
-
-    private var shadowOpacity: Double {
-        guard showsShadow, !reduceTransparency, !theme.quietModeEnabled else { return 0 }
-        return PaninoTokens.Shadow.panelOpacity
-    }
-
-    @ViewBuilder
-    private var panelBackground: some View {
-        let shape = RoundedRectangle(cornerRadius: PaninoTokens.Radius.panel, style: .continuous)
-        let strokeOpacity = colorSchemeContrast == .increased ? 0.9 : 0.55
-        if !reduceTransparency, let material = theme.effectiveMaterialStrength.material {
-            shape.fill(material)
-            shape.strokeBorder(Color(nsColor: .separatorColor).opacity(strokeOpacity), lineWidth: colorSchemeContrast == .increased ? 1.5 : 1)
-        } else {
-            shape.fill(Color(nsColor: .windowBackgroundColor).opacity(theme.appearance == .highContrast ? 1 : 0.92))
-            shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: colorSchemeContrast == .increased ? 1.5 : 1)
-        }
     }
 }
 

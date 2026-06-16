@@ -135,6 +135,8 @@ private struct LaunchCoverPreview: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: proxy.size.width, height: proxy.size.height)
+                        .scaleEffect(1.08, anchor: UnitPoint(x: CGFloat(instance.coverFocusX), y: CGFloat(instance.coverFocusY)))
+                        .blur(radius: instance.coverBlur * 14, opaque: true)
                         .clipped()
                 } else {
                     LinearGradient(
@@ -149,6 +151,8 @@ private struct LaunchCoverPreview: View {
                         Image(systemName: instance.resolvedIconName)
                             .font(.system(size: 34, weight: .semibold))
                             .foregroundStyle(instance.coverTintColor)
+                            .frame(width: 54, height: 54)
+                            .background(iconBackdrop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         Text("Minecraft \(instance.minecraftVersion)")
                             .font(.headline)
                             .lineLimit(1)
@@ -161,7 +165,7 @@ private struct LaunchCoverPreview: View {
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
                 }
                 LinearGradient(
-                    colors: [.clear, .black.opacity(0.28)],
+                    colors: [.clear, .black.opacity(0.16 + instance.coverDim * 0.52)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -182,6 +186,19 @@ private struct LaunchCoverPreview: View {
                 return
             }
             image = await ThumbnailCache.shared.image(path: instance.coverPath, size: CGSize(width: 420, height: 300))
+        }
+    }
+
+    private var iconBackdrop: Color {
+        switch instance.iconBackdropStyle {
+        case .automatic:
+            return instance.coverPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.clear : Color.black.opacity(0.24)
+        case .none:
+            return Color.clear
+        case .plate:
+            return Color.black.opacity(0.34)
+        case .glass:
+            return Color.white.opacity(0.18)
         }
     }
 }

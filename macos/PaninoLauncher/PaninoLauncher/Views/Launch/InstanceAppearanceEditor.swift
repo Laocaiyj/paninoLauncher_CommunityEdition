@@ -4,11 +4,21 @@ struct InstanceAppearanceValues: Equatable {
     var iconName: String
     var coverPath: String
     var coverColorHex: String
+    var coverFocusX: Double
+    var coverFocusY: Double
+    var coverBlur: Double
+    var coverDim: Double
+    var iconBackdropStyle: InstanceIconBackdropStyle
 
     init(instance: GameInstance) {
         iconName = instance.iconName
         coverPath = instance.coverPath
         coverColorHex = instance.coverColorHex
+        coverFocusX = instance.coverFocusX
+        coverFocusY = instance.coverFocusY
+        coverBlur = instance.coverBlur
+        coverDim = instance.coverDim
+        iconBackdropStyle = instance.iconBackdropStyle
     }
 }
 
@@ -17,6 +27,11 @@ extension GameInstance {
         iconName = values.iconName
         coverPath = values.coverPath
         coverColorHex = values.coverColorHex
+        coverFocusX = values.coverFocusX
+        coverFocusY = values.coverFocusY
+        coverBlur = values.coverBlur
+        coverDim = values.coverDim
+        iconBackdropStyle = values.iconBackdropStyle
     }
 }
 
@@ -110,12 +125,36 @@ struct InstanceAppearanceEditor: View {
                     }
                     .disabled(values.coverPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+
+                InstanceAppearanceSlider(
+                    title: localizedString(theme.language, english: "Horizontal Focus", chinese: "水平焦点", italian: "Fuoco orizzontale", french: "Point horizontal", spanish: "Enfoque horizontal"),
+                    value: $values.coverFocusX
+                )
+                InstanceAppearanceSlider(
+                    title: localizedString(theme.language, english: "Vertical Focus", chinese: "垂直焦点", italian: "Fuoco verticale", french: "Point vertical", spanish: "Enfoque vertical"),
+                    value: $values.coverFocusY
+                )
+                InstanceAppearanceSlider(
+                    title: localizedString(theme.language, english: "Cover Blur", chinese: "封面模糊", italian: "Sfocatura copertina", french: "Flou couverture", spanish: "Desenfoque portada"),
+                    value: $values.coverBlur
+                )
+                InstanceAppearanceSlider(
+                    title: localizedString(theme.language, english: "Cover Dim", chinese: "封面暗化", italian: "Oscura copertina", french: "Assombrir couverture", spanish: "Oscurecer portada"),
+                    value: $values.coverDim
+                )
             }
 
             InstanceAppearanceSection(
                 title: localizedString(theme.language, english: "Icon", chinese: "图标", italian: "Icona", french: "Icône", spanish: "Icono"),
                 systemImage: "square.grid.3x3"
             ) {
+                Picker(localizedString(theme.language, english: "Backdrop", chinese: "底板", italian: "Sfondo", french: "Fond", spanish: "Fondo"), selection: $values.iconBackdropStyle) {
+                    ForEach(InstanceIconBackdropStyle.allCases) { style in
+                        Text(style.title(language: theme.language)).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
                     ForEach(InstanceAppearanceIconPreset.allCases) { preset in
                         Button {
@@ -220,6 +259,8 @@ private struct InstanceAppearancePreview: View {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFill()
+                    .scaleEffect(1.08, anchor: UnitPoint(x: CGFloat(values.coverFocusX), y: CGFloat(values.coverFocusY)))
+                    .blur(radius: values.coverBlur * 14, opaque: true)
             } else {
                 LinearGradient(
                     colors: [
@@ -232,7 +273,7 @@ private struct InstanceAppearancePreview: View {
             }
 
             LinearGradient(
-                colors: [.black.opacity(0.02), .black.opacity(0.46)],
+                colors: [.black.opacity(0.02), .black.opacity(0.22 + values.coverDim * 0.58)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -241,6 +282,8 @@ private struct InstanceAppearancePreview: View {
                 Image(systemName: values.normalized.iconName)
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(Color.paninoHex(values.coverColorHex, fallback: theme.semanticSelectionColor))
+                    .frame(width: 54, height: 54)
+                    .background(iconBackdrop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Text(instance.name)
                     .font(.title3.bold())
                     .lineLimit(1)
@@ -265,6 +308,19 @@ private struct InstanceAppearancePreview: View {
             image = await ThumbnailCache.shared.image(path: path, size: CGSize(width: 640, height: 360))
         }
     }
+
+    private var iconBackdrop: Color {
+        switch values.iconBackdropStyle {
+        case .automatic:
+            Color.black.opacity(values.coverPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 0.24)
+        case .none:
+            Color.clear
+        case .plate:
+            Color.black.opacity(0.34)
+        case .glass:
+            Color.white.opacity(0.18)
+        }
+    }
 }
 
 private struct InstanceAppearanceSection<Content: View>: View {
@@ -277,6 +333,40 @@ private struct InstanceAppearanceSection<Content: View>: View {
             Label(title, systemImage: systemImage)
                 .font(.headline)
             content()
+        }
+    }
+}
+
+private struct InstanceAppearanceSlider: View {
+    let title: String
+    @Binding var value: Double
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 120, alignment: .leading)
+            Slider(value: $value, in: 0...1, step: 0.01)
+            Text("\(Int((value * 100).rounded()))%")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+extension InstanceIconBackdropStyle {
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .automatic:
+            return localizedString(language, english: "Auto", chinese: "自动", italian: "Auto", french: "Auto", spanish: "Auto")
+        case .none:
+            return localizedString(language, english: "None", chinese: "无", italian: "Nessuno", french: "Aucun", spanish: "Ninguno")
+        case .plate:
+            return localizedString(language, english: "Plate", chinese: "底板", italian: "Piastra", french: "Plaque", spanish: "Placa")
+        case .glass:
+            return localizedString(language, english: "Glass", chinese: "玻璃", italian: "Vetro", french: "Verre", spanish: "Cristal")
         }
     }
 }
@@ -396,14 +486,33 @@ private extension InstanceAppearanceValues {
         InstanceAppearanceValues(
             iconName: iconName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "cube.fill" : iconName.trimmingCharacters(in: .whitespacesAndNewlines),
             coverPath: coverPath.trimmingCharacters(in: .whitespacesAndNewlines),
-            coverColorHex: coverColorHex.normalizedHex.isEmpty ? GameInstance.defaultCoverColorHex : coverColorHex.normalizedHex
+            coverColorHex: coverColorHex.normalizedHex.isEmpty ? GameInstance.defaultCoverColorHex : coverColorHex.normalizedHex,
+            coverFocusX: GameInstance.clampedUnit(coverFocusX),
+            coverFocusY: GameInstance.clampedUnit(coverFocusY),
+            coverBlur: GameInstance.clampedUnit(coverBlur),
+            coverDim: GameInstance.clampedUnit(coverDim),
+            iconBackdropStyle: iconBackdropStyle
         )
     }
 
-    init(iconName: String, coverPath: String, coverColorHex: String) {
+    init(
+        iconName: String,
+        coverPath: String,
+        coverColorHex: String,
+        coverFocusX: Double,
+        coverFocusY: Double,
+        coverBlur: Double,
+        coverDim: Double,
+        iconBackdropStyle: InstanceIconBackdropStyle
+    ) {
         self.iconName = iconName
         self.coverPath = coverPath
         self.coverColorHex = coverColorHex
+        self.coverFocusX = coverFocusX
+        self.coverFocusY = coverFocusY
+        self.coverBlur = coverBlur
+        self.coverDim = coverDim
+        self.iconBackdropStyle = iconBackdropStyle
     }
 }
 

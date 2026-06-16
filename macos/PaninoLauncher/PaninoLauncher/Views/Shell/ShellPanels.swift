@@ -43,8 +43,16 @@ struct BottomStatusBar: View {
     @ObservedObject var viewModel: LauncherViewModel
     let openActivity: () -> Void
     @EnvironmentObject private var theme: ThemeSettings
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
+        let tokens = theme.resolvedTokens(
+            reduceTransparency: reduceTransparency,
+            increasedContrast: colorSchemeContrast == .increased,
+            reduceMotion: reduceMotion
+        )
         HStack(spacing: 10) {
             PlainStatusText(title: viewModel.coreState.localizedTitle(theme.language), style: viewModel.coreState.isReady ? .success : .neutral)
 
@@ -72,11 +80,21 @@ struct BottomStatusBar: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture(perform: openActivity)
-        .background(.thinMaterial)
+        .background {
+            if let material = tokens.surfaceMaterial {
+                Rectangle()
+                    .fill(material)
+                    .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.8))
+            } else {
+                Rectangle()
+                    .fill(tokens.surfaceFill.opacity(tokens.surfaceFillOpacity))
+            }
+        }
+        .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.25))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color(nsColor: .separatorColor))
-                .frame(height: 1)
+                .fill(tokens.strokeColor.opacity(tokens.strokeOpacity))
+                .frame(height: tokens.strokeWidth)
         }
     }
 

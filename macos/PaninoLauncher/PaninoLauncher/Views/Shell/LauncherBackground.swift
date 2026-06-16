@@ -12,8 +12,13 @@ struct LauncherBackground: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let tokens = theme.resolvedTokens(
+                reduceTransparency: reduceTransparency,
+                increasedContrast: colorSchemeContrast == .increased,
+                reduceMotion: reduceMotion
+            )
             ZStack {
-                baseBackground(size: proxy.size)
+                baseBackground(size: proxy.size, tokens: tokens)
 
                 if isImmersiveEnabled,
                    theme.effectiveSoftBackgroundEnabled,
@@ -33,7 +38,7 @@ struct LauncherBackground: View {
                                 )
                                 context.fill(
                                     Path(roundedRect: rect.insetBy(dx: 66, dy: 66), cornerRadius: 8),
-                                    with: .color(theme.semanticSelectionColor.opacity(0.012))
+                                    with: .color(tokens.selectionColor.opacity(tokens.textureOpacity))
                                 )
                             }
                         }
@@ -49,31 +54,31 @@ struct LauncherBackground: View {
     }
 
     @ViewBuilder
-    private func baseBackground(size: CGSize) -> some View {
+    private func baseBackground(size: CGSize, tokens: ResolvedThemeTokens) -> some View {
         if theme.quietModeEnabled || reduceTransparency || colorSchemeContrast == .increased {
             Color(nsColor: .windowBackgroundColor)
                 .frame(width: size.width, height: size.height)
         } else if isImmersiveEnabled {
-            immersiveBackground(size: size)
+            immersiveBackground(size: size, tokens: tokens)
         } else if case .customImage = theme.effectiveBackgroundMode,
                   let image = theme.cachedBackgroundImage {
-            workbenchImageBackground(image: image, size: size)
+            workbenchImageBackground(image: image, size: size, tokens: tokens)
         } else {
-            quietBackground(size: size)
+            quietBackground(size: size, tokens: tokens)
         }
     }
 
     @ViewBuilder
-    private func immersiveBackground(size: CGSize) -> some View {
+    private func immersiveBackground(size: CGSize, tokens: ResolvedThemeTokens) -> some View {
         switch theme.effectiveBackgroundMode {
         case .default:
-            quietBackground(size: size)
+            quietBackground(size: size, tokens: tokens)
         case .currentInstance:
             ZStack {
                 LinearGradient(
                     colors: [
-                        theme.semanticSelectionColor.opacity(colorSchemeContrast == .increased ? 0.06 : 0.12),
-                        Color(nsColor: .controlBackgroundColor).opacity(0.36),
+                        tokens.selectionColor.opacity(colorSchemeContrast == .increased ? 0.06 : tokens.accentBackgroundOpacity),
+                        Color(nsColor: .controlBackgroundColor).opacity(0.30),
                         Color(nsColor: .windowBackgroundColor)
                     ],
                     startPoint: .topLeading,
@@ -82,7 +87,7 @@ struct LauncherBackground: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Minecraft \(version)")
                         .font(.system(size: 54, weight: .bold, design: .rounded))
-                        .foregroundStyle(theme.semanticSelectionColor.opacity(colorSchemeContrast == .increased ? 0.08 : 0.11))
+                        .foregroundStyle(tokens.selectionColor.opacity(colorSchemeContrast == .increased ? 0.08 : 0.10))
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                     Spacer()
@@ -99,34 +104,36 @@ struct LauncherBackground: View {
                     .scaledToFill()
                     .frame(width: size.width, height: size.height)
                     .clipped()
-                    .overlay(Color(nsColor: .windowBackgroundColor).opacity(colorSchemeContrast == .increased ? 0.72 : 0.50))
+                    .blur(radius: tokens.backgroundBlurRadius, opaque: true)
+                    .overlay(Color(nsColor: .windowBackgroundColor).opacity(colorSchemeContrast == .increased ? 0.72 : tokens.backgroundDimOpacity))
+                    .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.55))
             } else {
                 Color(nsColor: .windowBackgroundColor)
                     .frame(width: size.width, height: size.height)
             }
         case .solidColor:
-            theme.semanticSelectionColor.opacity(theme.appearance == .highContrast ? 0.24 : 0.14)
-                .overlay(Color(nsColor: .windowBackgroundColor).opacity(0.68))
+            tokens.selectionColor.opacity(theme.appearance == .highContrast ? 0.18 : tokens.accentBackgroundOpacity)
+                .overlay(Color(nsColor: .windowBackgroundColor).opacity(tokens.backgroundDimOpacity))
                 .frame(width: size.width, height: size.height)
         }
     }
 
-    private func workbenchImageBackground(image: NSImage, size: CGSize) -> some View {
+    private func workbenchImageBackground(image: NSImage, size: CGSize, tokens: ResolvedThemeTokens) -> some View {
         Image(nsImage: image)
             .resizable()
             .scaledToFill()
             .frame(width: size.width, height: size.height)
             .scaleEffect(1.06)
-            .blur(radius: reduceMotion ? 16 : 22, opaque: true)
-            .saturation(0.62)
-            .brightness(-0.08)
-            .overlay(Color(nsColor: .windowBackgroundColor).opacity(theme.appearance == .dark ? 0.66 : 0.74))
-            .overlay(theme.semanticSelectionColor.opacity(0.05))
+            .blur(radius: reduceMotion ? 10 : tokens.backgroundBlurRadius, opaque: true)
+            .saturation(theme.visualNoiseReductionEnabled ? 0.48 : 0.66)
+            .brightness(-0.06)
+            .overlay(Color(nsColor: .windowBackgroundColor).opacity(tokens.backgroundDimOpacity))
+            .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.65))
             .clipped()
     }
 
     @ViewBuilder
-    private func quietBackground(size: CGSize) -> some View {
+    private func quietBackground(size: CGSize, tokens: ResolvedThemeTokens) -> some View {
         if theme.quietModeEnabled || reduceTransparency || colorSchemeContrast == .increased {
             Color(nsColor: .windowBackgroundColor)
                 .frame(width: size.width, height: size.height)
@@ -135,7 +142,7 @@ struct LauncherBackground: View {
                 colors: [
                     Color(nsColor: .windowBackgroundColor),
                     Color(nsColor: .controlBackgroundColor),
-                    theme.semanticSelectionColor.opacity(0.045)
+                    tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.65)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

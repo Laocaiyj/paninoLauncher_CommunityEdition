@@ -74,6 +74,9 @@ struct InstanceCreationWizard: View {
     @State private var modpackPreflightStatus = ""
     @State private var isCheckingModpack = false
     @State private var pendingModpackImportReview: PendingModpackImportReview?
+    @State private var versionSearchText = ""
+    @State private var showingVersionPicker = false
+    private let versionPickerLimit = 120
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -110,13 +113,17 @@ struct InstanceCreationWizard: View {
                 case .version:
                     VStack(alignment: .leading, spacing: 12) {
                         SettingsRow(title: "Minecraft", systemImage: "cube.box") {
-                            Picker("Version", selection: $draft.minecraftVersion) {
-                                ForEach(recommendedVersions) { version in
-                                    Text(version.id).tag(version.id)
-                                }
+                            MinecraftVersionSearchButton(
+                                selectedVersionID: draft.minecraftVersion,
+                                versions: versionPickerVersions,
+                                totalMatches: versionPickerTotalMatches,
+                                limit: versionPickerLimit,
+                                searchText: $versionSearchText,
+                                showingPicker: $showingVersionPicker
+                            ) { version in
+                                draft.minecraftVersion = version.id
+                                showingVersionPicker = false
                             }
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: 280)
                         }
 
                         if draft.source == "Mod Configuration" {
@@ -346,6 +353,43 @@ struct InstanceCreationWizard: View {
                 + versionStore.versions.filter(\.isInstalled)
                 + Array(versionStore.versions.filter { $0.kind == .release }.prefix(8))
         )
+    }
+
+    private var versionPickerMatches: [MinecraftVersionInfo] {
+        let query = versionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = query.isEmpty
+            ? uniqueVersions(
+                recommendedVersions
+                    + Array(versionStore.versions.filter { $0.kind == .release }.prefix(80))
+                    + versionStore.versions.filter(\.isUsedByInstance)
+              )
+            : versionStore.versions.filter { $0.id.localizedCaseInsensitiveContains(query) }
+        return uniqueVersions(base).sorted { lhs, rhs in
+            if !query.isEmpty {
+                let lowerQuery = query.lowercased()
+                let lhsExact = lhs.id.caseInsensitiveCompare(query) == .orderedSame
+                let rhsExact = rhs.id.caseInsensitiveCompare(query) == .orderedSame
+                if lhsExact != rhsExact { return lhsExact && !rhsExact }
+                let lhsPrefix = lhs.id.lowercased().hasPrefix(lowerQuery)
+                let rhsPrefix = rhs.id.lowercased().hasPrefix(lowerQuery)
+                if lhsPrefix != rhsPrefix { return lhsPrefix && !rhsPrefix }
+            }
+            if lhs.isUsedByInstance != rhs.isUsedByInstance {
+                return lhs.isUsedByInstance && !rhs.isUsedByInstance
+            }
+            if lhs.isInstalled != rhs.isInstalled {
+                return lhs.isInstalled && !rhs.isInstalled
+            }
+            return lhs.id.localizedStandardCompare(rhs.id) == .orderedDescending
+        }
+    }
+
+    private var versionPickerVersions: [MinecraftVersionInfo] {
+        Array(versionPickerMatches.prefix(versionPickerLimit))
+    }
+
+    private var versionPickerTotalMatches: Int {
+        versionPickerMatches.count
     }
 
     private var latestReleaseVersions: [MinecraftVersionInfo] {
@@ -613,6 +657,111 @@ struct InstanceCreationWizard: View {
             loaderStatus = "Core loader compatibility failed: \(error.localizedDescription)"
         }
         isLoadingLoaders = false
+    }
+}
+
+private struct MinecraftVersionSearchButton: View {
+    let selectedVersionID: String
+    let versions: [MinecraftVersionInfo]
+    let totalMatches: Int
+    let limit: Int
+    @Binding var searchText: String
+    @Binding var showingPicker: Bool
+    let select: (MinecraftVersionInfo) -> Void
+
+    @EnvironmentObject private var theme: ThemeSettings
+
+    var body: some View {
+        Button {
+            showingPicker = true
+        } label: {
+            HStack(spacing: 8) {
+                Text(selectedVersionID)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "magnifyingglass")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: 280, alignment: .trailing)
+        }
+        .buttonStyle(.borderless)
+        .popover(isPresented: $showingPicker, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                PaninoTextInput(
+                    localizedString(theme.language, english: "Search Minecraft version", chinese: "搜索 Minecraft 版本", italian: "Cerca versione Minecraft", french: "Rechercher une version Minecraft", spanish: "Buscar version de Minecraft"),
+                    text: $searchText
+                )
+
+                if versions.isEmpty {
+                    ContentUnavailableView(
+                        localizedString(theme.language, english: "No versions found", chinese: "未找到版本", italian: "Nessuna versione", french: "Aucune version", spanish: "Sin versiones"),
+                        systemImage: "tray",
+                        description: Text(searchText)
+                    )
+                    .frame(minHeight: 140)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 4) {
+                            ForEach(versions) { version in
+                                Button {
+                                    select(version)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(version.id)
+                                                .font(.callout.weight(.semibold))
+                                            Text(version.kind.title)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if version.id == selectedVersionID {
+                                            Image(systemName: "checkmark")
+                                                .foregroundStyle(theme.semanticSelectionColor)
+                                        }
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(version.id == selectedVersionID ? theme.semanticSelectionColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(height: 300)
+                }
+
+                Text(resultSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(12)
+            .frame(width: 340)
+        }
+    }
+
+    private var resultSummary: String {
+        if totalMatches > limit {
+            return localizedString(
+                theme.language,
+                english: "Showing \(limit) of \(totalMatches) matches. Type to narrow results.",
+                chinese: "显示 \(totalMatches) 个匹配中的前 \(limit) 个。输入关键字可缩小范围。",
+                italian: "Mostrate \(limit) di \(totalMatches) corrispondenze.",
+                french: "Affiche \(limit) sur \(totalMatches) resultats.",
+                spanish: "Mostrando \(limit) de \(totalMatches) coincidencias."
+            )
+        }
+        return localizedString(
+            theme.language,
+            english: "\(totalMatches) matching versions",
+            chinese: "\(totalMatches) 个匹配版本",
+            italian: "\(totalMatches) versioni corrispondenti",
+            french: "\(totalMatches) versions correspondantes",
+            spanish: "\(totalMatches) versiones coincidentes"
+        )
     }
 }
 

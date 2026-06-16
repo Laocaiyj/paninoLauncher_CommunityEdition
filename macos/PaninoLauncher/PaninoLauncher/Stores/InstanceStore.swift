@@ -63,6 +63,15 @@ enum InstanceGraphicsProfile: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum InstanceIconBackdropStyle: String, Codable, CaseIterable, Identifiable {
+    case automatic
+    case none
+    case plate
+    case glass
+
+    var id: String { rawValue }
+}
+
 struct JvmTuningSnapshot: Codable, Equatable, Identifiable {
     var id: UUID
     var instanceId: UUID
@@ -122,6 +131,11 @@ struct GameInstance: Codable, Identifiable, Equatable {
     var iconName: String
     var coverPath: String
     var coverColorHex: String
+    var coverFocusX: Double
+    var coverFocusY: Double
+    var coverBlur: Double
+    var coverDim: Double
+    var iconBackdropStyle: InstanceIconBackdropStyle
     var minecraftVersion: String
     var baseMinecraftVersion: String?
     var gameDirectory: String
@@ -157,6 +171,11 @@ struct GameInstance: Codable, Identifiable, Equatable {
         iconName: String,
         coverPath: String,
         coverColorHex: String = GameInstance.defaultCoverColorHex,
+        coverFocusX: Double = 0.5,
+        coverFocusY: Double = 0.5,
+        coverBlur: Double = 0,
+        coverDim: Double = 0.28,
+        iconBackdropStyle: InstanceIconBackdropStyle = .automatic,
         minecraftVersion: String,
         gameDirectory: String,
         javaPath: String,
@@ -191,6 +210,11 @@ struct GameInstance: Codable, Identifiable, Equatable {
         self.iconName = iconName
         self.coverPath = coverPath
         self.coverColorHex = coverColorHex
+        self.coverFocusX = Self.clampedUnit(coverFocusX)
+        self.coverFocusY = Self.clampedUnit(coverFocusY)
+        self.coverBlur = Self.clampedUnit(coverBlur)
+        self.coverDim = Self.clampedUnit(coverDim)
+        self.iconBackdropStyle = iconBackdropStyle
         self.minecraftVersion = minecraftVersion
         self.baseMinecraftVersion = baseMinecraftVersion
         self.gameDirectory = gameDirectory
@@ -227,6 +251,11 @@ struct GameInstance: Codable, Identifiable, Equatable {
         case iconName
         case coverPath
         case coverColorHex
+        case coverFocusX
+        case coverFocusY
+        case coverBlur
+        case coverDim
+        case iconBackdropStyle
         case minecraftVersion
         case baseMinecraftVersion
         case gameDirectory
@@ -264,6 +293,11 @@ struct GameInstance: Codable, Identifiable, Equatable {
         iconName = try container.decode(String.self, forKey: .iconName)
         coverPath = try container.decode(String.self, forKey: .coverPath)
         coverColorHex = try container.decodeIfPresent(String.self, forKey: .coverColorHex) ?? Self.defaultCoverColorHex
+        coverFocusX = Self.clampedUnit(try container.decodeIfPresent(Double.self, forKey: .coverFocusX) ?? 0.5)
+        coverFocusY = Self.clampedUnit(try container.decodeIfPresent(Double.self, forKey: .coverFocusY) ?? 0.5)
+        coverBlur = Self.clampedUnit(try container.decodeIfPresent(Double.self, forKey: .coverBlur) ?? 0)
+        coverDim = Self.clampedUnit(try container.decodeIfPresent(Double.self, forKey: .coverDim) ?? 0.28)
+        iconBackdropStyle = try container.decodeIfPresent(InstanceIconBackdropStyle.self, forKey: .iconBackdropStyle) ?? .automatic
         minecraftVersion = try container.decode(String.self, forKey: .minecraftVersion)
         baseMinecraftVersion = try container.decodeIfPresent(String.self, forKey: .baseMinecraftVersion)
         gameDirectory = try container.decode(String.self, forKey: .gameDirectory)
@@ -309,6 +343,10 @@ extension GameInstance {
 
     var coverTintColor: Color {
         Color.paninoHex(coverColorHex, fallback: status.badgeStyle.color)
+    }
+
+    static func clampedUnit(_ value: Double) -> Double {
+        min(max(value, 0), 1)
     }
 
     var contentMinecraftVersion: String {

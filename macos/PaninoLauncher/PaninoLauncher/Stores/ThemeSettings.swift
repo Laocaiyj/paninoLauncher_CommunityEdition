@@ -57,6 +57,12 @@ enum ThemeAccentColor: String, CaseIterable, Identifiable {
     case red
     case purple
     case graphite
+    case teal
+    case mint
+    case pink
+    case indigo
+    case slate
+    case custom
 
     var id: String { rawValue }
 
@@ -76,6 +82,18 @@ enum ThemeAccentColor: String, CaseIterable, Identifiable {
             return "Purple"
         case .graphite:
             return "Graphite"
+        case .teal:
+            return "Teal"
+        case .mint:
+            return "Mint"
+        case .pink:
+            return "Pink"
+        case .indigo:
+            return "Indigo"
+        case .slate:
+            return "Slate"
+        case .custom:
+            return "Custom"
         }
     }
 
@@ -95,6 +113,18 @@ enum ThemeAccentColor: String, CaseIterable, Identifiable {
             return .purple
         case .graphite:
             return .gray
+        case .teal:
+            return Color(red: 0.05, green: 0.58, blue: 0.62)
+        case .mint:
+            return Color(red: 0.20, green: 0.78, blue: 0.58)
+        case .pink:
+            return Color(red: 0.93, green: 0.20, blue: 0.55)
+        case .indigo:
+            return Color(red: 0.32, green: 0.36, blue: 0.93)
+        case .slate:
+            return Color(red: 0.38, green: 0.43, blue: 0.50)
+        case .custom:
+            return nil
         }
     }
 }
@@ -103,6 +133,11 @@ enum ThemePreset: String, CaseIterable, Identifiable {
     case vanilla
     case nether
     case deepDark
+    case liquidGlass
+    case frostedGraphite
+    case minecraftAmbient
+    case focusSolid
+    case highLegibility
 
     var id: String { rawValue }
 
@@ -114,6 +149,100 @@ enum ThemePreset: String, CaseIterable, Identifiable {
             return "Nether"
         case .deepDark:
             return "Deep Dark"
+        case .liquidGlass:
+            return "Liquid Glass"
+        case .frostedGraphite:
+            return "Frosted Graphite"
+        case .minecraftAmbient:
+            return "Minecraft Ambient"
+        case .focusSolid:
+            return "Focus Solid"
+        case .highLegibility:
+            return "High Legibility"
+        }
+    }
+}
+
+enum ThemeGlassStyle: String, CaseIterable, Identifiable {
+    case automatic
+    case clear
+    case frosted
+    case solid
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: return "Automatic"
+        case .clear: return "Clear"
+        case .frosted: return "Frosted"
+        case .solid: return "Solid"
+        }
+    }
+}
+
+enum ThemeChromeStyle: String, CaseIterable, Identifiable {
+    case integrated
+    case floatingToolbar
+    case edgeToEdgeSidebar
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .integrated: return "Integrated"
+        case .floatingToolbar: return "Floating Toolbar"
+        case .edgeToEdgeSidebar: return "Edge-to-edge Sidebar"
+        }
+    }
+}
+
+enum ThemeDepthStyle: String, CaseIterable, Identifiable {
+    case flat
+    case soft
+    case layered
+    case retro
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .flat: return "Minimal"
+        case .soft: return "Spatial"
+        case .layered: return "Liquid"
+        case .retro: return "Retro"
+        }
+    }
+}
+
+enum ThemeControlShape: String, CaseIterable, Identifiable {
+    case roundedRect
+    case capsule
+    case concentric
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .roundedRect: return "Rounded Rect"
+        case .capsule: return "Capsule"
+        case .concentric: return "Concentric"
+        }
+    }
+}
+
+enum ThemeMotionStyle: String, CaseIterable, Identifiable {
+    case system
+    case reduced
+    case expressive
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: return "System"
+        case .reduced: return "Reduced"
+        case .expressive: return "Expressive"
         }
     }
 }
@@ -310,6 +439,17 @@ final class ThemeSettings: ObservableObject {
         static let customImageBookmark = "Theme.CustomImageBookmark"
         static let softBackgroundEnabled = "Theme.SoftBackgroundEnabled"
         static let quietModeEnabled = "Theme.QuietModeEnabled"
+        static let glassStyle = "Theme.GlassStyle"
+        static let chromeStyle = "Theme.ChromeStyle"
+        static let depthStyle = "Theme.DepthStyle"
+        static let controlShape = "Theme.ControlShape"
+        static let motionStyle = "Theme.MotionStyle"
+        static let customAccentHex = "Theme.CustomAccentHex"
+        static let glassFrosting = "Theme.GlassFrosting"
+        static let backgroundBlur = "Theme.BackgroundBlur"
+        static let backgroundDim = "Theme.BackgroundDim"
+        static let surfaceContrast = "Theme.SurfaceContrast"
+        static let visualNoiseReductionEnabled = "Theme.VisualNoiseReductionEnabled"
     }
 
     @Published var language: AppLanguage = ThemeSettings.loadEnum(
@@ -364,6 +504,86 @@ final class ThemeSettings: ObservableObject {
         didSet { SettingsStore.set(fontDensity.rawValue, forKey: Key.fontDensity) }
     }
 
+    @Published var glassStyle: ThemeGlassStyle = ThemeSettings.loadEnum(
+        key: Key.glassStyle,
+        defaultValue: .automatic
+    ) {
+        didSet { SettingsStore.set(glassStyle.rawValue, forKey: Key.glassStyle) }
+    }
+
+    @Published var chromeStyle: ThemeChromeStyle = ThemeSettings.loadEnum(
+        key: Key.chromeStyle,
+        defaultValue: .floatingToolbar
+    ) {
+        didSet { SettingsStore.set(chromeStyle.rawValue, forKey: Key.chromeStyle) }
+    }
+
+    @Published var depthStyle: ThemeDepthStyle = ThemeSettings.loadEnum(
+        key: Key.depthStyle,
+        defaultValue: .soft
+    ) {
+        didSet { SettingsStore.set(depthStyle.rawValue, forKey: Key.depthStyle) }
+    }
+
+    @Published var controlShape: ThemeControlShape = ThemeSettings.loadEnum(
+        key: Key.controlShape,
+        defaultValue: .roundedRect
+    ) {
+        didSet { SettingsStore.set(controlShape.rawValue, forKey: Key.controlShape) }
+    }
+
+    @Published var motionStyle: ThemeMotionStyle = ThemeSettings.loadEnum(
+        key: Key.motionStyle,
+        defaultValue: .system
+    ) {
+        didSet { SettingsStore.set(motionStyle.rawValue, forKey: Key.motionStyle) }
+    }
+
+    @Published var customAccentHex: String = SettingsStore.string(
+        forKey: Key.customAccentHex,
+        default: "#FF4F5E"
+    ) {
+        didSet {
+            SettingsStore.set(Self.normalizedCustomAccentHex(customAccentHex), forKey: Key.customAccentHex)
+        }
+    }
+
+    @Published var glassFrosting: Double = SettingsStore.double(
+        forKey: Key.glassFrosting,
+        default: 0.58
+    ) {
+        didSet {
+            SettingsStore.set(Self.clampedUnit(glassFrosting), forKey: Key.glassFrosting)
+        }
+    }
+
+    @Published var backgroundBlur: Double = SettingsStore.double(
+        forKey: Key.backgroundBlur,
+        default: 0.46
+    ) {
+        didSet {
+            SettingsStore.set(Self.clampedUnit(backgroundBlur), forKey: Key.backgroundBlur)
+        }
+    }
+
+    @Published var backgroundDim: Double = SettingsStore.double(
+        forKey: Key.backgroundDim,
+        default: 0.54
+    ) {
+        didSet {
+            SettingsStore.set(Self.clampedUnit(backgroundDim), forKey: Key.backgroundDim)
+        }
+    }
+
+    @Published var surfaceContrast: Double = SettingsStore.double(
+        forKey: Key.surfaceContrast,
+        default: 0.46
+    ) {
+        didSet {
+            SettingsStore.set(Self.clampedUnit(surfaceContrast), forKey: Key.surfaceContrast)
+        }
+    }
+
     @Published var customImagePath: String = SettingsStore.string(forKey: Key.customImagePath, default: "") {
         didSet {
             SettingsStore.set(customImagePath, forKey: Key.customImagePath)
@@ -399,8 +619,18 @@ final class ThemeSettings: ObservableObject {
         didSet { SettingsStore.set(quietModeEnabled, forKey: Key.quietModeEnabled) }
     }
 
+    @Published var visualNoiseReductionEnabled: Bool = SettingsStore.bool(
+        forKey: Key.visualNoiseReductionEnabled,
+        default: false
+    ) {
+        didSet { SettingsStore.set(visualNoiseReductionEnabled, forKey: Key.visualNoiseReductionEnabled) }
+    }
+
     var accentColor: Color {
-        accent.color ?? Color.accentColor
+        if accent == .custom {
+            return Color.paninoHex(customAccentHex, fallback: .red)
+        }
+        return accent.color ?? Color.accentColor
     }
 
     var effectiveMaterialStrength: MaterialStrength {
@@ -412,11 +642,11 @@ final class ThemeSettings: ObservableObject {
     }
 
     var effectiveSoftBackgroundEnabled: Bool {
-        !quietModeEnabled && softBackgroundEnabled
+        !quietModeEnabled && !visualNoiseReductionEnabled && softBackgroundEnabled
     }
 
     var reducesInterfaceMotion: Bool {
-        quietModeEnabled
+        quietModeEnabled || motionStyle == .reduced
     }
 
     func applyPreset(_ preset: ThemePreset) {
@@ -427,18 +657,133 @@ final class ThemeSettings: ObservableObject {
             materialStrength = .medium
             backgroundMode = .default
             fontDensity = .standard
+            glassStyle = .automatic
+            chromeStyle = .floatingToolbar
+            depthStyle = .soft
+            controlShape = .roundedRect
+            motionStyle = .system
+            glassFrosting = 0.52
+            backgroundBlur = 0.36
+            backgroundDim = 0.48
+            surfaceContrast = 0.42
+            visualNoiseReductionEnabled = false
         case .nether:
             accent = .red
             materialStrength = .low
             backgroundMode = .solidColor
             fontDensity = .standard
+            glassStyle = .frosted
+            chromeStyle = .floatingToolbar
+            depthStyle = .soft
+            controlShape = .roundedRect
+            motionStyle = .system
+            glassFrosting = 0.66
+            backgroundBlur = 0.40
+            backgroundDim = 0.62
+            surfaceContrast = 0.52
+            visualNoiseReductionEnabled = false
         case .deepDark:
             appearance = .dark
             accent = .purple
             materialStrength = .high
             backgroundMode = .currentInstance
             fontDensity = .compact
+            glassStyle = .frosted
+            chromeStyle = .integrated
+            depthStyle = .layered
+            controlShape = .roundedRect
+            motionStyle = .system
+            glassFrosting = 0.72
+            backgroundBlur = 0.58
+            backgroundDim = 0.68
+            surfaceContrast = 0.60
+            visualNoiseReductionEnabled = false
+        case .liquidGlass:
+            appearance = .system
+            accent = .red
+            materialStrength = .medium
+            backgroundMode = .currentInstance
+            fontDensity = .standard
+            glassStyle = .clear
+            chromeStyle = .floatingToolbar
+            depthStyle = .layered
+            controlShape = .concentric
+            motionStyle = .expressive
+            glassFrosting = 0.42
+            backgroundBlur = 0.44
+            backgroundDim = 0.50
+            surfaceContrast = 0.44
+            visualNoiseReductionEnabled = false
+        case .frostedGraphite:
+            appearance = .system
+            accent = .slate
+            materialStrength = .high
+            backgroundMode = .default
+            fontDensity = .standard
+            glassStyle = .frosted
+            chromeStyle = .floatingToolbar
+            depthStyle = .soft
+            controlShape = .roundedRect
+            motionStyle = .system
+            glassFrosting = 0.82
+            backgroundBlur = 0.62
+            backgroundDim = 0.58
+            surfaceContrast = 0.56
+            visualNoiseReductionEnabled = true
+        case .minecraftAmbient:
+            appearance = .system
+            accent = .emerald
+            materialStrength = .medium
+            backgroundMode = .currentInstance
+            fontDensity = .comfortable
+            glassStyle = .frosted
+            chromeStyle = .floatingToolbar
+            depthStyle = .layered
+            controlShape = .roundedRect
+            motionStyle = .expressive
+            glassFrosting = 0.56
+            backgroundBlur = 0.50
+            backgroundDim = 0.52
+            surfaceContrast = 0.46
+            visualNoiseReductionEnabled = false
+        case .focusSolid:
+            appearance = .system
+            accent = .blue
+            materialStrength = .off
+            backgroundMode = .solidColor
+            fontDensity = .compact
+            glassStyle = .solid
+            chromeStyle = .integrated
+            depthStyle = .flat
+            controlShape = .roundedRect
+            motionStyle = .reduced
+            glassFrosting = 1
+            backgroundBlur = 0
+            backgroundDim = 0.74
+            surfaceContrast = 0.70
+            visualNoiseReductionEnabled = true
+        case .highLegibility:
+            appearance = .highContrast
+            accent = .amber
+            materialStrength = .off
+            backgroundMode = .solidColor
+            fontDensity = .comfortable
+            glassStyle = .solid
+            chromeStyle = .integrated
+            depthStyle = .flat
+            controlShape = .roundedRect
+            motionStyle = .reduced
+            glassFrosting = 1
+            backgroundBlur = 0
+            backgroundDim = 0.80
+            surfaceContrast = 0.86
+            visualNoiseReductionEnabled = true
         }
+    }
+
+    static func normalizedCustomAccentHex(_ value: String) -> String {
+        let normalized = value.normalizedHex
+        return normalized.isEmpty ? "#FF4F5E" : normalized
     }
 
     func loadCustomBackgroundImage() {
@@ -495,6 +840,10 @@ final class ThemeSettings: ObservableObject {
     ) -> Value where Value.RawValue == String {
         let rawValue = SettingsStore.string(forKey: key, default: defaultValue.rawValue)
         return Value(rawValue: rawValue) ?? defaultValue
+    }
+
+    private static func clampedUnit(_ value: Double) -> Double {
+        min(max(value, 0), 1)
     }
 
     private func applyAppAppearance() {

@@ -383,10 +383,18 @@ private struct TopNavigationBar: View {
     @Binding var selection: LauncherSection?
     @EnvironmentObject private var theme: ThemeSettings
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         GeometryReader { proxy in
             let horizontalPadding = PaninoTokens.Layout.pagePadding(for: proxy.size.width)
+            let tokens = theme.resolvedTokens(
+                reduceTransparency: reduceTransparency,
+                increasedContrast: colorSchemeContrast == .increased,
+                reduceMotion: reduceMotion
+            )
+            let navigationCornerRadius = navigationContainerCornerRadius(tokens: tokens)
 
             HStack(spacing: 18) {
                 HStack(spacing: 10) {
@@ -403,14 +411,28 @@ private struct TopNavigationBar: View {
                     ForEach(LauncherSection.primaryCases) { section in
                         TopNavigationItem(
                             title: section.title(language: theme.language),
-                            isSelected: (selection ?? .launch).primaryParent == section
+                            isSelected: (selection ?? .launch).primaryParent == section,
+                            tokens: tokens,
+                            chromeStyle: theme.chromeStyle
                         ) {
                             selection = section
                         }
                     }
                 }
-                .padding(4)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.36), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(theme.chromeStyle == .integrated ? 2 : 4)
+                .background {
+                    navigationContainerBackground(tokens: tokens, cornerRadius: navigationCornerRadius)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: navigationCornerRadius, style: .continuous)
+                        .stroke(tokens.strokeColor.opacity(navigationStrokeOpacity(tokens: tokens)), lineWidth: tokens.strokeWidth)
+                }
+                .shadow(
+                    color: Color.black.opacity(navigationShadowOpacity(tokens: tokens)),
+                    radius: navigationShadowRadius(tokens: tokens),
+                    x: 0,
+                    y: navigationShadowYOffset(tokens: tokens)
+                )
 
                 Spacer(minLength: 16)
             }
@@ -419,11 +441,90 @@ private struct TopNavigationBar: View {
         }
         .frame(height: PaninoTokens.Layout.topNavigationHeight)
         .background {
-            if reduceTransparency {
+            if theme.chromeStyle == .floatingToolbar {
+                Color.clear
+            } else if reduceTransparency {
                 Color(nsColor: .windowBackgroundColor).opacity(0.96)
             } else {
-                Rectangle().fill(.thinMaterial)
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(theme.chromeStyle == .edgeToEdgeSidebar ? .regularMaterial : .thinMaterial)
+                        .overlay(theme.semanticSelectionColor.opacity(theme.chromeStyle == .edgeToEdgeSidebar ? 0.055 : 0.018))
+
+                    if theme.chromeStyle == .edgeToEdgeSidebar {
+                        Rectangle()
+                            .fill(theme.semanticSelectionColor.opacity(0.12))
+                            .frame(width: 184)
+                    }
+                }
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor).opacity(0.36))
+                        .frame(height: 1)
+                }
             }
+        }
+    }
+
+    private func navigationContainerCornerRadius(tokens: ResolvedThemeTokens) -> CGFloat {
+        switch theme.chromeStyle {
+        case .integrated:
+            return min(tokens.navigationCornerRadius, 14)
+        case .floatingToolbar:
+            return tokens.navigationCornerRadius
+        case .edgeToEdgeSidebar:
+            return min(tokens.navigationCornerRadius, 12)
+        }
+    }
+
+    private func navigationStrokeOpacity(tokens: ResolvedThemeTokens) -> Double {
+        switch theme.chromeStyle {
+        case .integrated:
+            return 0
+        case .floatingToolbar:
+            return tokens.strokeOpacity * 0.78
+        case .edgeToEdgeSidebar:
+            return tokens.strokeOpacity * 0.46
+        }
+    }
+
+    private func navigationShadowOpacity(tokens: ResolvedThemeTokens) -> Double {
+        switch theme.chromeStyle {
+        case .integrated:
+            return 0
+        case .floatingToolbar:
+            return tokens.shadowOpacity
+        case .edgeToEdgeSidebar:
+            return tokens.shadowOpacity * 0.35
+        }
+    }
+
+    private func navigationShadowRadius(tokens: ResolvedThemeTokens) -> CGFloat {
+        theme.chromeStyle == .floatingToolbar ? tokens.shadowRadius * 0.65 : tokens.shadowRadius * 0.25
+    }
+
+    private func navigationShadowYOffset(tokens: ResolvedThemeTokens) -> CGFloat {
+        theme.chromeStyle == .floatingToolbar ? tokens.shadowYOffset * 0.5 : tokens.shadowYOffset * 0.2
+    }
+
+    @ViewBuilder
+    private func navigationContainerBackground(tokens: ResolvedThemeTokens, cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        switch theme.chromeStyle {
+        case .integrated:
+            shape.fill(Color.clear)
+        case .floatingToolbar:
+            shape
+                .fill(Color.clear)
+                .paninoGlassSurface(tokens: tokens, cornerRadius: cornerRadius, interactive: true, tintOpacity: 0.04)
+                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.58))
+                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.20))
+                .clipShape(shape)
+        case .edgeToEdgeSidebar:
+            shape
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.20))
+                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.28))
+                .clipShape(shape)
         }
     }
 }
@@ -486,6 +587,8 @@ private enum PaninoBrandAsset {
 private struct TopNavigationItem: View {
     let title: String
     let isSelected: Bool
+    let tokens: ResolvedThemeTokens
+    let chromeStyle: ThemeChromeStyle
     let action: () -> Void
 
     @EnvironmentObject private var theme: ThemeSettings
@@ -497,14 +600,25 @@ private struct TopNavigationItem: View {
                 .lineLimit(1)
                 .padding(.horizontal, 16)
                 .frame(minWidth: 144, minHeight: PaninoTokens.Layout.controlMinSize)
-                .contentShape(RoundedRectangle(cornerRadius: PaninoTokens.Radius.control, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .foregroundStyle(isSelected ? Color.white : Color.primary)
         .background {
-            RoundedRectangle(cornerRadius: PaninoTokens.Radius.control, style: .continuous)
-                .fill(isSelected ? theme.semanticSelectionColor : Color.clear)
+            let shape = RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous)
+            if isSelected {
+                shape
+                    .fill(tokens.selectionColor)
+            } else {
+                shape.fill(Color.clear)
+            }
         }
+        .shadow(
+            color: tokens.selectionColor.opacity(isSelected && chromeStyle == .floatingToolbar ? 0.22 : 0),
+            radius: isSelected && chromeStyle == .floatingToolbar ? 8 : 0,
+            x: 0,
+            y: isSelected && chromeStyle == .floatingToolbar ? 2 : 0
+        )
         .accessibilityLabel(title)
         .help(title)
     }

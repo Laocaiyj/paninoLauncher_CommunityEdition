@@ -53,6 +53,11 @@ enum SettingsStore {
         return UserDefaults.standard.bool(forKey: key)
     }
 
+    static func double(forKey key: String, default defaultValue: Double) -> Double {
+        guard UserDefaults.standard.object(forKey: key) != nil else { return defaultValue }
+        return UserDefaults.standard.double(forKey: key)
+    }
+
     static func data(forKey key: String) -> Data? {
         UserDefaults.standard.data(forKey: key)
     }
@@ -62,6 +67,10 @@ enum SettingsStore {
     }
 
     static func set(_ value: Bool, forKey key: String) {
+        UserDefaults.standard.set(value, forKey: key)
+    }
+
+    static func set(_ value: Double, forKey key: String) {
         UserDefaults.standard.set(value, forKey: key)
     }
 
