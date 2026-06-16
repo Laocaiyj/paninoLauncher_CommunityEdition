@@ -89,6 +89,9 @@ struct ContentView: View {
         .onChange(of: viewModel.currentTaskProgress) {
             taskCenterStore.apply(progress: viewModel.currentTaskProgress)
         }
+        .onChange(of: viewModel.latestCoreEvent) {
+            taskCenterStore.applyTaowa(event: viewModel.latestCoreEvent)
+        }
         .onChange(of: versionStore.installedInstances) {
             instanceStore.reconcileInstalledInstances(versionStore.installedInstances, settings: launcherSettings)
         }

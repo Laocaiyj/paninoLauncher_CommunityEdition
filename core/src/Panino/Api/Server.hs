@@ -34,6 +34,7 @@ import Network.HTTP.Types
   , methodDelete
   , methodGet
   , methodPost
+  , methodPut
   , status401
   , status404
   , status405
@@ -165,6 +166,23 @@ import Panino.Api.Routes.Tasks
   , taskResponse
   , tasksResponse
   )
+import Panino.Api.Routes.TaowaMultiplayer
+  ( taowaFrpProfileCreateResponse
+  , taowaFrpProfileDeleteResponse
+  , taowaFrpProfileTestResponse
+  , taowaFrpProfileUpdateResponse
+  , taowaFrpProfilesResponse
+  , taowaLanDetectResponse
+  , taowaLanValidatePortResponse
+  , taowaRecommendationsResponse
+  , taowaSessionHealthResponse
+  , taowaSessionHistoryClearResponse
+  , taowaSessionResponse
+  , taowaSessionLogResponse
+  , taowaSessionStartResponse
+  , taowaSessionStopResponse
+  , taowaSessionsResponse
+  )
 import Panino.Api.Server.State
   ( ApiServerOptions(..)
   , ServerState(..)
@@ -179,6 +197,7 @@ import Panino.Minecraft.Layout
   ( minecraftRoot
   , mkLayout
   )
+import Panino.Multiplayer.Taowa.Session (markStaleTaowaSessions)
 import System.Directory
   ( createDirectoryIfMissing
   , doesFileExist
@@ -195,10 +214,13 @@ runApiServer options = do
   eventBus <- newEventBus
   defaultLayout <- mkLayout (apiServerGameDir options)
   let taskHistoryPath = takeDirectory (minecraftRoot defaultLayout) </> "task-history.json"
+      appRoot = takeDirectory (minecraftRoot defaultLayout)
   createDirectoryIfMissing True (takeDirectory taskHistoryPath)
+  _ <- markStaleTaowaSessions appRoot
   initialTasks <- loadTaskHistory taskHistoryPath
   tasks <- newTVarIO initialTasks
   taskHandles <- newTVarIO Map.empty
+  taowaSessions <- newTVarIO Map.empty
   nextTaskCounter <- newTVarIO (nextTaskCounterFrom initialTasks)
   shutdownHandler <- newEmptyMVar
   manager <- makeHttpManager
@@ -211,6 +233,7 @@ runApiServer options = do
           , stateTasks = tasks
           , stateTaskHistoryPath = taskHistoryPath
           , stateTaskHandles = taskHandles
+          , stateTaowaSessions = taowaSessions
           , stateNextTaskId = nextTaskCounter
           , stateEvents = eventBus
           , stateHttpManager = manager
@@ -335,6 +358,36 @@ route state request
       launchLibraryResponse request
   | requestMethod request == methodGet && routePath == ["api", "v1", "network", "effective-config"] =
       effectiveNetworkConfigResponse
+  | requestMethod request == methodPost && routePath == ["api", "v1", "taowa", "lan", "detect"] =
+      taowaLanDetectResponse request
+  | requestMethod request == methodPost && routePath == ["api", "v1", "taowa", "lan", "validate-port"] =
+      taowaLanValidatePortResponse request
+  | requestMethod request == methodGet && routePath == ["api", "v1", "taowa", "recommendations"] =
+      taowaRecommendationsResponse state
+  | requestMethod request == methodGet && routePath == ["api", "v1", "taowa", "frp", "profiles"] =
+      taowaFrpProfilesResponse state
+  | requestMethod request == methodPost && routePath == ["api", "v1", "taowa", "frp", "profiles"] =
+      taowaFrpProfileCreateResponse state request
+  | requestMethod request == methodPost && take 5 routePath == ["api", "v1", "taowa", "frp", "profiles"] && drop 6 routePath == ["test"] =
+      taowaFrpProfileTestResponse state (drop 5 routePath)
+  | requestMethod request == methodPut && take 5 routePath == ["api", "v1", "taowa", "frp", "profiles"] =
+      taowaFrpProfileUpdateResponse state (drop 5 routePath) request
+  | requestMethod request == methodDelete && take 5 routePath == ["api", "v1", "taowa", "frp", "profiles"] =
+      taowaFrpProfileDeleteResponse state (drop 5 routePath)
+  | requestMethod request == methodPost && routePath == ["api", "v1", "taowa", "sessions", "start"] =
+      taowaSessionStartResponse state request
+  | requestMethod request == methodPost && routePath == ["api", "v1", "taowa", "sessions", "clear-history"] =
+      taowaSessionHistoryClearResponse state request
+  | requestMethod request == methodGet && take 4 routePath == ["api", "v1", "taowa", "sessions"] && drop 5 routePath == ["health"] =
+      taowaSessionHealthResponse state (drop 4 routePath)
+  | requestMethod request == methodGet && take 4 routePath == ["api", "v1", "taowa", "sessions"] && length (drop 4 routePath) == 2 =
+      taowaSessionLogResponse state (drop 4 routePath)
+  | requestMethod request == methodGet && take 4 routePath == ["api", "v1", "taowa", "sessions"] && length (drop 4 routePath) == 1 =
+      taowaSessionResponse state (drop 4 routePath)
+  | requestMethod request == methodPost && take 4 routePath == ["api", "v1", "taowa", "sessions"] =
+      taowaSessionStopResponse state (drop 4 routePath)
+  | requestMethod request == methodGet && routePath == ["api", "v1", "taowa", "sessions"] =
+      taowaSessionsResponse state
   | requestMethod request == methodGet && routePath == ["api", "v1", "network", "source-test"] =
       sourceTestResponse state
   | requestMethod request == methodPost && routePath == ["api", "v1", "network", "speed-test"] =

@@ -381,6 +381,8 @@ private struct InstancePropertiesPage: View {
                     )
                 case .settings:
                     InstanceRuntimeSettingsPage(viewModel: viewModel, instance: $instance)
+                case .multiplayer:
+                    TaowaMultiplayerPage(viewModel: viewModel, instance: instance)
                 case .mods, .resourcePacks, .shaders:
                     ResourcesManagementPage(viewModel: viewModel, openDiscover: openDiscover)
                         .task(id: section.id) {
@@ -1027,6 +1029,7 @@ enum InstanceManagementMode: String, CaseIterable, Identifiable {
 enum InstancePropertySection: String, CaseIterable, Identifiable {
     case overview
     case settings
+    case multiplayer
     case mods
     case resourcePacks
     case shaders
@@ -1041,6 +1044,8 @@ enum InstancePropertySection: String, CaseIterable, Identifiable {
             return localizedString(language, english: "Overview", chinese: "概览", italian: "Panoramica", french: "Vue d'ensemble", spanish: "Resumen")
         case .settings:
             return AppText.settings.localized(language)
+        case .multiplayer:
+            return localizedString(language, english: "Multiplayer", chinese: "联机", italian: "Multigiocatore", french: "Multijoueur", spanish: "Multijugador")
         case .mods:
             return "Mods"
         case .resourcePacks:
@@ -1060,6 +1065,8 @@ enum InstancePropertySection: String, CaseIterable, Identifiable {
             return "cube.box"
         case .settings:
             return "slider.horizontal.3"
+        case .multiplayer:
+            return "network"
         case .mods:
             return "puzzlepiece.extension"
         case .resourcePacks:
@@ -1081,7 +1088,7 @@ enum InstancePropertySection: String, CaseIterable, Identifiable {
             return .resourcePacks
         case .shaders:
             return .shaderPacks
-        case .overview, .settings, .saves, .export:
+        case .overview, .settings, .multiplayer, .saves, .export:
             return nil
         }
     }
@@ -1109,7 +1116,7 @@ enum InstancePropertySection: String, CaseIterable, Identifiable {
                 return capabilities.canManageResourcePacks
             case .export:
                 return capabilities.canExportModpack || instance.loader == nil
-            case .overview, .settings, .saves:
+            case .overview, .settings, .multiplayer, .saves:
                 return true
             }
         }

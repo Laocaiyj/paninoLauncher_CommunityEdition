@@ -25,6 +25,8 @@ extension LauncherViewModel {
     }
 
     func handle(event: CoreEvent) {
+        latestCoreEvent = event
+
         if event.eventType == "task.progress",
            let progress = event.payload?.taskProgress(taskId: event.taskId) {
             currentTaskProgress = progress

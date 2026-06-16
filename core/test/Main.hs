@@ -61,7 +61,10 @@ import Control.Exception
   , fromException
   , try
   )
-import Control.Concurrent (threadDelay)
+import Control.Concurrent
+  ( forkIO
+  , threadDelay
+  )
 import Control.Concurrent.MVar
   ( MVar
   , modifyMVar
@@ -93,7 +96,8 @@ import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import Data.List
-  ( isInfixOf
+  ( find
+  , isInfixOf
   , isPrefixOf
   , isSuffixOf
   , stripPrefix
@@ -220,6 +224,62 @@ import Panino.Diagnostics.Types
   , DiagnosticEvidence(..)
   , FailureInput(..)
   , redactedText
+  )
+import Panino.Multiplayer.Taowa.ConfigStore
+  ( buildTaowaFrpProfile
+  , findTaowaFrpProfile
+  , readTaowaFrpProfiles
+  , taowaProfilesPath
+  , upsertTaowaFrpProfile
+  )
+import Panino.Multiplayer.Taowa.Diagnostics
+  ( classifyTaowaFrpcFailure
+  , readRedactedTaowaLogTail
+  , taowaSessionDiagnosticExportPath
+  )
+import Panino.Multiplayer.Taowa.FrpcConfig
+  ( renderFrpcConfig
+  , renderRedactedFrpcConfig
+  )
+import Panino.Multiplayer.Taowa.LanDetect
+  ( detectLanPortFromLog
+  , taowaLatestLogPath
+  , validateLocalPort
+  , validateManualLanPort
+  , watchLanPort
+  )
+import Panino.Multiplayer.Taowa.Session
+  ( clearTaowaSessionHistory
+  , listStoredTaowaSessions
+  , listTaowaSessions
+  , listTaowaSessionsIncludingStored
+  , markStaleTaowaSessions
+  , startTaowaSession
+  , stopTaowaSession
+  , taowaSessionJsonPath
+  )
+import Panino.Api.Routes.TaowaMultiplayer
+  ( testTaowaFrpProfile
+  )
+import Panino.Multiplayer.Taowa.Types
+  ( TaowaFrpProfile(..)
+  , TaowaFrpProfilePublic(..)
+  , TaowaFrpProfileTestCheck(..)
+  , TaowaFrpProfileTestResponse(..)
+  , TaowaFrpProfileRequest(..)
+  , TaowaLanDetectRequest(..)
+  , TaowaLanDetectStatus(..)
+  , TaowaLanEvidence(..)
+  , TaowaLanPortDetection(..)
+  , TaowaLanValidatePortRequest(..)
+  , TaowaSession(..)
+  , TaowaSessionHistoryClearRequest(..)
+  , TaowaSessionHistoryClearResponse(..)
+  , TaowaSessionStartRequest(..)
+  , TaowaSessionStatus(..)
+  , TaowaTunnelProtocol(..)
+  , publicProfile
+  , taowaRemoteAddress
   )
 import Panino.CoreLogic.Determinism
   ( canonicalJson
@@ -556,6 +616,8 @@ main = do
   assertEqual "version line" "panino-core 0.1.0.0" (versionLine "0.1.0.0")
   assertEqual "health output" "ok" (renderCommand "0.1.0.0" HealthCheck)
   tempRoot <- getTemporaryDirectory
+  testTaowaP0 tempRoot
+  testTaowaP1 tempRoot
   assertLaunchTaskCompletesAfterProcessStart tempRoot
   assertLaunchTaskFailsOnEarlyProcessExit tempRoot
   assertLaunchHooksAreBestEffort tempRoot
@@ -1000,6 +1062,7 @@ assertLaunchTaskCompletesAfterProcessStart tempRoot = do
   tasks <- newTVarIO Map.empty
   taskHandles <- newTVarIO Map.empty
   nextTaskId <- newTVarIO 1
+  taowaSessions <- newTVarIO Map.empty
   events <- newEventBus
   manager <- makeHttpManager
   processFinished <- newEmptyMVar
@@ -1013,6 +1076,7 @@ assertLaunchTaskCompletesAfterProcessStart tempRoot = do
           , stateTaskHistoryPath = historyPath
           , stateTaskHandles = taskHandles
           , stateNextTaskId = nextTaskId
+          , stateTaowaSessions = taowaSessions
           , stateEvents = events
           , stateHttpManager = manager
           , stateShutdown = pure ()
@@ -1053,6 +1117,7 @@ assertLaunchTaskFailsOnEarlyProcessExit tempRoot = do
   tasks <- newTVarIO Map.empty
   taskHandles <- newTVarIO Map.empty
   nextTaskId <- newTVarIO 1
+  taowaSessions <- newTVarIO Map.empty
   events <- newEventBus
   manager <- makeHttpManager
   hookCompleted <- newEmptyMVar
@@ -1065,6 +1130,7 @@ assertLaunchTaskFailsOnEarlyProcessExit tempRoot = do
           , stateTaskHistoryPath = historyPath
           , stateTaskHandles = taskHandles
           , stateNextTaskId = nextTaskId
+          , stateTaowaSessions = taowaSessions
           , stateEvents = events
           , stateHttpManager = manager
           , stateShutdown = pure ()
@@ -3405,6 +3471,7 @@ assertAutoJavaPathDownloadsManagedRuntime tempDir = do
   tasks <- newTVarIO Map.empty
   taskHandles <- newTVarIO Map.empty
   nextTaskId <- newTVarIO 1
+  taowaSessions <- newTVarIO Map.empty
   events <- newEventBus
   progressLabels <- newMVar []
   testWithApplication (pure fakeLoaderShaderPreflightApp) $ \minecraftPort ->
@@ -3427,6 +3494,7 @@ assertAutoJavaPathDownloadsManagedRuntime tempDir = do
                 , stateTaskHistoryPath = historyPath
                 , stateTaskHandles = taskHandles
                 , stateNextTaskId = nextTaskId
+                , stateTaowaSessions = taowaSessions
                 , stateEvents = events
                 , stateHttpManager = manager
                 , stateShutdown = pure ()
@@ -5393,6 +5461,273 @@ curseDependencyFixture projectIdValue =
     , BL8.pack (show projectIdValue)
     , ",\"relationType\":3}"
     ]
+
+testTaowaP0 :: FilePath -> IO ()
+testTaowaP0 tempRoot = do
+  let root = tempRoot </> "panino-taowa-p0"
+      cleanup = removeDirectoryRecursive root `catchAny` \_ -> pure ()
+  cleanup
+  (do
+      createDirectoryIfMissing True root
+      let fakeFrpc = root </> "fake-frpc"
+      writeFile fakeFrpc $
+        unlines
+          [ "#!/bin/sh"
+          , "if [ \"$1\" = \"--version\" ]; then"
+          , "  echo \"fake frpc 0.1\""
+          , "  exit 0"
+          , "fi"
+          , "echo fake frpc started"
+          , "echo config=$2"
+          , "echo token=secret-token"
+          , "trap 'exit 0' TERM INT"
+          , "while true; do sleep 1; done"
+          ]
+      (chmodExit, _, chmodErr) <- readCreateProcessWithExitCode (proc "/bin/chmod" ["+x", fakeFrpc]) ""
+      assertEqual "taowa fake frpc chmod succeeds" ExitSuccess chmodExit
+      assertEqual "taowa fake frpc chmod stderr" "" chmodErr
+
+      let request =
+            TaowaFrpProfileRequest
+              { taowaRequestProfileId = Just "self-frp"
+              , taowaRequestDisplayName = "Self FRP"
+              , taowaRequestServerAddr = "example.frp.test"
+              , taowaRequestServerPort = 7000
+              , taowaRequestToken = Just "secret-token"
+              , taowaRequestRemotePort = 25565
+              , taowaRequestProtocol = TaowaTcp
+              , taowaRequestFrpcPath = fakeFrpc
+              , taowaRequestEnabled = True
+              }
+      profile <- buildTaowaFrpProfile Nothing request
+      assertEqual "taowa profile json roundtrip" (Just profile) (decode (encode profile))
+      let public = publicProfile profile
+      assertEqual "taowa public profile redacts token" (Just "se...en") (taowaPublicToken public)
+      assertEqual "taowa public profile records token presence" True (taowaPublicHasToken public)
+      assertEqual "taowa remote address" "example.frp.test:25565" (taowaRemoteAddress profile)
+
+      _ <- upsertTaowaFrpProfile root profile
+      profileStoreExists <- doesFileExist (taowaProfilesPath root)
+      assertEqual "taowa profile store is created" True profileStoreExists
+      storedProfiles <- readTaowaFrpProfiles root
+      assertEqual "taowa profile store roundtrip" [profile] storedProfiles
+      storedProfile <- findTaowaFrpProfile root "self-frp"
+      assertEqual "taowa profile lookup" (Just profile) storedProfile
+      updatedWithoutToken <-
+        buildTaowaFrpProfile
+          (Just profile)
+          request
+            { taowaRequestDisplayName = "Self FRP Updated"
+            , taowaRequestToken = Nothing
+            }
+      assertEqual "taowa profile update preserves existing token when omitted" (Just "secret-token") (taowaProfileToken updatedWithoutToken)
+
+      let config = renderFrpcConfig profile "session!one" 34567
+          redactedConfig = renderRedactedFrpcConfig profile "session!one" 34567
+      assertEqual "taowa frpc config server address" True ("serverAddr = \"example.frp.test\"" `Text.isInfixOf` config)
+      assertEqual "taowa frpc config local port" True ("localPort = 34567" `Text.isInfixOf` config)
+      assertEqual "taowa frpc config remote port" True ("remotePort = 25565" `Text.isInfixOf` config)
+      assertEqual "taowa frpc config includes token before write" True ("secret-token" `Text.isInfixOf` config)
+      assertEqual "taowa redacted config hides token" False ("secret-token" `Text.isInfixOf` redactedConfig)
+      assertEqual "taowa redacted config keeps token shape" True ("se...en" `Text.isInfixOf` redactedConfig)
+      assertEqual "taowa proxy name is sanitized" True ("panino-taowa-session-one" `Text.isInfixOf` config)
+
+      registry <- newTVarIO Map.empty
+      let sessionRequest =
+            TaowaSessionStartRequest
+              { taowaStartProfileId = taowaProfileId profile
+              , taowaStartInstanceId = Just "instance-1"
+              , taowaStartGameDir = root </> "game"
+              , taowaStartLocalPort = 34567
+              }
+      failedStart <- startTaowaSession root registry (profile { taowaProfileFrpcPath = root </> "missing-frpc" }) sessionRequest
+      case failedStart of
+        Left diagnostic ->
+          assertEqual "taowa missing frpc reports diagnostic code" "taowa_frpc_not_found" (diagnosticCode diagnostic)
+        Right unexpected -> do
+          _ <- stopTaowaSession root registry (taowaSessionId unexpected)
+          assertEqual "taowa missing frpc should not start" True False
+
+      profileTest <- testTaowaFrpProfile (profile { taowaProfileServerAddr = "127.0.0.1", taowaProfileServerPort = 1 })
+      assertEqual "taowa profile test runs frpc version check" True ("frpcVersion" `elem` map taowaProfileTestCheckName (taowaProfileTestChecks profileTest))
+      assertEqual "taowa profile test reports unreachable FRP server" False (taowaProfileTestOk profileTest)
+      assertEqual "taowa profile test includes server diagnostic" ["taowa_frp_server_unreachable"] (map diagnosticCode (taowaProfileTestDiagnostics profileTest))
+
+      started <- startTaowaSession root registry profile sessionRequest
+      case started of
+        Left diagnostic ->
+          assertEqual ("taowa fake frpc starts: " <> Text.unpack (diagnosticMessage diagnostic)) True False
+        Right running -> do
+          let sessionId = taowaSessionId running
+              ensureStopped = do
+                _ <- stopTaowaSession root registry sessionId
+                pure ()
+          (do
+              assertEqual "taowa session enters running state" TaowaSessionRunning (taowaSessionStatus running)
+              assertEqual "taowa session returns remote address" "example.frp.test:25565" (taowaSessionRemoteAddress running)
+              sessionConfigExists <- doesFileExist (taowaSessionFrpcConfigPath running)
+              assertEqual "taowa session writes frpc config" True sessionConfigExists
+              sessionLogExists <- doesFileExist (taowaSessionFrpcLogPath running)
+              assertEqual "taowa session creates frpc log" True sessionLogExists
+              sessionConfig <- readFile (taowaSessionFrpcConfigPath running)
+              assertEqual "taowa session config uses manual local port" True ("localPort = 34567" `isInfixOf` sessionConfig)
+              threadDelay 250000
+              listedRunning <- listTaowaSessions registry
+              assertEqual "taowa session registry lists running session" [TaowaSessionRunning] (map taowaSessionStatus listedRunning)
+              stopped <- stopTaowaSession root registry sessionId
+              stoppedSession <-
+                case stopped of
+                  Left diagnostic -> do
+                    assertEqual ("taowa fake frpc stops: " <> Text.unpack (diagnosticMessage diagnostic)) True False
+                    pure running
+                  Right stoppedSession -> do
+                    assertEqual "taowa session enters stopped state" TaowaSessionStopped (taowaSessionStatus stoppedSession)
+                    diagnosticExportExists <- doesFileExist (taowaSessionDiagnosticExportPath stoppedSession)
+                    assertEqual "taowa session writes diagnostics export" True diagnosticExportExists
+                    diagnosticExport <- BL.readFile (taowaSessionDiagnosticExportPath stoppedSession)
+                    assertEqual "taowa diagnostics export redacts token" False ("secret-token" `isInfixOf` BL8.unpack diagnosticExport)
+                    pure stoppedSession
+              sessionLog <- readFile (taowaSessionFrpcLogPath running)
+              assertEqual "taowa frpc log records process output" True ("fake frpc started" `isInfixOf` sessionLog)
+              redactedLogTail <- readRedactedTaowaLogTail (taowaSessionFrpcLogPath running)
+              assertEqual "taowa frpc log tail API redacts token" False ("secret-token" `Text.isInfixOf` redactedLogTail)
+              listedStopped <- listTaowaSessions registry
+              assertEqual "taowa session registry keeps stopped snapshot" [TaowaSessionStopped] (map taowaSessionStatus listedStopped)
+              storedStopped <- listStoredTaowaSessions root
+              assertEqual "taowa stored sessions include stopped session" (Just TaowaSessionStopped) (taowaSessionStatus <$> find ((== sessionId) . taowaSessionId) storedStopped)
+              listedWithHistory <- listTaowaSessionsIncludingStored root registry
+              assertEqual "taowa session list merges runtime and stored history" (Just TaowaSessionStopped) (taowaSessionStatus <$> find ((== sessionId) . taowaSessionId) listedWithHistory)
+              sessionBytes <- BL.readFile (taowaSessionJsonPath root sessionId)
+              let decodedSession = eitherDecode sessionBytes :: Either String TaowaSession
+              assertEqual "taowa stopped session json roundtrip" (Right TaowaSessionStopped) (taowaSessionStatus <$> decodedSession)
+              BL.writeFile (taowaSessionJsonPath root sessionId) (encode (stoppedSession { taowaSessionStatus = TaowaSessionRunning, taowaSessionDiagnostics = [] }))
+              staleCount <- markStaleTaowaSessions root
+              assertEqual "taowa stale sessions are marked after restart" 1 staleCount
+              staleSessions <- listStoredTaowaSessions root
+              let staleDiagnosticCodes =
+                    case find ((== sessionId) . taowaSessionId) staleSessions of
+                      Just staleSession -> map diagnosticCode (taowaSessionDiagnostics staleSession)
+                      Nothing -> []
+              assertEqual "taowa stale session gets diagnostic" ["taowa_session_stale_after_core_restart"] staleDiagnosticCodes
+              clearResponse <-
+                clearTaowaSessionHistory
+                  root
+                  registry
+                  TaowaSessionHistoryClearRequest
+                    { taowaClearSessionStatuses = Just [TaowaSessionFailed]
+                    , taowaClearKeepActive = False
+                    }
+              assertEqual "taowa clear history deletes failed session history" (2, 0, 0) (taowaClearDeleted clearResponse, taowaClearKept clearResponse, taowaClearSkippedActive clearResponse)
+              storedAfterClear <- listStoredTaowaSessions root
+              assertEqual "taowa stored session history is cleared" [] storedAfterClear
+            )
+            `finally` ensureStopped
+    )
+    `finally` cleanup
+
+testTaowaP1 :: FilePath -> IO ()
+testTaowaP1 tempRoot = do
+  let parserEvidence =
+        detectLanPortFromLog $
+          BS8.unlines
+            [ "[Server thread/INFO]: Started serving on 34567"
+            , "[Server thread/INFO]: Started LAN server on port 34568"
+            , "[Server thread/INFO]: Local game hosted on port 34569"
+            , "[Server thread/INFO]: Started serving on 0"
+            , "[Server thread/INFO]: Started LAN server on port 70000"
+            ]
+  assertEqual "taowa LAN parser supports known log patterns" [Just 34567, Just 34568, Just 34569] (map taowaLanEvidencePort parserEvidence)
+  assertEqual "taowa LAN parser ignores invalid ports" [] (detectLanPortFromLog "Started serving on 70000")
+  assertEqual "taowa LAN parser JSON roundtrip" (Just parserEvidence) (decode (encode parserEvidence))
+
+  testWithApplication (pure okApplication) $ \port -> do
+    reachable <- validateLocalPort port
+    assertEqual "taowa LAN local reachable port validates" True reachable
+    invalid <- validateLocalPort 0
+    assertEqual "taowa LAN invalid port fails validation" False invalid
+    manualDetection <-
+      validateManualLanPort
+        TaowaLanValidatePortRequest
+          { taowaValidateInstanceId = Just "manual-instance"
+          , taowaValidateGameDir = Just (tempRoot </> "panino-taowa-p1-manual")
+          , taowaValidateLocalPort = port
+          }
+    assertEqual "taowa manual port validation detects reachable port" TaowaLanDetected (taowaLanStatus manualDetection)
+    assertEqual "taowa manual port validation returns port" (Just port) (taowaLanDetectedPort manualDetection)
+
+    let root = tempRoot </> "panino-taowa-p1-watch"
+        gameDir = root </> "game"
+        logPath = taowaLatestLogPath gameDir
+        cleanup = removeDirectoryRecursive root `catchAny` \_ -> pure ()
+    cleanup
+    (do
+        createDirectoryIfMissing True (takeDirectory logPath)
+        writeFile logPath ""
+        result <- newEmptyMVar
+        _ <-
+          forkIO $
+            watchLanPort
+              TaowaLanDetectRequest
+                { taowaLanDetectInstanceId = Just "watch-instance"
+                , taowaLanDetectGameDir = gameDir
+                , taowaLanDetectTimeoutSeconds = Just 2
+                }
+              >>= putMVar result
+        threadDelay 600000
+        appendFile logPath ("[Server thread/INFO]: Started serving on " <> show port <> "\n")
+        detected <- waitForMVar result 150
+        assertEqual "taowa LAN watcher returns after log append" True detected
+        detection <- readMVar result
+        assertEqual "taowa LAN watcher status" TaowaLanDetected (taowaLanStatus detection)
+        assertEqual "taowa LAN watcher detected port" (Just port) (taowaLanDetectedPort detection)
+        assertEqual "taowa LAN watcher includes evidence" True (not (null (taowaLanEvidence detection)))
+      )
+      `finally` cleanup
+
+  let timeoutRoot = tempRoot </> "panino-taowa-p1-timeout"
+      timeoutGameDir = timeoutRoot </> "game"
+  removeDirectoryRecursive timeoutRoot `catchAny` \_ -> pure ()
+  timeoutDetection <-
+    watchLanPort
+      TaowaLanDetectRequest
+        { taowaLanDetectInstanceId = Nothing
+        , taowaLanDetectGameDir = timeoutGameDir
+        , taowaLanDetectTimeoutSeconds = Just 1
+        }
+  assertEqual "taowa LAN watcher timeout enters manual fallback" TaowaLanManualRequired (taowaLanStatus timeoutDetection)
+  assertEqual "taowa LAN watcher timeout does not invent port" Nothing (taowaLanDetectedPort timeoutDetection)
+  assertEqual "taowa LAN watcher timeout includes evidence" True (not (null (taowaLanEvidence timeoutDetection)))
+  assertEqual "taowa LAN watcher timeout includes diagnostic" ["taowa_lan_port_not_detected"] (map diagnosticCode (taowaLanDiagnostics timeoutDetection))
+  removeDirectoryRecursive timeoutRoot `catchAny` \_ -> pure ()
+
+  invalidManualDetection <-
+    validateManualLanPort
+      TaowaLanValidatePortRequest
+        { taowaValidateInstanceId = Just "invalid-manual"
+        , taowaValidateGameDir = Just timeoutGameDir
+        , taowaValidateLocalPort = 0
+        }
+  assertEqual "taowa manual invalid port includes diagnostic" ["taowa_invalid_local_port"] (map diagnosticCode (taowaLanDiagnostics invalidManualDetection))
+
+  let tokenDiagnostic =
+        classifyTaowaFrpcFailure
+          "authorization failed"
+          "token=secret-token\nlogin fail: invalid token"
+          []
+          (timeoutRoot </> "frpc.log")
+      portDiagnostic =
+        classifyTaowaFrpcFailure
+          "start proxy error"
+          "remote port already used"
+          []
+          (timeoutRoot </> "frpc.log")
+  assertEqual "taowa frpc token failure classified" "taowa_frp_token_rejected" (diagnosticCode tokenDiagnostic)
+  assertEqual "taowa frpc remote port failure classified" "taowa_frp_remote_port_conflict" (diagnosticCode portDiagnostic)
+  assertEqual "taowa frpc diagnostic redacts token detail" False (maybe False ("secret-token" `Text.isInfixOf`) (diagnosticDeveloperDetail tokenDiagnostic))
+
+okApplication :: Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+okApplication _ respond =
+  respond (responseLBS status200 [(hContentType, "text/plain")] "ok")
 
 removeIfExists :: FilePath -> IO ()
 removeIfExists path =

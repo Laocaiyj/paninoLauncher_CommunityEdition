@@ -55,6 +55,7 @@ library
     Panino.Api.Routes.Performance
     Panino.Api.Routes.PerformancePack
     Panino.Api.Routes.Runtime
+    Panino.Api.Routes.TaowaMultiplayer
     Panino.Api.Routes.Tasks
     Panino.Api.Server
     Panino.Api.Server.State
@@ -115,6 +116,13 @@ library
     Panino.Minecraft.Manifest
     Panino.Minecraft.ModPreflight
     Panino.Minecraft.Types
+    Panino.Multiplayer.Taowa.ConfigStore
+    Panino.Multiplayer.Taowa.Diagnostics
+    Panino.Multiplayer.Taowa.FrpcConfig
+    Panino.Multiplayer.Taowa.FrpcProcess
+    Panino.Multiplayer.Taowa.LanDetect
+    Panino.Multiplayer.Taowa.Session
+    Panino.Multiplayer.Taowa.Types
     Panino.Net.Http
     Panino.Net.Probe
     Panino.Net.Sources
@@ -153,6 +161,7 @@ library
     http-types >= 0.12 && < 0.13,
     http-client >= 0.7 && < 0.8,
     http-client-tls >= 0.3 && < 0.4,
+    network >= 3.1 && < 3.3,
     process >= 1.6 && < 1.7,
     stm >= 2.5 && < 2.6,
     text >= 2.0 && < 2.2,

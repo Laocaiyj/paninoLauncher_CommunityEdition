@@ -13,6 +13,7 @@ import Data.Time.Clock (UTCTime)
 import Network.HTTP.Client (Manager)
 import Panino.Api.Types (TaskSnapshot)
 import Panino.Events.Bus (EventBus)
+import Panino.Multiplayer.Taowa.Session (TaowaRuntimeSession)
 
 data ApiServerOptions = ApiServerOptions
   { apiServerHost :: String
@@ -28,6 +29,7 @@ data ServerState = ServerState
   , stateTasks :: TVar (Map Text TaskSnapshot)
   , stateTaskHistoryPath :: FilePath
   , stateTaskHandles :: TVar (Map Text (Async ()))
+  , stateTaowaSessions :: TVar (Map Text TaowaRuntimeSession)
   , stateNextTaskId :: TVar Int
   , stateEvents :: EventBus
   , stateHttpManager :: Manager

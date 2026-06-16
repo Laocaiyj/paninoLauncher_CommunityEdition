@@ -41,7 +41,7 @@ private enum TaskHistoryFilter: String, CaseIterable, Identifiable {
         case .launch:
             return kind.contains("launch")
         case .diagnostic:
-            return kind.contains("diagnostic") || kind.contains("log") || kind.contains("java") || kind.contains("check")
+            return kind.contains("diagnostic") || kind.contains("log") || kind.contains("java") || kind.contains("check") || kind.contains("taowa")
         }
     }
 }
@@ -297,6 +297,11 @@ struct TasksPage: View {
     }
 
     private func openRelevantFolder(_ record: TaskRecord) {
+        if record.kind == "taowa-tunnel",
+           let instance = instanceFor(record: record) {
+            FinderIntegration.openInstanceDirectory(instance)
+            return
+        }
         if record.kind.lowercased().contains("download") {
             FinderIntegration.openDownloadCache()
             return
@@ -306,6 +311,20 @@ struct TasksPage: View {
         } else {
             FinderIntegration.openDownloadCache()
         }
+    }
+
+    private func instanceFor(record: TaskRecord) -> GameInstance? {
+        guard let gameDir = record.gameDir?.trimmingCharacters(in: .whitespacesAndNewlines), !gameDir.isEmpty else {
+            return nil
+        }
+        return instanceStore.instances.first { LauncherViewModel.sameFilePath($0.gameDirectory, gameDir) }
+    }
+
+    private func openTaowaInstance(_ record: TaskRecord) {
+        if let instance = instanceFor(record: record) {
+            instanceStore.selectedInstanceID = instance.id
+        }
+        appActions.dispatch(.openInstances)
     }
 
     private func exportDiagnostics(_ record: TaskRecord) {
@@ -334,11 +353,17 @@ struct TasksPage: View {
 
         switch diagnostic.action.kind {
         case "retry":
-            if canRetryAutomatically(record) {
+            if record.kind == "taowa-tunnel" {
+                openTaowaInstance(record)
+            } else if canRetryAutomatically(record) {
                 retry(record)
             } else {
                 openDiagnostics()
             }
+        case "configureTaowaFrp", "editFrpProfile":
+            openTaowaInstance(record)
+        case "openFrpcLog":
+            openDiagnostics()
         case "installJava":
             appActions.focusSettings(.runtime)
             appActions.dispatch(.openSettings)
@@ -384,6 +409,10 @@ struct TasksPage: View {
             return "trash"
         case "openFolder", "manualInstall":
             return "folder"
+        case "configureTaowaFrp", "editFrpProfile":
+            return "server.rack"
+        case "openFrpcLog":
+            return "terminal"
         case "lowerMemory":
             return "memorychip"
         case "applyGraphicsRecommendation":

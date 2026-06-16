@@ -24,6 +24,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var lastExportedLogURL: URL?
     @Published var currentTask: TaskSnapshot?
     @Published var currentTaskProgress: TaskProgress?
+    @Published var latestCoreEvent: CoreEvent?
     @Published var lastTaskFailure: TaskSnapshot?
     @Published var lastInstallPreflight: CoreLoaderInstallPreflightResponse?
     @Published var logs: [LogLine] = []

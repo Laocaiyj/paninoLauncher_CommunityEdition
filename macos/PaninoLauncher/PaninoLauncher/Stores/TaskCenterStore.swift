@@ -93,7 +93,13 @@ struct TaskRecord: Codable, Identifiable, Equatable {
     }
 
     var kindTitle: String {
-        kind == "runtime.install" ? "Java Runtime" : kind.capitalized
+        if kind == "runtime.install" {
+            return "Java Runtime"
+        }
+        if kind == "taowa-tunnel" {
+            return "Taowa Tunnel"
+        }
+        return kind.capitalized
     }
 }
 
@@ -271,6 +277,52 @@ final class TaskCenterStore: ObservableObject {
                 updatedAt: now,
                 finishedAt: nil
             )
+        )
+    }
+
+    func applyTaowa(event: CoreEvent?) {
+        guard let event,
+              event.eventType.hasPrefix("taowa.session."),
+              let session = event.payload?.session
+        else { return }
+
+        let primaryDiagnostic = event.payload?.diagnostic ?? session.diagnostics.first
+        let allDiagnostics: [CoreDiagnostic]? = {
+            if let diagnostics = event.payload?.diagnostics, !diagnostics.isEmpty {
+                return diagnostics
+            }
+            if !session.diagnostics.isEmpty {
+                return session.diagnostics
+            }
+            return primaryDiagnostic.map { [$0] }
+        }()
+        let state = Self.taowaRecordState(eventType: event.eventType, sessionStatus: session.status)
+        let message: String
+        switch state {
+        case .running:
+            message = "Taowa tunnel running at \(session.remoteAddress)."
+        case .succeeded:
+            message = "Taowa tunnel stopped for \(session.remoteAddress)."
+        case .failed, .interrupted:
+            message = primaryDiagnostic?.userSummary ?? event.message
+        case .queued, .cancelled:
+            message = event.message
+        }
+
+        upsertLocal(
+            id: "taowa:\(session.sessionId)",
+            kind: "taowa-tunnel",
+            name: "Taowa Tunnel",
+            version: session.remoteAddress,
+            gameDir: session.gameDir,
+            state: state,
+            progress: state.isActive ? 0.66 : 1,
+            currentFile: "frpc \(session.localPort) -> \(session.remoteAddress)",
+            errorCode: state.needsAttention ? primaryDiagnostic?.code : nil,
+            errorDetail: primaryDiagnostic?.developerDetail,
+            diagnostic: primaryDiagnostic,
+            diagnostics: allDiagnostics,
+            message: message
         )
     }
 
@@ -749,6 +801,19 @@ final class TaskCenterStore: ObservableObject {
     private static func normalizedDiagnostics(snapshot: TaskSnapshot, primary: CoreDiagnostic?) -> [CoreDiagnostic]? {
         let values = snapshot.diagnostics.isEmpty ? primary.map { [$0] } ?? [] : snapshot.diagnostics
         return values.isEmpty ? nil : values
+    }
+
+    private static func taowaRecordState(eventType: String, sessionStatus: String) -> TaskRecordState {
+        if eventType == "taowa.session.failed" || sessionStatus == "failed" {
+            return .failed
+        }
+        if eventType == "taowa.session.stopped" || sessionStatus == "stopped" {
+            return .succeeded
+        }
+        if ["prepared", "startingFrpc", "running"].contains(sessionStatus) {
+            return .running
+        }
+        return .running
     }
 
     private static func normalizedMessage(kind: String, message: String?, errorCode: String?) -> String? {

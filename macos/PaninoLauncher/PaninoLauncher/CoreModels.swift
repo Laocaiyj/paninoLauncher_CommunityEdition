@@ -2419,6 +2419,7 @@ struct CoreEventPayload: Decodable, Equatable {
     let hosts: [TaskProgressHost]?
     let throttleReason: String?
     let multipart: TaskProgressMultipart?
+    let session: CoreTaowaSession?
 
     func taskProgress(taskId: String?) -> TaskProgress? {
         guard let taskId,
