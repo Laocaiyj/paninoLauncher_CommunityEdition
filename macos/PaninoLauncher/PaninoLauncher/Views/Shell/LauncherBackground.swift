@@ -10,6 +10,8 @@ struct LauncherBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
+    private let customImageScale: CGFloat = 1.06
+
     var body: some View {
         GeometryReader { proxy in
             let tokens = theme.resolvedTokens(
@@ -103,6 +105,7 @@ struct LauncherBackground: View {
                     .resizable()
                     .scaledToFill()
                     .frame(width: size.width, height: size.height)
+                    .scaleEffect(customImageScale)
                     .clipped()
                     .blur(radius: tokens.backgroundBlurRadius, opaque: true)
                     .overlay(Color(nsColor: .windowBackgroundColor).opacity(colorSchemeContrast == .increased ? 0.72 : tokens.backgroundDimOpacity))
@@ -123,7 +126,7 @@ struct LauncherBackground: View {
             .resizable()
             .scaledToFill()
             .frame(width: size.width, height: size.height)
-            .scaleEffect(1.06)
+            .scaleEffect(customImageScale)
             .blur(radius: reduceMotion ? 10 : tokens.backgroundBlurRadius, opaque: true)
             .saturation(theme.visualNoiseReductionEnabled ? 0.48 : 0.66)
             .brightness(-0.06)

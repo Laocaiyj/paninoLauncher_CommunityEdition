@@ -465,6 +465,7 @@ struct ResolvedThemeTokens {
         let contrast = min(max(theme.surfaceContrast, 0), 1)
         let frosting = min(max(theme.glassFrosting, 0), 1)
         let quiet = theme.quietModeEnabled || theme.visualNoiseReductionEnabled
+        let highContrast = theme.appearance == .highContrast || increasedContrast
         let materialWeight: Double
         switch theme.materialStrength {
         case .off:
@@ -487,20 +488,24 @@ struct ResolvedThemeTokens {
         case .solid:
             styleWeight = 1
         }
-        selectionColor = theme.accentColor
-        surfaceFill = Color(nsColor: .windowBackgroundColor)
-        surfaceFillOpacity = min(0.99, 0.34 + styleWeight * 0.34 + frosting * 0.20 + contrast * 0.16 + (quiet ? 0.12 : 0))
-        surfaceVeilOpacity = min(0.78, 0.03 + styleWeight * 0.22 + frosting * 0.34 + contrast * 0.12 + (quiet ? 0.16 : 0))
-        strokeColor = increasedContrast ? Color.primary : Color(nsColor: .separatorColor)
-        strokeOpacity = increasedContrast ? 0.92 : 0.16 + contrast * 0.72
-        strokeWidth = increasedContrast ? 1.5 : 0.75 + CGFloat(contrast) * 0.9
+        selectionColor = theme.semanticSelectionColor
+        surfaceFill = highContrast ? Color(nsColor: .textBackgroundColor) : Color(nsColor: .windowBackgroundColor)
+        surfaceFillOpacity = highContrast
+            ? 0.94
+            : min(0.99, 0.34 + styleWeight * 0.34 + frosting * 0.20 + contrast * 0.16 + (quiet ? 0.12 : 0))
+        surfaceVeilOpacity = highContrast
+            ? 0.82
+            : min(0.78, 0.03 + styleWeight * 0.22 + frosting * 0.34 + contrast * 0.12 + (quiet ? 0.16 : 0))
+        strokeColor = highContrast ? Color.primary : Color(nsColor: .separatorColor)
+        strokeOpacity = highContrast ? 0.98 : 0.16 + contrast * 0.72
+        strokeWidth = highContrast ? 1.8 : 0.75 + CGFloat(contrast) * 0.9
         panelCornerRadius = PaninoTokens.Radius.panel
         cardCornerRadius = PaninoTokens.Radius.card
         buttonMinHeight = theme.fontDensity.buttonMinHeight
         backgroundBlurRadius = theme.visualNoiseReductionEnabled ? 0 : 8 + CGFloat(theme.backgroundBlur) * 24
-        backgroundDimOpacity = min(0.86, 0.34 + theme.backgroundDim * 0.44 + (quiet ? 0.08 : 0))
-        accentBackgroundOpacity = increasedContrast ? 0.22 : 0.035 + contrast * 0.18
-        textureOpacity = quiet || reduceTransparency || increasedContrast ? 0 : 0.008 + (1 - contrast) * 0.012
+        backgroundDimOpacity = highContrast ? 0.92 : min(0.86, 0.34 + theme.backgroundDim * 0.44 + (quiet ? 0.08 : 0))
+        accentBackgroundOpacity = highContrast ? 0.30 : 0.035 + contrast * 0.18
+        textureOpacity = quiet || reduceTransparency || highContrast ? 0 : 0.008 + (1 - contrast) * 0.012
 
         switch theme.controlShape {
         case .roundedRect:
@@ -523,19 +528,19 @@ struct ResolvedThemeTokens {
             depthShadeOpacity = 0
             depthRimOpacity = 0
         case .soft:
-            shadowOpacity = quiet ? 0.015 : 0.045
-            shadowRadius = 12
+            shadowOpacity = quiet ? 0.015 : 0.055
+            shadowRadius = 14
             shadowYOffset = 5
-            depthHighlightOpacity = 0
-            depthShadeOpacity = 0
-            depthRimOpacity = 0
+            depthHighlightOpacity = quiet ? 0.015 : 0.035
+            depthShadeOpacity = quiet ? 0.010 : 0.026
+            depthRimOpacity = quiet ? 0.012 : 0.030
         case .layered:
-            shadowOpacity = quiet ? 0.025 : 0.07
-            shadowRadius = 22
-            shadowYOffset = 9
-            depthHighlightOpacity = 0
-            depthShadeOpacity = 0
-            depthRimOpacity = 0
+            shadowOpacity = quiet ? 0.030 : 0.095
+            shadowRadius = 24
+            shadowYOffset = 10
+            depthHighlightOpacity = quiet ? 0.025 : 0.060
+            depthShadeOpacity = quiet ? 0.018 : 0.050
+            depthRimOpacity = quiet ? 0.020 : 0.048
         case .retro:
             shadowOpacity = quiet ? 0.045 : 0.13
             shadowRadius = 26
@@ -545,7 +550,7 @@ struct ResolvedThemeTokens {
             depthRimOpacity = quiet ? 0.025 : 0.06
         }
 
-        if reduceTransparency || quiet || theme.glassStyle == .solid || theme.materialStrength == .off {
+        if highContrast || reduceTransparency || quiet || theme.glassStyle == .solid || theme.materialStrength == .off {
             surfaceMaterial = nil
         } else {
             switch theme.glassStyle {
@@ -590,7 +595,10 @@ struct ResolvedThemeTokens {
 
 extension ThemeSettings {
     var semanticSelectionColor: Color {
-        accentColor
+        if appearance == .highContrast {
+            return Color.paninoHex("FFD43B", fallback: .yellow)
+        }
+        return accentColor
     }
 
     func resolvedTokens(

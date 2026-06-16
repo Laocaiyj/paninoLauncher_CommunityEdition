@@ -854,7 +854,7 @@ private struct MainContentView: View {
                         }
                     }
                     .id(section)
-                    .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .top)))
+                    .transition(.opacity)
                     .animation(PaninoMotion.noneWhenReduced(PaninoMotion.page, reduceMotion: reduceMotion || theme.reducesInterfaceMotion), value: section)
                     .padding(.horizontal, pagePadding)
                     .padding(.top, PaninoTokens.Layout.pageTopSpacing)
