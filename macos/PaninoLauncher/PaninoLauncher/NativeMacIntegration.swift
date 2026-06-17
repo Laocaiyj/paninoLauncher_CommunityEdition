@@ -10,6 +10,8 @@ enum NativeAppCommand: String {
     case openLaunch
     case openRecent
     case openInstances
+    case openResources
+    case openVersions
     case openDiscover
     case openActivity
     case openSettings

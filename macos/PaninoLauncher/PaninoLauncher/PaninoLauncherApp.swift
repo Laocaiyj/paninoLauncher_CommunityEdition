@@ -46,107 +46,12 @@ struct PaninoLauncherApp: App {
         }
         .windowResizability(.contentMinSize)
         .commands {
-            CommandGroup(replacing: .appInfo) {
-                Button("About Panino Launcher") {
-                    NativeMacCommands.showAboutPanel()
-                }
-            }
-
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings...") {
-                    openWindow(id: PaninoWindowID.settings)
-                }
-                .keyboardShortcut(",", modifiers: [.command])
-            }
-
-            CommandGroup(after: .appInfo) {
-                Button("Check for Updates") {
-                    appActions.dispatch(.checkForUpdates)
-                }
-            }
-
-            CommandMenu("Game Instance") {
-                Button("Launch Current Instance") {
-                    appActions.dispatch(.launchDefault)
-                }
-                .keyboardShortcut(.return, modifiers: [.command])
-
-                Button("Manage Installed Instances") {
-                    appActions.dispatch(.openInstances)
-                }
-
-                Divider()
-
-                Button("Open Configuration Folder") {
-                    appActions.dispatch(.openInstanceDirectory)
-                }
-                .disabled(instanceStore.selectedInstance == nil)
-            }
-
-            CommandMenu("Navigate") {
-                Button("Launch") {
-                    appActions.dispatch(.openLaunch)
-                }
-                .keyboardShortcut("1", modifiers: [.command])
-
-                Button("Get Content") {
-                    appActions.dispatch(.openDiscover)
-                }
-                .keyboardShortcut("2", modifiers: [.command])
-
-                Button("Activity") {
-                    appActions.dispatch(.openActivity)
-                }
-                .keyboardShortcut("3", modifiers: [.command])
-            }
-
-            CommandMenu("Advanced") {
-                Button("Start Core") {
-                    appActions.dispatch(.startCore)
-                }
-
-                Button("Stop Core") {
-                    appActions.dispatch(.stopCore)
-                }
-
-                Divider()
-
-                Button("Check Java") {
-                    appActions.dispatch(.checkJava)
-                }
-
-                Button("Scan Java Runtimes") {
-                    appActions.dispatch(.scanJava)
-                }
-
-                Divider()
-
-                Button("Export Diagnostics") {
-                    appActions.dispatch(.exportDiagnostics)
-                }
-
-                Button("Open Logs Folder") {
-                    appActions.dispatch(.openLogsDirectory)
-                }
-            }
-
-            CommandMenu("Help") {
-                Button("Open Documentation") {
-                    NativeMacCommands.openExternalURL("https://minecraft.wiki/")
-                }
-
-                Button("Copy Diagnostic Summary") {
-                    appActions.dispatch(.copyDiagnosticSummary)
-                }
-            }
-
-            CommandGroup(replacing: .appTermination) {
-                Button("Quit Panino Launcher") {
-                    SettingsDebouncer.flush()
-                    NativeMacCommands.quit()
-                }
-                .keyboardShortcut("q", modifiers: [.command])
-            }
+            PaninoLauncherCommands(
+                language: theme.language,
+                hasSelectedInstance: instanceStore.selectedInstance != nil,
+                dispatch: appActions.dispatch,
+                openSettings: openSettingsWindow
+            )
         }
 
         Window("Settings", id: PaninoWindowID.settings) {
@@ -165,5 +70,12 @@ struct PaninoLauncherApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 920, height: 620)
+    }
+
+    private func openSettingsWindow(_ section: PaninoSettingsSection?) {
+        if let section {
+            appActions.focusSettings(section)
+        }
+        openWindow(id: PaninoWindowID.settings)
     }
 }

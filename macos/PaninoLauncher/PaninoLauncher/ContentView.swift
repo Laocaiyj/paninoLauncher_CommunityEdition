@@ -53,6 +53,9 @@ struct ContentView: View {
                 versionStore: versionStore
             )
         }
+        .onAppear {
+            NativeMenuLocalizer.apply(language: theme.language)
+        }
         .task {
             UserNotificationService.shared.requestAuthorization()
             if launcherSettings.autoConnectCore {
@@ -71,6 +74,9 @@ struct ContentView: View {
             Task {
                 await viewModel.shutdownCore()
             }
+        }
+        .onChange(of: theme.language) {
+            NativeMenuLocalizer.apply(language: theme.language)
         }
         .onChange(of: appActions.commandSequence) {
             handleNativeCommand(appActions.lastCommand)
@@ -148,11 +154,16 @@ struct ContentView: View {
             )
         case .openInstances:
             selectedSection = .instances
+        case .openResources:
+            selectedSection = .resources
+        case .openVersions:
+            selectedSection = .versions
         case .openDiscover:
             selectedSection = .discover
         case .openActivity:
             selectedSection = .diagnostics
         case .openAccountSettings:
+            appActions.focusSettings(.account)
             openWindow(id: PaninoWindowID.settings)
         case .startCore:
             Task { await viewModel.startCoreIfNeeded() }
