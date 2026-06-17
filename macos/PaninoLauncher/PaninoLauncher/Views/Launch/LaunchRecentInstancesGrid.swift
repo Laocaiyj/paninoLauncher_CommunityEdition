@@ -11,7 +11,7 @@ struct LaunchRecentInstancesStrip: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     PanelHeader(
@@ -124,14 +124,7 @@ struct LaunchRecentInstancesStrip: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, minHeight: 74, alignment: .leading)
-            .background(
-                (instance.id == selectedID ? theme.semanticSelectionColor.opacity(0.18) : Color(nsColor: .controlBackgroundColor).opacity(0.3)),
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(instance.id == selectedID ? theme.semanticSelectionColor.opacity(0.8) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
-            }
+            .paninoGlassCard(isSelected: instance.id == selectedID, level: instance.id == selectedID ? .elevatedPanel : .panel, cornerRadius: 8, tint: theme.semanticSelectionColor, showsShadow: instance.id == selectedID)
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)

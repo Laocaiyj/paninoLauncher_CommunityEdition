@@ -401,16 +401,18 @@ private struct TopNavigationBar: View {
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
+        let tokens = theme.resolvedTokens(
+            reduceTransparency: reduceTransparency,
+            increasedContrast: colorSchemeContrast == .increased,
+            reduceMotion: reduceMotion
+        )
+
         GeometryReader { proxy in
             let horizontalPadding = PaninoTokens.Layout.pagePadding(for: proxy.size.width)
-            let tokens = theme.resolvedTokens(
-                reduceTransparency: reduceTransparency,
-                increasedContrast: colorSchemeContrast == .increased,
-                reduceMotion: reduceMotion
-            )
             let navigationCornerRadius = navigationContainerCornerRadius(tokens: tokens)
+            let leadingPadding = max(horizontalPadding, titlebarControlReserve(for: proxy.size.width))
 
-            HStack(spacing: 18) {
+            HStack(spacing: 16) {
                 HStack(spacing: 10) {
                     PaninoBrandMark(size: 32, cornerRadius: PaninoTokens.Radius.control)
 
@@ -420,6 +422,28 @@ private struct TopNavigationBar: View {
                             .lineLimit(1)
                     }
                 }
+                .padding(.horizontal, proxy.size.width >= 720 ? 10 : 6)
+                .frame(minHeight: 46)
+                .background {
+                    if theme.chromeStyle == .floatingToolbar {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.clear)
+                            .paninoGlassSurface(
+                                tokens: tokens,
+                                level: .floatingChrome,
+                                cornerRadius: 18,
+                                interactive: true
+                            )
+                            .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.30))
+                            .paninoDepthOverlay(tokens: tokens, level: .floatingChrome, cornerRadius: 18)
+                    }
+                }
+                .shadow(
+                    color: Color.black.opacity(theme.chromeStyle == .floatingToolbar ? tokens.shadowOpacity * 0.35 : 0),
+                    radius: theme.chromeStyle == .floatingToolbar ? tokens.shadowRadius * 0.38 : 0,
+                    x: 0,
+                    y: theme.chromeStyle == .floatingToolbar ? tokens.shadowYOffset * 0.28 : 0
+                )
 
                 HStack(spacing: 4) {
                     ForEach(LauncherSection.primaryCases) { section in
@@ -439,7 +463,23 @@ private struct TopNavigationBar: View {
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: navigationCornerRadius, style: .continuous)
-                        .stroke(tokens.strokeColor.opacity(navigationStrokeOpacity(tokens: tokens)), lineWidth: tokens.strokeWidth)
+                        .strokeBorder(
+                            tokens.strokeColor.opacity(navigationStrokeOpacity(tokens: tokens)),
+                            lineWidth: tokens.strokeWidth
+                        )
+                }
+                .overlay(alignment: .top) {
+                    RoundedRectangle(cornerRadius: navigationCornerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(tokens.depthHighlightOpacity * 1.65), lineWidth: 1)
+                        .blendMode(.plusLighter)
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .bottom) {
+                    Capsule()
+                        .fill(Color.black.opacity(tokens.depthShadeOpacity * 1.15))
+                        .frame(height: 1)
+                        .padding(.horizontal, navigationCornerRadius * 0.55)
+                        .allowsHitTesting(false)
                 }
                 .shadow(
                     color: Color.black.opacity(navigationShadowOpacity(tokens: tokens)),
@@ -450,32 +490,63 @@ private struct TopNavigationBar: View {
 
                 Spacer(minLength: 16)
             }
-            .padding(.horizontal, horizontalPadding)
+            .padding(.leading, leadingPadding)
+            .padding(.trailing, horizontalPadding)
             .frame(maxWidth: .infinity, minHeight: PaninoTokens.Layout.topNavigationHeight, maxHeight: PaninoTokens.Layout.topNavigationHeight)
         }
         .frame(height: PaninoTokens.Layout.topNavigationHeight)
         .background {
-            if theme.chromeStyle == .floatingToolbar {
-                Color.clear
-            } else if reduceTransparency {
-                Color(nsColor: .windowBackgroundColor).opacity(0.96)
-            } else {
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(theme.chromeStyle == .edgeToEdgeSidebar ? .regularMaterial : .thinMaterial)
-                        .overlay(theme.semanticSelectionColor.opacity(theme.chromeStyle == .edgeToEdgeSidebar ? 0.055 : 0.018))
+            topChromeBackground(tokens: tokens)
+        }
+    }
 
-                    if theme.chromeStyle == .edgeToEdgeSidebar {
-                        Rectangle()
-                            .fill(theme.semanticSelectionColor.opacity(0.12))
-                            .frame(width: 184)
-                    }
-                }
+    private func titlebarControlReserve(for width: CGFloat) -> CGFloat {
+        width >= 720 ? 118 : 96
+    }
+
+    @ViewBuilder
+    private func topChromeBackground(tokens: ResolvedThemeTokens) -> some View {
+        if reduceTransparency || colorSchemeContrast == .increased {
+            Color(nsColor: .windowBackgroundColor)
+                .opacity(colorSchemeContrast == .increased ? 1.0 : 0.96)
+                .overlay(theme.semanticSelectionColor.opacity(colorSchemeContrast == .increased ? 0.03 : 0.06))
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(Color(nsColor: .separatorColor).opacity(0.36))
-                        .frame(height: 1)
+                        .fill(tokens.strokeColor.opacity(max(0.44, tokens.strokeOpacity)))
+                        .frame(height: tokens.strokeWidth)
                 }
+        } else {
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.12)
+
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.12),
+                        tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.18),
+                        Color.black.opacity(0.04)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                if theme.chromeStyle == .edgeToEdgeSidebar {
+                    Rectangle()
+                        .fill(theme.semanticSelectionColor.opacity(0.07))
+                        .frame(width: 184)
+                }
+            }
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.white.opacity(tokens.depthHighlightOpacity * 0.36))
+                    .blendMode(.plusLighter)
+                    .frame(height: 1)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(tokens.strokeColor.opacity(max(0.28, tokens.strokeOpacity * 0.58)))
+                    .frame(height: tokens.strokeWidth)
             }
         }
     }
@@ -505,20 +576,20 @@ private struct TopNavigationBar: View {
     private func navigationShadowOpacity(tokens: ResolvedThemeTokens) -> Double {
         switch theme.chromeStyle {
         case .integrated:
-            return 0
+            return tokens.shadowOpacity * 0.28
         case .floatingToolbar:
-            return tokens.shadowOpacity
+            return tokens.shadowOpacity * PaninoSurfaceLevel.floatingChrome.shadowMultiplier
         case .edgeToEdgeSidebar:
             return tokens.shadowOpacity * 0.35
         }
     }
 
     private func navigationShadowRadius(tokens: ResolvedThemeTokens) -> CGFloat {
-        theme.chromeStyle == .floatingToolbar ? tokens.shadowRadius * 0.65 : tokens.shadowRadius * 0.25
+        theme.chromeStyle == .floatingToolbar ? tokens.shadowRadius * 0.92 : tokens.shadowRadius * 0.35
     }
 
     private func navigationShadowYOffset(tokens: ResolvedThemeTokens) -> CGFloat {
-        theme.chromeStyle == .floatingToolbar ? tokens.shadowYOffset * 0.5 : tokens.shadowYOffset * 0.2
+        theme.chromeStyle == .floatingToolbar ? tokens.shadowYOffset * 0.72 : tokens.shadowYOffset * 0.26
     }
 
     @ViewBuilder
@@ -526,18 +597,35 @@ private struct TopNavigationBar: View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         switch theme.chromeStyle {
         case .integrated:
-            shape.fill(Color.clear)
+            shape
+                .fill(Color.clear)
+                .paninoGlassSurface(
+                    tokens: tokens,
+                    level: .elevatedPanel,
+                    cornerRadius: cornerRadius,
+                    interactive: true
+                )
+                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.38))
+                .paninoDepthOverlay(tokens: tokens, level: .elevatedPanel, cornerRadius: cornerRadius)
+                .clipShape(shape)
         case .floatingToolbar:
             shape
                 .fill(Color.clear)
-                .paninoGlassSurface(tokens: tokens, cornerRadius: cornerRadius, interactive: true, tintOpacity: 0.04)
-                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.58))
-                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.20))
+                .paninoGlassSurface(
+                    tokens: tokens,
+                    level: .floatingChrome,
+                    cornerRadius: cornerRadius,
+                    interactive: true
+                )
+                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.36))
+                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.54))
+                .paninoDepthOverlay(tokens: tokens, level: .floatingChrome, cornerRadius: cornerRadius)
                 .clipShape(shape)
         case .edgeToEdgeSidebar:
             shape
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.20))
                 .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.28))
+                .paninoDepthOverlay(tokens: tokens, level: .elevatedPanel, cornerRadius: cornerRadius)
                 .clipShape(shape)
         }
     }
@@ -606,6 +694,7 @@ private struct TopNavigationItem: View {
     let action: () -> Void
 
     @EnvironmentObject private var theme: ThemeSettings
+    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
@@ -622,17 +711,45 @@ private struct TopNavigationItem: View {
             let shape = RoundedRectangle(cornerRadius: tokens.controlCornerRadius, style: .continuous)
             if isSelected {
                 shape
-                    .fill(tokens.selectionColor)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                tokens.selectionColor.opacity(0.96),
+                                tokens.selectionColor.opacity(0.86)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay {
+                        shape
+                            .strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
+                    }
+                    .overlay(alignment: .top) {
+                        shape
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                            .blendMode(.plusLighter)
+                    }
+                    .shadow(
+                        color: tokens.selectionColor.opacity(chromeStyle == .floatingToolbar ? 0.34 : 0.18),
+                        radius: chromeStyle == .floatingToolbar ? 12 : 6,
+                        x: 0,
+                        y: chromeStyle == .floatingToolbar ? 4 : 2
+                    )
             } else {
-                shape.fill(Color.clear)
+                shape
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovering ? 0.24 : 0))
+                    .overlay {
+                        shape
+                            .strokeBorder(Color.white.opacity(isHovering ? tokens.depthRimOpacity * 0.90 : 0), lineWidth: 1)
+                    }
             }
         }
-        .shadow(
-            color: tokens.selectionColor.opacity(isSelected && chromeStyle == .floatingToolbar ? 0.22 : 0),
-            radius: isSelected && chromeStyle == .floatingToolbar ? 8 : 0,
-            x: 0,
-            y: isSelected && chromeStyle == .floatingToolbar ? 2 : 0
-        )
+        .onHover { hovering in
+            withAnimation(PaninoMotion.noneWhenReduced(PaninoMotion.fast, reduceMotion: theme.reducesInterfaceMotion)) {
+                isHovering = hovering
+            }
+        }
         .accessibilityLabel(title)
         .help(title)
     }
@@ -695,6 +812,31 @@ private enum LauncherSection: String, CaseIterable, Identifiable, Hashable {
             return localizedString(language, english: "Tasks", chinese: "任务", italian: "Attività", french: "Tâches", spanish: "Tareas")
         case .settings:
             return AppText.settings.localized(language)
+        }
+    }
+
+    func subtitle(language: AppLanguage) -> String {
+        switch self {
+        case .launch:
+            return localizedString(language, english: "Library home, quick launch, and pack health.", chinese: "游戏库首页、快速启动与整合包健康状态。", italian: "Libreria, avvio rapido e salute del pacchetto.", french: "Bibliothèque, lancement rapide et santé du pack.", spanish: "Biblioteca, inicio rápido y salud del paquete.")
+        case .instances:
+            return localizedString(language, english: "Browse local instances and attached resources.", chinese: "浏览本地实例和关联资源。", italian: "Sfoglia istanze locali e risorse collegate.", french: "Parcourir les instances locales et ressources liées.", spanish: "Explora instancias locales y recursos vinculados.")
+        case .discover:
+            return localizedString(language, english: "Search, filter, and install Minecraft content.", chinese: "搜索、筛选并安装 Minecraft 内容。", italian: "Cerca, filtra e installa contenuti Minecraft.", french: "Rechercher, filtrer et installer du contenu Minecraft.", spanish: "Busca, filtra e instala contenido de Minecraft.")
+        case .resources:
+            return localizedString(language, english: "Manage versions, libraries, mods, and local files.", chinese: "管理版本、库、Mod 与本地文件。", italian: "Gestisci versioni, librerie, mod e file locali.", french: "Gérer versions, bibliothèques, mods et fichiers locaux.", spanish: "Gestiona versiones, bibliotecas, mods y archivos locales.")
+        case .versions:
+            return localizedString(language, english: "Inspect installed versions and content inventory.", chinese: "查看已安装版本与内容清单。", italian: "Controlla versioni installate e inventario contenuti.", french: "Inspecter versions installées et inventaire.", spanish: "Inspecciona versiones instaladas e inventario.")
+        case .account:
+            return localizedString(language, english: "Accounts, authentication, and identity state.", chinese: "账号、认证与身份状态。", italian: "Account, autenticazione e identità.", french: "Comptes, authentification et identité.", spanish: "Cuentas, autenticación e identidad.")
+        case .downloads:
+            return localizedString(language, english: "Downloads, installation queue, and history.", chinese: "下载、安装队列与历史记录。", italian: "Download, coda installazioni e cronologia.", french: "Téléchargements, file d'installation et historique.", spanish: "Descargas, cola de instalación e historial.")
+        case .logs:
+            return localizedString(language, english: "Core and game logs for troubleshooting.", chinese: "用于排查问题的 Core 与游戏日志。", italian: "Log Core e gioco per diagnosi.", french: "Journaux Core et jeu pour dépannage.", spanish: "Registros de Core y juego para diagnóstico.")
+        case .diagnostics:
+            return localizedString(language, english: "Active tasks, failures, diagnostics, and logs.", chinese: "活动任务、失败、诊断与日志。", italian: "Attività, errori, diagnostica e log.", french: "Tâches, échecs, diagnostics et journaux.", spanish: "Tareas, fallos, diagnósticos y registros.")
+        case .settings:
+            return localizedString(language, english: "Runtime, download, appearance, and advanced options.", chinese: "运行环境、下载、外观与高级选项。", italian: "Runtime, download, aspetto e opzioni avanzate.", french: "Runtime, téléchargements, apparence et options avancées.", spanish: "Runtime, descargas, apariencia y opciones avanzadas.")
         }
     }
 
@@ -815,73 +957,65 @@ private struct MainContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GeometryReader { proxy in
-            let contentWidth = PaninoTokens.Layout.contentWidth(for: proxy.size.width)
-            let pagePadding = PaninoTokens.Layout.pagePadding(for: proxy.size.width)
-
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                        switch section {
-                        case .launch:
-                            LaunchDashboard(
-                                viewModel: viewModel,
-                                openInstances: { sectionSelection = .instances },
-                                openAccount: { openSettingsWindow(.account) },
-                                openResources: { sectionSelection = .instances },
-                                openDiscover: { sectionSelection = .discover },
-                                openTasks: { sectionSelection = .diagnostics },
-                                openLogs: { sectionSelection = .diagnostics },
-                                openSettings: { openSettingsWindow() }
-                            )
-                        case .instances:
-                            InstancesPage(
-                                viewModel: viewModel,
-                                openResources: { sectionSelection = .instances },
-                                openDiscover: { sectionSelection = .discover }
-                            )
-                        case .discover:
-                            OnlineContentDiscoveryPage(
-                                viewModel: viewModel,
-                                openSettings: { openSettingsWindow() },
-                                openDownloadSettings: { openSettingsWindow(.download) },
-                                openTasks: { sectionSelection = .diagnostics }
-                            )
-                        case .resources:
-                            InstancesPage(
-                                viewModel: viewModel,
-                                openResources: { sectionSelection = .instances },
-                                openDiscover: { sectionSelection = .discover }
-                            )
-                        case .versions:
-                            VersionsAndModsPage(viewModel: viewModel)
-                        case .account:
-                            SettingsCenterPage(viewModel: viewModel)
-                        case .downloads:
-                            ActivityPage(viewModel: viewModel)
-                        case .logs:
-                            ActivityPage(viewModel: viewModel)
-                        case .diagnostics:
-                            ActivityPage(viewModel: viewModel)
-                        case .settings:
-                            SettingsCenterPage(viewModel: viewModel)
-                        }
-                    }
-                    .id(section)
-                    .transition(.opacity)
-                    .animation(PaninoMotion.noneWhenReduced(PaninoMotion.page, reduceMotion: reduceMotion || theme.reducesInterfaceMotion), value: section)
-                    .padding(.horizontal, pagePadding)
-                    .padding(.top, PaninoTokens.Layout.pageTopSpacing)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: contentWidth, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .top)
-                }
-                .scrollContentBackground(.hidden)
-
-                BottomStatusBar(viewModel: viewModel) {
-                    sectionSelection = .diagnostics
-                }
+        VStack(spacing: 0) {
+            PaninoWorkspaceScaffold(spacing: theme.fontDensity.spacing) { _ in
+                sectionContent
             }
+            .id(section)
+            .transition(.opacity)
+            .animation(PaninoMotion.noneWhenReduced(PaninoMotion.page, reduceMotion: reduceMotion || theme.reducesInterfaceMotion), value: section)
+
+            BottomStatusBar(viewModel: viewModel) {
+                sectionSelection = .diagnostics
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch section {
+        case .launch:
+            LaunchDashboard(
+                viewModel: viewModel,
+                openInstances: { sectionSelection = .instances },
+                openAccount: { openSettingsWindow(.account) },
+                openResources: { sectionSelection = .instances },
+                openDiscover: { sectionSelection = .discover },
+                openTasks: { sectionSelection = .diagnostics },
+                openLogs: { sectionSelection = .diagnostics },
+                openSettings: { openSettingsWindow() }
+            )
+        case .instances:
+            InstancesPage(
+                viewModel: viewModel,
+                openResources: { sectionSelection = .instances },
+                openDiscover: { sectionSelection = .discover }
+            )
+        case .discover:
+            OnlineContentDiscoveryPage(
+                viewModel: viewModel,
+                openSettings: { openSettingsWindow() },
+                openDownloadSettings: { openSettingsWindow(.download) },
+                openTasks: { sectionSelection = .diagnostics }
+            )
+        case .resources:
+            InstancesPage(
+                viewModel: viewModel,
+                openResources: { sectionSelection = .instances },
+                openDiscover: { sectionSelection = .discover }
+            )
+        case .versions:
+            VersionsAndModsPage(viewModel: viewModel)
+        case .account:
+            SettingsCenterPage(viewModel: viewModel, usesInternalScroll: false)
+        case .downloads:
+            ActivityPage(viewModel: viewModel)
+        case .logs:
+            ActivityPage(viewModel: viewModel)
+        case .diagnostics:
+            ActivityPage(viewModel: viewModel)
+        case .settings:
+            SettingsCenterPage(viewModel: viewModel, usesInternalScroll: false)
         }
     }
 

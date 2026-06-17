@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsCenterPage: View {
     @ObservedObject var viewModel: LauncherViewModel
     @Binding var selectedSection: PaninoSettingsSection
+    let usesInternalScroll: Bool
 
     @EnvironmentObject private var theme: ThemeSettings
     @EnvironmentObject private var launcherSettings: LauncherSettings
@@ -29,36 +30,25 @@ struct SettingsCenterPage: View {
 
     init(
         viewModel: LauncherViewModel,
-        selectedSection: Binding<PaninoSettingsSection> = .constant(.account)
+        selectedSection: Binding<PaninoSettingsSection> = .constant(.account),
+        usesInternalScroll: Bool = true
     ) {
         self.viewModel = viewModel
         self._selectedSection = selectedSection
+        self.usesInternalScroll = usesInternalScroll
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            settingsSidebar
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    switch selectedSection {
-                    case .account:
-                        accountSettings
-                    case .runtime:
-                        runtimeSettings
-                    case .download:
-                        downloadSettings
-                    case .appearance:
-                        AppearanceSettingsPage(showLanguage: true)
-                    case .advanced:
-                        advancedSettings
-                    }
-                }
-                .padding(22)
-                .frame(maxWidth: 920, alignment: .topLeading)
-                .frame(maxWidth: .infinity, alignment: .top)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: PaninoTokens.Layout.sectionSpacing) {
+                settingsSidebar
+                settingsContentContainer
             }
-            .scrollContentBackground(.hidden)
+
+            VStack(alignment: .leading, spacing: PaninoTokens.Layout.sectionSpacing) {
+                settingsSectionPicker
+                settingsContentContainer
+            }
         }
         .confirmationDialog(
             localizedString(theme.language, english: "Delete managed Java runtime?", chinese: "删除托管 Java Runtime？", italian: "Eliminare il runtime Java gestito?", french: "Supprimer le runtime Java géré ?", spanish: "¿Eliminar el runtime Java gestionado?"),
@@ -118,9 +108,9 @@ struct SettingsCenterPage: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(localizedString(theme.language, english: "Settings", chinese: "设置", italian: "Impostazioni", french: "Réglages", spanish: "Ajustes"))
                 .font(.title3.bold())
-                .padding(.horizontal, 14)
-                .padding(.top, 18)
-                .padding(.bottom, 8)
+                .lineLimit(1)
+                .padding(.horizontal, 4)
+                .padding(.bottom, 4)
 
             ForEach(PaninoSettingsSection.allCases) { section in
                 SettingsSectionButton(
@@ -133,10 +123,57 @@ struct SettingsCenterPage: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .frame(width: PaninoTokens.Layout.secondarySidebarWidth)
+        .padding(.vertical, 8)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(.regularMaterial)
+        .frame(width: PaninoTokens.Layout.secondarySidebarWidth)
+    }
+
+    private var settingsSectionPicker: some View {
+        PaninoGlassSegmentedRail {
+            Picker("", selection: $selectedSection) {
+                ForEach(PaninoSettingsSection.allCases) { section in
+                    Text(section.title(language: theme.language)).tag(section)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(minWidth: 520, idealWidth: 620, maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var settingsContentContainer: some View {
+        if usesInternalScroll {
+            ScrollView {
+                settingsContent
+                    .padding(22)
+                    .frame(maxWidth: 920, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .scrollContentBackground(.hidden)
+        } else {
+            settingsContent
+                .frame(maxWidth: 920, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+
+    @ViewBuilder
+    private var settingsContent: some View {
+        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
+            switch selectedSection {
+            case .account:
+                accountSettings
+            case .runtime:
+                runtimeSettings
+            case .download:
+                downloadSettings
+            case .appearance:
+                AppearanceSettingsPage(showLanguage: true)
+            case .advanced:
+                advancedSettings
+            }
+        }
     }
 
     private var accountSettings: some View {

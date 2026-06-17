@@ -45,6 +45,7 @@ struct PaninoLauncherApp: App {
                 .environmentObject(onlineContentStore)
         }
         .windowResizability(.contentMinSize)
+        .windowStyle(.hiddenTitleBar)
         .commands {
             PaninoLauncherCommands(
                 language: theme.language,

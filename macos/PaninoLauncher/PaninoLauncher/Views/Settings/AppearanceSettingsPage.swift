@@ -8,7 +8,7 @@ struct AppearanceSettingsPage: View {
     @State private var backgroundImportError: String?
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: theme.fontDensity.spacing + 4) {
                 PanelHeader(title: AppText.appearance.localized(theme.language), systemImage: "paintbrush")
 
@@ -27,14 +27,16 @@ struct AppearanceSettingsPage: View {
                 }
 
                     SettingsRow(title: AppText.mode.localized(theme.language), systemImage: "circle.lefthalf.filled") {
-                        Picker(AppText.mode.localized(theme.language), selection: $theme.appearance) {
-                            ForEach(ThemeAppearanceMode.allCases) { mode in
-                                Text(mode.title(language: theme.language)).tag(mode)
+                        PaninoGlassSegmentedRail {
+                            Picker(AppText.mode.localized(theme.language), selection: $theme.appearance) {
+                                ForEach(ThemeAppearanceMode.allCases) { mode in
+                                    Text(mode.title(language: theme.language)).tag(mode)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 420, maxWidth: 560, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 420, maxWidth: 560, alignment: .leading)
                     }
 
                     SettingsRow(title: AppText.preset.localized(theme.language), systemImage: "sparkles.rectangle.stack") {
@@ -86,41 +88,45 @@ struct AppearanceSettingsPage: View {
                     }
                 }
 
-                AppearanceSection(title: localizedString(theme.language, english: "Glass & Materials", chinese: "玻璃与材质", italian: "Vetro e materiali", french: "Verre et matériaux", spanish: "Cristal y materiales"), systemImage: "square.stack.3d.down.right") {
+                AppearanceSection(title: localizedString(theme.language, english: "Liquid Glass", chinese: "Liquid Glass", italian: "Liquid Glass", french: "Liquid Glass", spanish: "Liquid Glass"), systemImage: "square.stack.3d.down.right") {
                     SettingsRow(title: AppText.glass.localized(theme.language), systemImage: "sparkles") {
-                        Picker(AppText.glass.localized(theme.language), selection: $theme.glassStyle) {
-                            ForEach(ThemeGlassStyle.allCases) { style in
-                                Text(style.title(language: theme.language)).tag(style)
+                        PaninoGlassSegmentedRail {
+                            Picker(AppText.glass.localized(theme.language), selection: $theme.glassStyle) {
+                                ForEach(ThemeGlassStyle.allCases) { style in
+                                    Text(style.title(language: theme.language)).tag(style)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 420, maxWidth: 560, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 420, maxWidth: 560, alignment: .leading)
                         .disabled(theme.quietModeEnabled)
                         .opacity(theme.quietModeEnabled ? 0.45 : 1)
                     }
 
-                    SettingsRow(title: localizedString(theme.language, english: "Material", chinese: "材质", italian: "Materiale", french: "Matériau", spanish: "Material"), systemImage: "circle.dotted") {
-                        Picker(localizedString(theme.language, english: "Material", chinese: "材质", italian: "Materiale", french: "Matériau", spanish: "Material"), selection: $theme.materialStrength) {
-                            ForEach(MaterialStrength.allCases) { strength in
-                                Text(strength.title(language: theme.language)).tag(strength)
+                    SettingsRow(title: localizedString(theme.language, english: "Liquid Glass Strength", chinese: "Liquid Glass 强度", italian: "Intensità Liquid Glass", french: "Intensité Liquid Glass", spanish: "Intensidad Liquid Glass"), systemImage: "circle.dotted") {
+                        PaninoGlassSegmentedRail {
+                            Picker(localizedString(theme.language, english: "Liquid Glass Strength", chinese: "Liquid Glass 强度", italian: "Intensità Liquid Glass", french: "Intensité Liquid Glass", spanish: "Intensidad Liquid Glass"), selection: $theme.materialStrength) {
+                                ForEach(MaterialStrength.allCases) { strength in
+                                    Text(strength.title(language: theme.language)).tag(strength)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 340, maxWidth: 420, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 340, maxWidth: 420, alignment: .leading)
                         .disabled(theme.quietModeEnabled || theme.glassStyle == .solid)
                         .opacity(theme.quietModeEnabled || theme.glassStyle == .solid ? 0.45 : 1)
                     }
 
                     ThemeSliderRow(
-                        title: localizedString(theme.language, english: "Frosting", chinese: "磨砂", italian: "Satinatura", french: "Dépoli", spanish: "Esmerilado"),
+                        title: localizedString(theme.language, english: "Glass Frosting", chinese: "玻璃磨砂", italian: "Satinatura vetro", french: "Dépoli du verre", spanish: "Esmerilado del cristal"),
                         systemImage: "cloud.fog",
                         value: $theme.glassFrosting
                     )
 
                     ThemeSliderRow(
-                        title: localizedString(theme.language, english: "Surface Contrast", chinese: "表面对比", italian: "Contrasto superficie", french: "Contraste surface", spanish: "Contraste"),
+                        title: localizedString(theme.language, english: "Panel Legibility", chinese: "面板可读性", italian: "Leggibilità pannelli", french: "Lisibilité des panneaux", spanish: "Legibilidad de paneles"),
                         systemImage: "circle.righthalf.filled",
                         value: $theme.surfaceContrast
                     )
@@ -192,49 +198,57 @@ struct AppearanceSettingsPage: View {
                     }
 
                     SettingsRow(title: localizedString(theme.language, english: "Shape", chinese: "形状", italian: "Forma", french: "Forme", spanish: "Forma"), systemImage: "capsule") {
-                        Picker(localizedString(theme.language, english: "Shape", chinese: "形状", italian: "Forma", french: "Forme", spanish: "Forma"), selection: $theme.controlShape) {
-                            ForEach(ThemeControlShape.allCases) { shape in
-                                Text(shape.title(language: theme.language)).tag(shape)
+                        PaninoGlassSegmentedRail {
+                            Picker(localizedString(theme.language, english: "Shape", chinese: "形状", italian: "Forma", french: "Forme", spanish: "Forma"), selection: $theme.controlShape) {
+                                ForEach(ThemeControlShape.allCases) { shape in
+                                    Text(shape.title(language: theme.language)).tag(shape)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 360, maxWidth: 460, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 360, maxWidth: 460, alignment: .leading)
                     }
 
-                    SettingsRow(title: localizedString(theme.language, english: "Layering", chinese: "空间层级", italian: "Stratificazione", french: "Strates", spanish: "Capas"), systemImage: "square.stack.3d.up") {
-                        Picker(localizedString(theme.language, english: "Layering", chinese: "空间层级", italian: "Stratificazione", french: "Strates", spanish: "Capas"), selection: $theme.depthStyle) {
-                            ForEach(ThemeDepthStyle.allCases) { style in
-                                Text(style.title(language: theme.language)).tag(style)
+                    SettingsRow(title: localizedString(theme.language, english: "Depth Strength", chinese: "深度强度", italian: "Intensità profondità", french: "Intensité profondeur", spanish: "Intensidad de profundidad"), systemImage: "square.stack.3d.up") {
+                        PaninoGlassSegmentedRail {
+                            Picker(localizedString(theme.language, english: "Depth Strength", chinese: "深度强度", italian: "Intensità profondità", french: "Intensité profondeur", spanish: "Intensidad de profundidad"), selection: $theme.depthStyle) {
+                                ForEach(ThemeDepthStyle.allCases) { style in
+                                    Text(style.title(language: theme.language)).tag(style)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 360, maxWidth: 460, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 360, maxWidth: 460, alignment: .leading)
                     }
 
                     SettingsRow(title: AppText.density.localized(theme.language), systemImage: "textformat.size") {
-                        Picker(AppText.density.localized(theme.language), selection: $theme.fontDensity) {
-                            ForEach(FontDensity.allCases) { density in
-                                Text(density.title(language: theme.language)).tag(density)
+                        PaninoGlassSegmentedRail {
+                            Picker(AppText.density.localized(theme.language), selection: $theme.fontDensity) {
+                                ForEach(FontDensity.allCases) { density in
+                                    Text(density.title(language: theme.language)).tag(density)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 300, maxWidth: 360, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 300, maxWidth: 360, alignment: .leading)
                     }
                 }
 
                 AppearanceSection(title: localizedString(theme.language, english: "Legibility", chinese: "可读性", italian: "Leggibilità", french: "Lisibilité", spanish: "Legibilidad"), systemImage: "text.magnifyingglass") {
                     SettingsRow(title: localizedString(theme.language, english: "Motion", chinese: "动效", italian: "Movimento", french: "Mouvement", spanish: "Movimiento"), systemImage: "sparkles.tv") {
-                        Picker(localizedString(theme.language, english: "Motion", chinese: "动效", italian: "Movimento", french: "Mouvement", spanish: "Movimiento"), selection: $theme.motionStyle) {
-                            ForEach(ThemeMotionStyle.allCases) { style in
-                                Text(style.title(language: theme.language)).tag(style)
+                        PaninoGlassSegmentedRail {
+                            Picker(localizedString(theme.language, english: "Motion", chinese: "动效", italian: "Movimento", french: "Mouvement", spanish: "Movimiento"), selection: $theme.motionStyle) {
+                                ForEach(ThemeMotionStyle.allCases) { style in
+                                    Text(style.title(language: theme.language)).tag(style)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 300, maxWidth: 360, alignment: .leading)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(minWidth: 300, maxWidth: 360, alignment: .leading)
                     }
 
                     SettingsRow(title: localizedString(theme.language, english: "Quiet Mode", chinese: "安静模式", italian: "Modalità silenziosa", french: "Mode calme", spanish: "Modo tranquilo"), systemImage: "moon") {

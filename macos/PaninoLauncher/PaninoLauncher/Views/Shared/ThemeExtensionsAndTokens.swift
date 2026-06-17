@@ -593,6 +593,114 @@ struct ResolvedThemeTokens {
     }
 }
 
+enum PaninoSurfaceLevel {
+    case background
+    case panel
+    case elevatedPanel
+    case floatingChrome
+    case popover
+
+    var veilMultiplier: Double {
+        switch self {
+        case .background: return 0.52
+        case .panel: return 1.00
+        case .elevatedPanel: return 0.82
+        case .floatingChrome: return 0.64
+        case .popover: return 0.72
+        }
+    }
+
+    var fillOpacityMultiplier: Double {
+        switch self {
+        case .background: return 0.58
+        case .panel: return 1.00
+        case .elevatedPanel: return 0.88
+        case .floatingChrome: return 0.74
+        case .popover: return 0.92
+        }
+    }
+
+    var accentMultiplier: Double {
+        switch self {
+        case .background: return 0.34
+        case .panel: return 0.55
+        case .elevatedPanel: return 0.70
+        case .floatingChrome: return 0.86
+        case .popover: return 0.76
+        }
+    }
+
+    var tintOpacity: Double {
+        switch self {
+        case .background: return 0.025
+        case .panel: return 0.070
+        case .elevatedPanel: return 0.095
+        case .floatingChrome: return 0.120
+        case .popover: return 0.105
+        }
+    }
+
+    var strokeMultiplier: Double {
+        switch self {
+        case .background: return 0.42
+        case .panel: return 1.00
+        case .elevatedPanel: return 1.12
+        case .floatingChrome: return 1.24
+        case .popover: return 1.18
+        }
+    }
+
+    var shadowMultiplier: Double {
+        switch self {
+        case .background: return 0.20
+        case .panel: return 1.00
+        case .elevatedPanel: return 1.18
+        case .floatingChrome: return 1.42
+        case .popover: return 1.30
+        }
+    }
+
+    var shadowRadiusMultiplier: CGFloat {
+        switch self {
+        case .background: return 0.40
+        case .panel: return 1.00
+        case .elevatedPanel: return 1.12
+        case .floatingChrome: return 1.28
+        case .popover: return 1.22
+        }
+    }
+
+    var shadowYOffsetMultiplier: CGFloat {
+        switch self {
+        case .background: return 0.35
+        case .panel: return 1.00
+        case .elevatedPanel: return 1.14
+        case .floatingChrome: return 1.30
+        case .popover: return 1.22
+        }
+    }
+
+    var highlightMultiplier: Double {
+        switch self {
+        case .background: return 0.42
+        case .panel: return 1.00
+        case .elevatedPanel: return 1.22
+        case .floatingChrome: return 1.45
+        case .popover: return 1.32
+        }
+    }
+
+    var shadeMultiplier: Double {
+        switch self {
+        case .background: return 0.42
+        case .panel: return 1.00
+        case .elevatedPanel: return 1.16
+        case .floatingChrome: return 1.34
+        case .popover: return 1.24
+        }
+    }
+}
+
 extension ThemeSettings {
     var semanticSelectionColor: Color {
         if appearance == .highContrast {
@@ -617,6 +725,7 @@ extension ThemeSettings {
 
 private struct PaninoGlassSurfaceModifier: ViewModifier {
     let tokens: ResolvedThemeTokens
+    let level: PaninoSurfaceLevel
     let cornerRadius: CGFloat
     let interactive: Bool
     let tintOpacity: Double
@@ -643,11 +752,12 @@ private struct PaninoGlassSurfaceModifier: ViewModifier {
             content
                 .background {
                     shape.fill(material)
+                        .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * level.veilMultiplier))
                 }
         } else {
             content
                 .background {
-                    shape.fill(tokens.surfaceFill.opacity(tokens.surfaceFillOpacity))
+                    shape.fill(tokens.surfaceFill.opacity(tokens.surfaceFillOpacity * level.fillOpacityMultiplier))
                 }
         }
     }
@@ -655,6 +765,7 @@ private struct PaninoGlassSurfaceModifier: ViewModifier {
 
 private struct PaninoDepthOverlayModifier: ViewModifier {
     let tokens: ResolvedThemeTokens
+    let level: PaninoSurfaceLevel
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
@@ -665,9 +776,9 @@ private struct PaninoDepthOverlayModifier: ViewModifier {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(tokens.depthHighlightOpacity),
+                                Color.white.opacity(tokens.depthHighlightOpacity * level.highlightMultiplier),
                                 Color.white.opacity(0),
-                                Color.black.opacity(tokens.depthShadeOpacity)
+                                Color.black.opacity(tokens.depthShadeOpacity * level.shadeMultiplier)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -677,7 +788,10 @@ private struct PaninoDepthOverlayModifier: ViewModifier {
             }
             .overlay {
                 shape
-                    .strokeBorder(Color.white.opacity(tokens.depthRimOpacity), lineWidth: max(1, tokens.strokeWidth))
+                    .strokeBorder(
+                        Color.white.opacity(tokens.depthRimOpacity * level.highlightMultiplier),
+                        lineWidth: max(1, tokens.strokeWidth)
+                    )
                     .allowsHitTesting(false)
             }
     }
@@ -718,21 +832,28 @@ extension View {
 
     func paninoGlassSurface(
         tokens: ResolvedThemeTokens,
+        level: PaninoSurfaceLevel = .panel,
         cornerRadius: CGFloat? = nil,
         interactive: Bool = false,
-        tintOpacity: Double = 0.08
+        tintOpacity: Double? = nil
     ) -> some View {
         modifier(PaninoGlassSurfaceModifier(
             tokens: tokens,
+            level: level,
             cornerRadius: cornerRadius ?? tokens.panelCornerRadius,
             interactive: interactive,
-            tintOpacity: tintOpacity
+            tintOpacity: tintOpacity ?? level.tintOpacity
         ))
     }
 
-    func paninoDepthOverlay(tokens: ResolvedThemeTokens, cornerRadius: CGFloat? = nil) -> some View {
+    func paninoDepthOverlay(
+        tokens: ResolvedThemeTokens,
+        level: PaninoSurfaceLevel = .panel,
+        cornerRadius: CGFloat? = nil
+    ) -> some View {
         modifier(PaninoDepthOverlayModifier(
             tokens: tokens,
+            level: level,
             cornerRadius: cornerRadius ?? tokens.panelCornerRadius
         ))
     }

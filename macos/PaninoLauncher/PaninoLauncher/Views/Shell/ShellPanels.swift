@@ -81,19 +81,31 @@ struct BottomStatusBar: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: openActivity)
         .background {
-            if let material = tokens.surfaceMaterial {
+            if reduceTransparency || colorSchemeContrast == .increased {
                 Rectangle()
-                    .fill(material)
-                    .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.8))
+                    .fill(Color(nsColor: .windowBackgroundColor).opacity(colorSchemeContrast == .increased ? 1.0 : 0.96))
+                    .overlay(tokens.selectionColor.opacity(colorSchemeContrast == .increased ? 0.03 : 0.06))
             } else {
-                Rectangle()
-                    .fill(tokens.surfaceFill.opacity(tokens.surfaceFillOpacity))
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.12)
+
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.04),
+                            tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.14),
+                            Color.black.opacity(0.12)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
             }
         }
-        .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.25))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(tokens.strokeColor.opacity(tokens.strokeOpacity))
+                .fill(tokens.strokeColor.opacity(max(0.28, tokens.strokeOpacity * 0.58)))
                 .frame(height: tokens.strokeWidth)
         }
     }

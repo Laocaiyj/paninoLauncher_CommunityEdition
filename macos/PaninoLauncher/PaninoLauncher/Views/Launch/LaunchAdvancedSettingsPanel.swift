@@ -16,7 +16,7 @@ private struct LaunchAdvancedSettingsPanel: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: 12) {
                 PanelHeader(
                     title: localizedString(theme.language, english: "Advanced Launch Settings", chinese: "高级启动设置", italian: "Impostazioni avanzate", french: "Réglages avancés", spanish: "Ajustes avanzados"),

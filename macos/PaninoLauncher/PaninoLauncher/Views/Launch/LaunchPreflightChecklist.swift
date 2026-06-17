@@ -58,7 +58,7 @@ struct LaunchPreflightChecklist: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: 12) {
                 PanelHeader(
                     title: localizedString(theme.language, english: "Pre-launch Check", chinese: "启动前检查", italian: "Controllo pre-avvio", french: "Vérification avant lancement", spanish: "Comprobación previa"),
@@ -97,7 +97,7 @@ private struct LaunchPreflightRow: View {
             }
         }
         .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.26), in: RoundedRectangle(cornerRadius: 8))
+        .paninoGlassCard(isSelected: item.state == .needsFix, level: item.state == .needsFix ? .elevatedPanel : .panel, cornerRadius: 8, tint: item.state.badgeStyle.color, showsShadow: item.state == .needsFix)
     }
 
     private var rowStatus: some View {

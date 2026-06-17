@@ -48,6 +48,31 @@ enum GraphicsTuningSelfTest {
             "balanced graphics profile should read as automatic recommendation",
             &failures
         )
+        expect(
+            PaninoWorkspaceWidthClass(width: 900) == .compact,
+            "workspace should collapse to a single column at 900px",
+            &failures
+        )
+        expect(
+            PaninoWorkspaceWidthClass(width: 1280) == .regular,
+            "workspace should use the regular two-column layout at 1280px",
+            &failures
+        )
+        expect(
+            PaninoWorkspaceWidthClass(width: 1600) == .wide,
+            "workspace should expose the wide inspector layout at 1600px",
+            &failures
+        )
+        expect(
+            PaninoWorkspaceMetrics(availableWidth: 900).contentWidth >= 640,
+            "compact workspace content width should remain usable",
+            &failures
+        )
+        expect(
+            PaninoWorkspaceMetrics(availableWidth: 2000).contentWidth >= PaninoWorkspaceMetrics(availableWidth: 1600).contentWidth,
+            "wide workspace content width should not shrink as the window grows",
+            &failures
+        )
 
         let request = CoreGraphicsTuningRequest(
             gameDir: "/tmp/panino-graphics",

@@ -1,6 +1,12 @@
 import SwiftUI
 
+enum OnlineProjectDetailPresentation {
+    case full
+    case inspector
+}
+
 struct OnlineProjectDetailPanel: View {
+    var presentation: OnlineProjectDetailPresentation = .full
     let project: OnlineProject
     let releases: [OnlineRelease]
     @Binding var selectedReleaseID: String?
@@ -30,31 +36,68 @@ struct OnlineProjectDetailPanel: View {
     }
 
     var body: some View {
-        GlassPanel {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 20) {
-                    mainColumn
-                        .frame(width: 640, alignment: .topLeading)
-                    inspectorColumn
-                        .frame(width: 320, alignment: .topLeading)
-                }
-
-                VStack(alignment: .leading, spacing: 18) {
-                    mainColumn
-                    inspectorColumn
-                }
-            }
-            .frame(maxWidth: 1_000, alignment: .topLeading)
+        switch presentation {
+        case .full:
+            fullDetail
+        case .inspector:
+            inspectorDetail
         }
-        .frame(maxWidth: 1_040, alignment: .topLeading)
     }
 
-    private var mainColumn: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ProjectSummaryHeader(project: project)
-            ProjectGalleryStrip(urls: Array(project.galleryURLs.prefix(4)))
-            ProjectDescriptionSection(text: project.description ?? project.summary)
-            ProjectMetadataSection(project: project)
+    private var fullDetail: some View {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
+            VStack(alignment: .leading, spacing: 20) {
+                ProjectImmersiveHeader(project: project, presentation: .full)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 24) {
+                        contentColumn
+                            .frame(minWidth: 520, maxWidth: .infinity, alignment: .topLeading)
+                        actionColumn
+                            .frame(width: 340, alignment: .topLeading)
+                    }
+
+                    VStack(alignment: .leading, spacing: 18) {
+                        contentColumn
+                        actionColumn
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: 1_260, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var inspectorDetail: some View {
+        GlassPanel(showsShadow: false, surfaceLevel: .elevatedPanel) {
+            VStack(alignment: .leading, spacing: 14) {
+                ProjectImmersiveHeader(project: project, presentation: .inspector)
+
+                actionColumn
+
+                releasePickerSection
+
+                ProjectDescriptionSection(text: project.description ?? project.summary, collapsedLineLimit: 6)
+
+                Divider()
+
+                ProjectMetadataSection(project: project, presentation: .inspector)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var contentColumn: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ProjectDescriptionSection(text: project.description ?? project.summary, collapsedLineLimit: 7)
+            ProjectMetadataSection(project: project, presentation: .full)
+            releasePickerSection
+        }
+    }
+
+    @ViewBuilder
+    private var releasePickerSection: some View {
+        if currentMinecraftVersion != nil || projectFailure != nil || isLoading {
             Divider()
             ReleasePickerSection(
                 releases: releases,
@@ -68,65 +111,266 @@ struct OnlineProjectDetailPanel: View {
     }
 
     @ViewBuilder
-    private var inspectorColumn: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    private var actionColumn: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            actionSection
             if let selectedRelease, project.projectType.managedAssetKind != nil {
-                InstallTargetSection(
-                    release: selectedRelease,
-                    currentMinecraftVersion: currentMinecraftVersion,
-                    targetResolution: targetResolution,
-                    selectedTargetID: $selectedTargetID,
-                    targetFailure: targetFailure,
-                    install: install,
-                    openTasks: openTasks
-                )
                 Divider()
                 ReleaseFileDetailsSection(release: selectedRelease)
-            } else if project.projectType == .modpack {
-                OnlineUnsupportedInstallFlowView(
-                    title: localizedString(theme.language, english: "Modpack import flow", chinese: "整合包导入流程", italian: "Importazione modpack", french: "Import modpack", spanish: "Importar modpack"),
-                    message: localizedString(theme.language, english: "Modpacks create or import a dedicated local instance. That flow is separate from installing single content files into an existing instance.", chinese: "整合包会创建或导入专用本地实例，不会直接写入已有普通实例。", italian: "I modpack creano o importano un'istanza dedicata.", french: "Les modpacks créent ou importent une instance dédiée.", spanish: "Los modpacks crean o importan una instancia dedicada.")
-                )
-            } else {
-                OnlineUnsupportedInstallFlowView(
-                    title: localizedString(theme.language, english: "Choose a Minecraft version", chinese: "选择 Minecraft 版本", italian: "Scegli una versione Minecraft", french: "Choisir une version Minecraft", spanish: "Elige una versión de Minecraft"),
-                    message: localizedString(theme.language, english: "Select a Minecraft release filter to load installable files and target matches.", chinese: "请选择 Minecraft 正式版过滤器，以加载可安装文件和匹配目标。", italian: "Seleziona un filtro Minecraft per caricare file e destinazioni.", french: "Sélectionnez un filtre Minecraft pour charger les fichiers et cibles.", spanish: "Selecciona un filtro de Minecraft para cargar archivos y destinos.")
-                )
             }
+        }
+    }
+
+    @ViewBuilder
+    private var actionSection: some View {
+        if let selectedRelease, project.projectType.managedAssetKind != nil {
+            InstallTargetSection(
+                release: selectedRelease,
+                currentMinecraftVersion: currentMinecraftVersion,
+                targetResolution: targetResolution,
+                selectedTargetID: $selectedTargetID,
+                targetFailure: targetFailure,
+                install: install,
+                openTasks: openTasks
+            )
+        } else if project.projectType == .modpack {
+            OnlineUnsupportedInstallFlowView(
+                title: localizedString(theme.language, english: "Modpack import flow", chinese: "整合包导入流程", italian: "Importazione modpack", french: "Import modpack", spanish: "Importar modpack"),
+                message: localizedString(theme.language, english: "Modpacks create or import a dedicated local instance. That flow is separate from installing single content files into an existing instance.", chinese: "整合包会创建或导入专用本地实例，不会直接写入已有普通实例。", italian: "I modpack creano o importano un'istanza dedicata.", french: "Les modpacks créent ou importent une instance dédiée.", spanish: "Los modpacks crean una instancia dedicada.")
+            )
+        } else {
+            OnlineUnsupportedInstallFlowView(
+                title: localizedString(theme.language, english: "Choose a Minecraft version", chinese: "选择 Minecraft 版本", italian: "Scegli una versione Minecraft", french: "Choisir une version Minecraft", spanish: "Elige una versión de Minecraft"),
+                message: localizedString(theme.language, english: "Select a Minecraft release filter above to load installable files and compatible local targets.", chinese: "请先在上方选择 Minecraft 正式版过滤器，以加载可安装文件和兼容本地目标。", italian: "Seleziona un filtro Minecraft per caricare file e destinazioni.", french: "Sélectionnez une version Minecraft pour charger les fichiers et cibles.", spanish: "Selecciona una versión de Minecraft para cargar archivos y destinos.")
+            )
         }
     }
 }
 
-private struct ProjectSummaryHeader: View {
+private struct ProjectImmersiveHeader: View {
     let project: OnlineProject
+    var presentation: OnlineProjectDetailPresentation = .full
+
+    @State private var selectedImageIndex = 0
     @EnvironmentObject private var theme: ThemeSettings
 
+    private var heroHeight: CGFloat {
+        presentation == .inspector ? 228 : 330
+    }
+
+    private var iconSize: CGFloat {
+        presentation == .inspector ? 50 : 68
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            OnlineProjectIcon(url: project.iconURL)
-                .frame(width: 48, height: 48)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.title)
-                    .font(.title3.bold())
-                    .lineLimit(2)
-                Text(projectSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+        ZStack(alignment: .bottomLeading) {
+            heroMedia
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.12),
+                    Color.black.opacity(0.44),
+                    Color.black.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+
+            VStack(alignment: .leading, spacing: 0) {
+                headerChrome
+                Spacer(minLength: 18)
+                bottomContent
             }
+            .padding(presentation == .inspector ? 16 : 22)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: heroHeight)
+        .clipShape(RoundedRectangle(cornerRadius: PaninoTokens.Radius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: PaninoTokens.Radius.panel, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(presentation == .inspector ? 0.12 : 0.20), radius: presentation == .inspector ? 18 : 28, x: 0, y: presentation == .inspector ? 8 : 14)
+        .onChange(of: project.id) { _, _ in
+            selectedImageIndex = 0
+        }
+        .onChange(of: project.galleryURLs) { _, galleryURLs in
+            guard selectedImageIndex >= galleryURLs.count else { return }
+            selectedImageIndex = 0
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var headerChrome: some View {
+        HStack(alignment: .top, spacing: 10) {
+            projectPills
             Spacer(minLength: 12)
-            if let projectURL = project.projectURL {
-                Link(destination: projectURL) {
-                    Label(
-                        localizedString(theme.language, english: "Open Page", chinese: "打开页面", italian: "Apri pagina", french: "Ouvrir la page", spanish: "Abrir página"),
-                        systemImage: "safari"
-                    )
-                    .labelStyle(.titleAndIcon)
-                }
-                .font(.caption.weight(.semibold))
+            projectLink
+        }
+    }
+
+    private var bottomContent: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .bottom, spacing: 18) {
+                titleCluster
+                Spacer(minLength: 18)
+                thumbnailRail
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                titleCluster
+                thumbnailRail
             }
         }
+    }
+
+    private var titleCluster: some View {
+        HStack(alignment: .bottom, spacing: presentation == .inspector ? 11 : 15) {
+            OnlineProjectIcon(url: project.iconURL)
+                .frame(width: iconSize, height: iconSize)
+                .shadow(color: .black.opacity(0.30), radius: 12, x: 0, y: 6)
+
+            VStack(alignment: .leading, spacing: presentation == .inspector ? 4 : 6) {
+                Text(project.title)
+                    .font(presentation == .inspector ? .title3.bold() : .largeTitle.bold())
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.66)
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.34), radius: 10, x: 0, y: 4)
+
+                Text(projectSubtitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Text(project.summary)
+                    .font(presentation == .inspector ? .caption : .callout.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(presentation == .inspector ? 2 : 3)
+                    .minimumScaleFactor(0.76)
+            }
+        }
+        .frame(maxWidth: presentation == .inspector ? .infinity : 720, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var heroMedia: some View {
+        GeometryReader { proxy in
+            if let selectedMediaURL {
+                AsyncImage(url: selectedMediaURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .clipped()
+                    case .failure:
+                        fallbackMedia
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                    default:
+                        fallbackMedia
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .overlay {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.white)
+                            }
+                    }
+                }
+            } else {
+                fallbackMedia
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+        }
+    }
+
+    private var fallbackMedia: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    theme.semanticSelectionColor.opacity(0.72),
+                    theme.semanticSelectionColor.opacity(0.34),
+                    Color(nsColor: .windowBackgroundColor).opacity(0.78)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            OnlineProjectIcon(url: project.iconURL)
+                .frame(width: presentation == .inspector ? 112 : 160, height: presentation == .inspector ? 112 : 160)
+                .opacity(0.22)
+                .blur(radius: 1.2)
+                .offset(x: presentation == .inspector ? 120 : 260, y: presentation == .inspector ? -20 : -36)
+        }
+    }
+
+    private var projectPills: some View {
+        HStack(spacing: 8) {
+            ProjectHeroPill(text: project.source.displayName)
+            ProjectHeroPill(text: project.projectType.displayTitle)
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnailRail: some View {
+        if !project.galleryURLs.isEmpty {
+            HStack(spacing: 8) {
+                ForEach(Array(project.galleryURLs.prefix(4).enumerated()), id: \.element) { index, url in
+                    Button {
+                        selectedImageIndex = index
+                    } label: {
+                        ProjectHeroThumbnail(url: url, isSelected: index == selectedImageIndex)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Image \(index + 1)")
+                }
+            }
+            .padding(6)
+            .background(.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var projectLink: some View {
+        if let projectURL = project.projectURL {
+            Link(destination: projectURL) {
+                if presentation == .inspector {
+                    projectLinkLabel
+                        .labelStyle(.iconOnly)
+                } else {
+                    projectLinkLabel
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, presentation == .inspector ? 10 : 12)
+            .frame(height: 34)
+            .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+            }
+        }
+    }
+
+    private var projectLinkLabel: some View {
+        Label(
+            localizedString(theme.language, english: "Open Page", chinese: "打开页面", italian: "Apri pagina", french: "Ouvrir la page", spanish: "Abrir página"),
+            systemImage: "safari"
+        )
+    }
+
+    private var selectedMediaURL: URL? {
+        guard !project.galleryURLs.isEmpty else { return nil }
+        return project.galleryURLs[min(selectedImageIndex, project.galleryURLs.count - 1)]
     }
 
     private var projectSubtitle: String {
@@ -140,49 +384,68 @@ private struct ProjectSummaryHeader: View {
     }
 }
 
-private struct ProjectGalleryStrip: View {
-    let urls: [URL]
+private struct ProjectHeroPill: View {
+    let text: String
 
     var body: some View {
-        if !urls.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(urls, id: \.self) { url in
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable().scaledToFill()
-                            case .failure:
-                                Image(systemName: "photo.badge.exclamationmark")
-                                    .font(.title2)
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
-                            default:
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.25))
-                            }
-                        }
-                        .frame(width: 148, height: 84)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                }
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white.opacity(0.88))
+            .lineLimit(1)
+            .padding(.horizontal, 9)
+            .frame(height: 26)
+            .background(.black.opacity(0.24), in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            }
+    }
+}
+
+private struct ProjectHeroThumbnail: View {
+    let url: URL
+    let isSelected: Bool
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+            case .failure:
+                Image(systemName: "photo.badge.exclamationmark")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+            default:
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.25))
             }
         }
+        .frame(width: 54, height: 36)
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isSelected ? Color.white.opacity(0.92) : Color.white.opacity(0.22), lineWidth: isSelected ? 2 : 1)
+        }
+        .opacity(isSelected ? 1 : 0.78)
     }
 }
 
 private struct ProjectDescriptionSection: View {
     let text: String
+    var collapsedLineLimit = 5
     @State private var isExpanded = false
     @EnvironmentObject private var theme: ThemeSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SafeDescriptionText(text: text, lineLimit: canToggle ? (isExpanded ? nil : 5) : nil)
+            SafeDescriptionText(text: text, lineLimit: canToggle ? (isExpanded ? nil : collapsedLineLimit) : nil)
 
             if canToggle {
                 Button {
@@ -211,50 +474,33 @@ private struct ProjectDescriptionSection: View {
 
 private struct ProjectMetadataSection: View {
     let project: OnlineProject
+    var presentation: OnlineProjectDetailPresentation = .full
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 7) {
-                GridRow {
-                    metadataRow(
-                        localizedString(theme.language, english: "Authors", chinese: "作者", italian: "Autori", french: "Auteurs", spanish: "Autores"),
-                        project.authors.prefix(3).joined(separator: ", ")
-                    )
-                    metadataRow(
-                        localizedString(theme.language, english: "Source", chinese: "来源", italian: "Fonte", french: "Source", spanish: "Fuente"),
-                        project.source.displayName
-                    )
+            if presentation == .inspector {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], alignment: .leading, spacing: 8) {
+                    metadataItems
                 }
-                GridRow {
-                    metadataRow(
-                        localizedString(theme.language, english: "Versions", chinese: "版本", italian: "Versioni", french: "Versions", spanish: "Versiones"),
-                        summarized(project.gameVersions, limit: 4)
-                    )
-                    metadataRow(
-                        "Loader",
-                        summarized(project.loaders.map(\.displayTitle), limit: 4)
-                    )
-                }
-                GridRow {
-                    metadataRow(
-                        localizedString(theme.language, english: "Side", chinese: "运行端", italian: "Lato", french: "Côté", spanish: "Lado"),
-                        "\(project.clientSide.sideTitle(prefix: "Client")) · \(project.serverSide.sideTitle(prefix: "Server"))"
-                    )
-                    metadataRow(
-                        localizedString(theme.language, english: "Downloads", chinese: "下载量", italian: "Download", french: "Téléchargements", spanish: "Descargas"),
-                        formattedCount(project.downloads)
-                    )
-                }
-                GridRow {
-                    metadataRow(
-                        localizedString(theme.language, english: "Updated", chinese: "更新", italian: "Aggiornato", french: "Mis à jour", spanish: "Actualizado"),
-                        project.updatedAt?.formatted(date: .abbreviated, time: .omitted) ?? "-"
-                    )
-                    metadataRow(
-                        localizedString(theme.language, english: "License", chinese: "许可证", italian: "Licenza", french: "Licence", spanish: "Licencia"),
-                        project.license ?? "-"
-                    )
+            } else {
+                Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
+                    GridRow {
+                        metadataRow(authorTitle, project.authors.prefix(3).joined(separator: ", "))
+                        metadataRow(sourceTitle, project.source.displayName)
+                    }
+                    GridRow {
+                        metadataRow(versionTitle, summarized(project.gameVersions, limit: 4))
+                        metadataRow("Loader", summarized(project.loaders.map(\.displayTitle), limit: 4))
+                    }
+                    GridRow {
+                        metadataRow(sideTitle, "\(project.clientSide.sideTitle(prefix: "Client")) · \(project.serverSide.sideTitle(prefix: "Server"))")
+                        metadataRow(downloadTitle, formattedCount(project.downloads))
+                    }
+                    GridRow {
+                        metadataRow(updatedTitle, project.updatedAt?.formatted(date: .abbreviated, time: .omitted) ?? "-")
+                        metadataRow(licenseTitle, project.license ?? "-")
+                    }
                 }
             }
 
@@ -273,6 +519,46 @@ private struct ProjectMetadataSection: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var metadataItems: some View {
+        metadataRow(authorTitle, project.authors.prefix(3).joined(separator: ", "))
+        metadataRow(sourceTitle, project.source.displayName)
+        metadataRow(versionTitle, summarized(project.gameVersions, limit: 3))
+        metadataRow("Loader", summarized(project.loaders.map(\.displayTitle), limit: 3))
+        metadataRow(sideTitle, "\(project.clientSide.sideTitle(prefix: "Client")) · \(project.serverSide.sideTitle(prefix: "Server"))")
+        metadataRow(downloadTitle, formattedCount(project.downloads))
+        metadataRow(updatedTitle, project.updatedAt?.formatted(date: .abbreviated, time: .omitted) ?? "-")
+        metadataRow(licenseTitle, project.license ?? "-")
+    }
+
+    private var authorTitle: String {
+        localizedString(theme.language, english: "Authors", chinese: "作者", italian: "Autori", french: "Auteurs", spanish: "Autores")
+    }
+
+    private var sourceTitle: String {
+        localizedString(theme.language, english: "Source", chinese: "来源", italian: "Fonte", french: "Source", spanish: "Fuente")
+    }
+
+    private var versionTitle: String {
+        localizedString(theme.language, english: "Versions", chinese: "版本", italian: "Versioni", french: "Versions", spanish: "Versiones")
+    }
+
+    private var sideTitle: String {
+        localizedString(theme.language, english: "Side", chinese: "运行端", italian: "Lato", french: "Côté", spanish: "Lado")
+    }
+
+    private var downloadTitle: String {
+        localizedString(theme.language, english: "Downloads", chinese: "下载量", italian: "Download", french: "Téléchargements", spanish: "Descargas")
+    }
+
+    private var updatedTitle: String {
+        localizedString(theme.language, english: "Updated", chinese: "更新", italian: "Aggiornato", french: "Mis à jour", spanish: "Actualizado")
+    }
+
+    private var licenseTitle: String {
+        localizedString(theme.language, english: "License", chinese: "许可证", italian: "Licenza", french: "Licence", spanish: "Licencia")
     }
 
     private func metadataRow(_ title: String, _ value: String) -> some View {
@@ -727,7 +1013,7 @@ private struct ReleaseFileDetailsSection: View {
     let release: OnlineRelease
 
     @EnvironmentObject private var theme: ThemeSettings
-    @State private var isExpanded = false
+    @State private var isExpanded = true
 
     private var primaryFile: OnlineFile? {
         release.files.first(where: \.isPrimary) ?? release.files.first

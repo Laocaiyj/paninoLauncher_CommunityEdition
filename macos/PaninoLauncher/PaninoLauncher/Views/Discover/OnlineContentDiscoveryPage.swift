@@ -14,7 +14,9 @@ struct OnlineContentDiscoveryPage: View {
     @EnvironmentObject var launcherSettings: LauncherSettings
     @EnvironmentObject var diagnosticsStore: DiagnosticsStore
     @EnvironmentObject var theme: ThemeSettings
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.colorSchemeContrast) var colorSchemeContrast
     @State var searchText = ""
     @State var selectedSource: ContentSourceID = .modrinth
     @State var selectedType: OnlineProjectType = .mod
@@ -195,15 +197,27 @@ struct OnlineContentDiscoveryPage: View {
     @ViewBuilder
     private var discoveryPageContent: some View {
         VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            discoverSectionBar
-            VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                if selectedSection == .minecraft {
-                    minecraftContent
-                } else {
-                    resourcesContent
+            ImmersivePageScaffold(
+                minHeight: selectedSection == .minecraft ? 500 : 540,
+                backgroundContent: {
+                    discoverSceneBackground
+                },
+                primaryContent: {
+                    discoverScenePrimary
+                },
+                floatingControls: {
+                    discoverSceneControls
+                },
+                contextShelf: {
+                    discoverSceneContextShelf
                 }
+            )
+
+            if selectedSection == .minecraft {
+                minecraftContent
+            } else {
+                resourcesContent
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 

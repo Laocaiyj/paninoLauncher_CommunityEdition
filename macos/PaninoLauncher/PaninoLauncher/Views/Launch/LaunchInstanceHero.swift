@@ -16,7 +16,7 @@ struct LaunchInstanceHero: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: 14) {
                 LaunchCoverPreview(instance: instance)
 

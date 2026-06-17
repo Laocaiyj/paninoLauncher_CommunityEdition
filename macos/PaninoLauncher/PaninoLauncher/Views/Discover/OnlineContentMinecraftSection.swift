@@ -94,14 +94,16 @@ struct MinecraftVersionBrowsePage: View {
                             localizedString(theme.language, english: "Search version, e.g. 1.20.1 or 1.7.10", chinese: "搜索版本，例如 1.20.1 或 1.7.10", italian: "Cerca versione, es. 1.20.1", french: "Rechercher version, ex. 1.20.1", spanish: "Buscar versión, ej. 1.20.1"),
                             text: $searchText
                         )
-                        Picker("", selection: $group) {
-                            ForEach(MinecraftBrowseGroup.allCases) { browseGroup in
-                                Text(browseGroup.title(language: theme.language)).tag(browseGroup)
+                        PaninoGlassSegmentedRail {
+                            Picker("", selection: $group) {
+                                ForEach(MinecraftBrowseGroup.allCases) { browseGroup in
+                                    Text(browseGroup.title(language: theme.language)).tag(browseGroup)
+                                }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(minWidth: 300, idealWidth: 430, maxWidth: 500)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(width: 430)
                     }
 
                     HStack {

@@ -32,7 +32,7 @@ struct MinecraftVersionInstallDetailPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            GlassPanel {
+            GlassPanel(surfaceLevel: .elevatedPanel) {
                 VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
                     HStack(spacing: 10) {
                         GlassButton(systemImage: "chevron.left", title: localizedString(theme.language, english: "Back", chinese: "返回", italian: "Indietro", french: "Retour", spanish: "Atrás"), action: back)
@@ -53,7 +53,7 @@ struct MinecraftVersionInstallDetailPage: View {
                 }
             }
 
-            GlassPanel {
+            GlassPanel(surfaceLevel: .panel) {
                 VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
                     PanelHeader(title: localizedString(theme.language, english: "Loader", chinese: "加载器", italian: "Loader", french: "Loader", spanish: "Loader"), systemImage: "puzzlepiece.extension")
                     HStack(spacing: 8) {
@@ -75,7 +75,7 @@ struct MinecraftVersionInstallDetailPage: View {
                 }
             }
 
-            GlassPanel {
+            GlassPanel(surfaceLevel: .panel) {
                 VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
                     PanelHeader(title: localizedString(theme.language, english: "Shader Loader", chinese: "光影加载器", italian: "Shader loader", french: "Loader de shaders", spanish: "Loader de shaders"), systemImage: "sparkles.rectangle.stack")
                     HStack(spacing: 8) {
@@ -94,7 +94,7 @@ struct MinecraftVersionInstallDetailPage: View {
                 }
             }
 
-            GlassPanel {
+            GlassPanel(surfaceLevel: .panel) {
                 VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
                     PanelHeader(title: localizedString(theme.language, english: "Local Instance", chinese: "本地实例", italian: "Istanza locale", french: "Instance locale", spanish: "Instancia local"), systemImage: "folder.badge.plus")
                     PaninoTextInput(
@@ -116,7 +116,7 @@ struct MinecraftVersionInstallDetailPage: View {
                 }
             }
 
-            GlassPanel {
+            GlassPanel(surfaceLevel: .floatingChrome) {
                 VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
                     PanelHeader(title: localizedString(theme.language, english: "Install Plan", chinese: "安装计划", italian: "Piano installazione", french: "Plan d'installation", spanish: "Plan de instalación"), systemImage: "checklist")
                     SettingsRow(title: localizedString(theme.language, english: "Result", chinese: "结果", italian: "Risultato", french: "Résultat", spanish: "Resultado"), systemImage: "square.stack.3d.up") {
@@ -488,11 +488,7 @@ struct MinecraftVersionInstallDetailPage: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.orange.opacity(0.35), lineWidth: 1)
-            }
+            .paninoGlassCard(isSelected: true, level: .popover, cornerRadius: 8, tint: .orange, showsShadow: true)
         }
     }
 

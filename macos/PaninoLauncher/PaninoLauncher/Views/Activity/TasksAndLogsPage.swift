@@ -58,56 +58,23 @@ struct TasksPage: View {
     @EnvironmentObject private var instanceStore: InstanceStore
     @EnvironmentObject private var appActions: AppActionCenter
 
-    @State private var showHistory = false
     @State private var historyFilter: TaskHistoryFilter = .all
     @State private var clearConfirmation: TaskClearAction?
     @State private var clearStatus: String?
     @State private var detailRecord: TaskRecord?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            TaskCenterSummaryPanel(
-                record: focusedRecord,
-                coreStatus: viewModel.coreState.localizedTitle(theme.language),
-                canCancel: viewModel.canCancelTask,
-                onCancel: viewModel.cancelCurrentTask,
-                onRetry: retrySummarySelection,
-                onDiagnostics: openDiagnostics,
-                canRetry: summaryRetryRecord != nil
-            )
-
-            TaskAttentionSection(
-                records: taskCenterStore.attentionRecords,
-                retryTarget: retryTargetDescription,
-                canRetry: canRetryAutomatically,
-                onRetry: retry,
-                onDismiss: taskCenterStore.clearInterrupted,
-                onOpenLogs: openDiagnostics,
-                onExportDiagnostics: exportDiagnostics,
-                onOpenFolder: openRelevantFolder,
-                diagnosticActionTitle: { diagnosticActionTitle(for: $0) },
-                diagnosticActionSystemImage: { diagnosticActionSystemImage(for: $0) },
-                onDiagnosticAction: { performDiagnosticAction($0) }
-            )
-
-            TaskRecentCompletedSection(records: taskCenterStore.recentCompletedRecords)
-
-            TaskHistorySection(
-                records: filteredHistoryRecords,
-                isExpanded: $showHistory,
-                selectedRecordID: taskCenterStore.selectedRecordID,
-                filter: $historyFilter,
-                retentionPolicy: $taskCenterStore.retentionPolicy,
-                clearStatus: clearStatus,
-                onSelect: { taskCenterStore.selectedRecordID = $0.id },
-                onClear: requestClear
-            )
-            .onMoveCommand(perform: moveHistorySelection)
-            .onSubmit {
-                if let selected = taskCenterStore.selectedRecord {
-                    detailRecord = selected
-                }
-            }
+        TaskFocusStage(
+            record: focusedRecord,
+            coreStatus: viewModel.coreState.localizedTitle(theme.language),
+            attentionCount: taskCenterStore.attentionRecords.count,
+            canCancel: viewModel.canCancelTask,
+            canRetry: summaryRetryRecord != nil,
+            onCancel: viewModel.cancelCurrentTask,
+            onRetry: retrySummarySelection,
+            onDiagnostics: openDiagnostics
+        ) {
+            taskFocusContext
         }
         .task {
             await refreshCoreHistory()
@@ -143,6 +110,92 @@ struct TasksPage: View {
                 diagnosticActionSystemImage: diagnosticActionSystemImage(for: record),
                 onDiagnosticAction: { performDiagnosticAction(record) }
             )
+        }
+    }
+
+    private var taskFocusContext: some View {
+        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
+            if !taskCenterStore.attentionRecords.isEmpty {
+                TaskAttentionSection(
+                    records: taskCenterStore.attentionRecords,
+                    retryTarget: retryTargetDescription,
+                    canRetry: canRetryAutomatically,
+                    onRetry: retry,
+                    onDismiss: taskCenterStore.clearInterrupted,
+                    onOpenLogs: openDiagnostics,
+                    onExportDiagnostics: exportDiagnostics,
+                    onOpenFolder: openRelevantFolder,
+                    diagnosticActionTitle: { diagnosticActionTitle(for: $0) },
+                    diagnosticActionSystemImage: { diagnosticActionSystemImage(for: $0) },
+                    onDiagnosticAction: { performDiagnosticAction($0) }
+                )
+                .frame(maxWidth: 760, alignment: .leading)
+            }
+
+            TaskRecentCompletedSection(records: taskCenterStore.recentCompletedRecords)
+            taskHistoryPanel
+        }
+    }
+
+    private var taskOverview: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: theme.fontDensity.spacing) {
+                taskQueueColumn
+                    .frame(minWidth: 520, maxWidth: .infinity, alignment: .topLeading)
+                TaskRecentCompletedSection(records: taskCenterStore.recentCompletedRecords)
+                    .frame(minWidth: 380, idealWidth: 520, maxWidth: 560, alignment: .topLeading)
+            }
+
+            VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
+                taskQueueColumn
+                TaskRecentCompletedSection(records: taskCenterStore.recentCompletedRecords)
+            }
+        }
+    }
+
+    private var taskQueueColumn: some View {
+        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
+            TaskCenterSummaryPanel(
+                record: focusedRecord,
+                coreStatus: viewModel.coreState.localizedTitle(theme.language),
+                canCancel: viewModel.canCancelTask,
+                onCancel: viewModel.cancelCurrentTask,
+                onRetry: retrySummarySelection,
+                onDiagnostics: openDiagnostics,
+                canRetry: summaryRetryRecord != nil
+            )
+
+            TaskAttentionSection(
+                records: taskCenterStore.attentionRecords,
+                retryTarget: retryTargetDescription,
+                canRetry: canRetryAutomatically,
+                onRetry: retry,
+                onDismiss: taskCenterStore.clearInterrupted,
+                onOpenLogs: openDiagnostics,
+                onExportDiagnostics: exportDiagnostics,
+                onOpenFolder: openRelevantFolder,
+                diagnosticActionTitle: { diagnosticActionTitle(for: $0) },
+                diagnosticActionSystemImage: { diagnosticActionSystemImage(for: $0) },
+                onDiagnosticAction: { performDiagnosticAction($0) }
+            )
+        }
+    }
+
+    private var taskHistoryPanel: some View {
+        TaskHistorySection(
+            records: filteredHistoryRecords,
+            selectedRecordID: taskCenterStore.selectedRecordID,
+            filter: $historyFilter,
+            retentionPolicy: $taskCenterStore.retentionPolicy,
+            clearStatus: clearStatus,
+            onSelect: { taskCenterStore.selectedRecordID = $0.id },
+            onClear: requestClear
+        )
+        .onMoveCommand(perform: moveHistorySelection)
+        .onSubmit {
+            if let selected = taskCenterStore.selectedRecord {
+                detailRecord = selected
+            }
         }
     }
 
@@ -498,6 +551,278 @@ struct TasksPage: View {
     }
 }
 
+private struct TaskFocusStage<ContextShelf: View>: View {
+    let record: TaskRecord?
+    let coreStatus: String
+    let attentionCount: Int
+    let canCancel: Bool
+    let canRetry: Bool
+    let onCancel: () -> Void
+    let onRetry: () -> Void
+    let onDiagnostics: () -> Void
+    @ViewBuilder let contextShelf: () -> ContextShelf
+
+    @EnvironmentObject private var theme: ThemeSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
+            ImmersivePageScaffold(
+                minHeight: focusStageHeight,
+                backgroundContent: {
+                    TaskFocusBackground(record: record)
+                },
+                primaryContent: {
+                    TaskFocusPrimaryContent(
+                        record: record,
+                        coreStatus: coreStatus,
+                        attentionCount: attentionCount
+                    )
+                },
+                floatingControls: {
+                    TaskFocusControls(
+                        record: record,
+                        canCancel: canCancel,
+                        canRetry: canRetry,
+                        onCancel: onCancel,
+                        onRetry: onRetry,
+                        onDiagnostics: onDiagnostics
+                    )
+                },
+                contextShelf: {
+                    EmptyView()
+                }
+            )
+
+            contextShelf()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var focusStageHeight: CGFloat {
+        guard let record else { return 340 }
+        if record.state.isActive {
+            return 440
+        }
+        return 380
+    }
+}
+
+private struct TaskFocusBackground: View {
+    let record: TaskRecord?
+    @EnvironmentObject private var theme: ThemeSettings
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                LinearGradient(
+                    colors: backgroundColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                Circle()
+                    .fill(statusColor.opacity(0.24))
+                    .frame(width: proxy.size.width * 0.44, height: proxy.size.width * 0.44)
+                    .blur(radius: 42)
+                    .offset(x: proxy.size.width * 0.28, y: -proxy.size.height * 0.30)
+
+                Circle()
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 2)
+                    .frame(width: proxy.size.width * 0.58, height: proxy.size.width * 0.58)
+                    .offset(x: proxy.size.width * 0.26, y: -proxy.size.height * 0.24)
+
+                VStack(alignment: .leading, spacing: 22) {
+                    ForEach(0..<5, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(Color.white.opacity(Double(5 - index) * 0.030))
+                            .frame(width: proxy.size.width * CGFloat(0.88 - Double(index) * 0.10), height: 5)
+                    }
+                }
+                .rotationEffect(.degrees(-10))
+                .offset(x: -proxy.size.width * 0.16, y: proxy.size.height * 0.10)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+
+    private var statusColor: Color {
+        record?.state.badgeStyle.color ?? theme.semanticSelectionColor
+    }
+
+    private var backgroundColors: [Color] {
+        let base = statusColor
+        if record?.state.needsAttention == true {
+            return [base.opacity(0.60), Color.orange.opacity(0.36), Color(nsColor: .windowBackgroundColor).opacity(0.72)]
+        }
+        if record?.state.isActive == true {
+            return [base.opacity(0.62), theme.semanticSelectionColor.opacity(0.42), Color(nsColor: .windowBackgroundColor).opacity(0.70)]
+        }
+        return [theme.semanticSelectionColor.opacity(0.42), Color(nsColor: .controlBackgroundColor).opacity(0.52), Color(nsColor: .windowBackgroundColor).opacity(0.78)]
+    }
+}
+
+private struct TaskFocusPrimaryContent: View {
+    let record: TaskRecord?
+    let coreStatus: String
+    let attentionCount: Int
+
+    @EnvironmentObject private var theme: ThemeSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                TaskStateLine(title: stateTitle, style: record?.state.badgeStyle ?? .neutral)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .paninoGlassCard(level: .floatingChrome, cornerRadius: PaninoTokens.Radius.control + 4)
+
+                if attentionCount > 0 {
+                    ImmersiveTextPill(
+                        title: localizedString(theme.language, english: "Needs Attention", chinese: "需要处理", italian: "Attenzione", french: "Action requise", spanish: "Atención"),
+                        value: "\(attentionCount)"
+                    )
+                }
+            }
+
+            Text(title)
+                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .lineLimit(2)
+                .minimumScaleFactor(0.62)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.38), radius: 10, x: 0, y: 4)
+
+            Text(subtitle)
+                .font(.headline)
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(3)
+                .frame(maxWidth: 720, alignment: .leading)
+
+            if let record, shouldShowProgress(record) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Text(percentText(record))
+                            .font(.title2.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                        Text(phaseText(record))
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 0)
+                    }
+
+                    ProgressView(value: min(max(record.progress, 0), 1), total: 1)
+                        .tint(record.state.badgeStyle.color)
+                        .frame(maxWidth: 760)
+                }
+                .padding(14)
+                .paninoGlassCard(level: .floatingChrome, cornerRadius: PaninoTokens.Radius.panel, tint: record.state.badgeStyle.color, showsShadow: true)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { facts }
+                VStack(alignment: .leading, spacing: 8) { facts }
+            }
+        }
+        .frame(maxWidth: 820, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var facts: some View {
+        ImmersiveTextPill(title: localizedString(theme.language, english: "Core", chinese: "Core", italian: "Core", french: "Core", spanish: "Core"), value: coreStatus)
+        ImmersiveTextPill(title: localizedString(theme.language, english: "Updated", chinese: "更新", italian: "Aggiornato", french: "Mis à jour", spanish: "Actualizado"), value: record?.updatedAt.formatted(date: .omitted, time: .shortened) ?? "-")
+        ImmersiveTextPill(title: localizedString(theme.language, english: "Kind", chinese: "类型", italian: "Tipo", french: "Type", spanish: "Tipo"), value: record?.kindTitle ?? "-")
+        if let record {
+            ImmersiveTextPill(title: localizedString(theme.language, english: "Speed", chinese: "速度", italian: "Velocità", french: "Vitesse", spanish: "Velocidad"), value: record.speed)
+            ImmersiveTextPill(title: localizedString(theme.language, english: "ETA", chinese: "剩余", italian: "Tempo", french: "Restant", spanish: "Restante"), value: record.remainingTime)
+        }
+    }
+
+    private var stateTitle: String {
+        record?.state.title(language: theme.language) ?? AppText.idle.localized(theme.language)
+    }
+
+    private var title: String {
+        guard let record else {
+            return localizedString(theme.language, english: "No Active Task", chinese: "没有正在运行的任务", italian: "Nessuna attività attiva", french: "Aucune tâche active", spanish: "Sin tarea activa")
+        }
+        guard record.state.isActive else { return record.name }
+        let target = record.version.isEmpty ? record.name : record.version
+        if record.kind.contains("content") {
+            return localizedString(theme.language, english: "Installing \(target)", chinese: "正在安装 \(target)", italian: "Installazione di \(target)", french: "Installation de \(target)", spanish: "Instalando \(target)")
+        }
+        if record.kind.contains("launch") {
+            return localizedString(theme.language, english: "Preparing launch \(target)", chinese: "正在准备启动 \(target)", italian: "Preparazione avvio \(target)", french: "Préparation du lancement \(target)", spanish: "Preparando inicio \(target)")
+        }
+        if record.kind.contains("install") {
+            return localizedString(theme.language, english: "Installing Minecraft \(target)", chinese: "正在安装 Minecraft \(target)", italian: "Installazione Minecraft \(target)", french: "Installation Minecraft \(target)", spanish: "Instalando Minecraft \(target)")
+        }
+        return record.name
+    }
+
+    private var subtitle: String {
+        guard let record else {
+            return localizedString(theme.language, english: "Ready. Failed, running, and completed work stays below.", chinese: "当前空闲；失败、运行中和已完成任务会在下方显示。", italian: "Pronto. Le attività restano sotto.", french: "Prêt. Les tâches restent ci-dessous.", spanish: "Listo. Las tareas quedan abajo.")
+        }
+        if record.state.needsAttention, record.progress > 0 {
+            return localizedString(theme.language, english: "Stopped at \(percentText(record)): \(phaseText(record))", chinese: "停止于 \(percentText(record))：\(phaseText(record))", italian: "Interrotto al \(percentText(record)): \(phaseText(record))", french: "Arrêté à \(percentText(record)) : \(phaseText(record))", spanish: "Detenido al \(percentText(record)): \(phaseText(record))")
+        }
+        if record.state == .succeeded {
+            return localizedString(theme.language, english: "Finished and verified. You can inspect details from task history.", chinese: "已完成并校验；可在任务历史中查看详情。", italian: "Completato e verificato.", french: "Terminé et vérifié.", spanish: "Finalizado y verificado.")
+        }
+        return record.message
+    }
+
+    private func shouldShowProgress(_ record: TaskRecord) -> Bool {
+        record.state.isActive || record.progress > 0
+    }
+
+    private func percentText(_ record: TaskRecord) -> String {
+        "\(Int((min(max(record.progress, 0), 1) * 100).rounded()))%"
+    }
+
+    private func phaseText(_ record: TaskRecord) -> String {
+        let phase = record.phaseTitle ?? record.message
+        if let index = record.phaseIndex, let count = record.phaseCount, count > 1 {
+            return "\(index)/\(count) \(phase)"
+        }
+        return phase
+    }
+}
+
+private struct TaskFocusControls: View {
+    let record: TaskRecord?
+    let canCancel: Bool
+    let canRetry: Bool
+    let onCancel: () -> Void
+    let onRetry: () -> Void
+    let onDiagnostics: () -> Void
+
+    @EnvironmentObject private var theme: ThemeSettings
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { controls }
+            VStack(alignment: .trailing, spacing: 10) { controls }
+        }
+        .padding(8)
+        .paninoGlassCard(level: .floatingChrome, cornerRadius: PaninoTokens.Radius.control + 10, tint: record?.state.badgeStyle.color ?? theme.semanticSelectionColor, showsShadow: true)
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        if canCancel {
+            GlassButton(systemImage: "xmark.circle", title: AppText.cancel.localized(theme.language), action: onCancel)
+        }
+        if canRetry {
+            GlassButton(systemImage: "arrow.clockwise", title: localizedString(theme.language, english: "Retry", chinese: "重试", italian: "Riprova", french: "Réessayer", spanish: "Reintentar"), prominent: true, action: onRetry)
+        }
+        GlassButton(systemImage: "terminal", title: AppText.logs.localized(theme.language), action: onDiagnostics)
+    }
+}
+
 private struct TaskCenterSummaryPanel: View {
     let record: TaskRecord?
     let coreStatus: String
@@ -510,7 +835,7 @@ private struct TaskCenterSummaryPanel: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -706,7 +1031,7 @@ private struct TaskFact: View {
         .frame(minWidth: 110, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.34), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .paninoGlassCard(level: .panel, cornerRadius: 8)
     }
 }
 
@@ -747,7 +1072,7 @@ private struct TaskAttentionSection: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel {
+        GlassPanel(surfaceLevel: .elevatedPanel) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(localizedString(theme.language, english: "Needs Attention", chinese: "需要处理", italian: "Richiede attenzione", french: "Action requise", spanish: "Requiere atención"))
@@ -829,11 +1154,7 @@ private struct TaskAttentionCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.orange.opacity(0.24), lineWidth: 1)
-        }
+        .paninoGlassCard(isSelected: true, level: .popover, cornerRadius: 8, tint: .orange, showsShadow: true)
     }
 
     @ViewBuilder
@@ -855,10 +1176,11 @@ private struct TaskAttentionCard: View {
 
 private struct TaskRecentCompletedSection: View {
     let records: [TaskRecord]
+    var viewportHeight: CGFloat? = nil
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel(showsShadow: false) {
+        GlassPanel(showsShadow: false, surfaceLevel: .panel) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(localizedString(theme.language, english: "Recent Completed", chinese: "最近完成", italian: "Completate di recente", french: "Récemment terminées", spanish: "Completadas recientes"))
@@ -870,14 +1192,34 @@ private struct TaskRecentCompletedSection: View {
                     Text(localizedString(theme.language, english: "No completed tasks yet.", chinese: "暂时没有已完成任务。", italian: "Nessuna attività completata.", french: "Aucune tâche terminée.", spanish: "No hay tareas completadas."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 62)
+                        .frame(maxWidth: .infinity, minHeight: viewportHeight ?? 62)
                 } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], spacing: 10) {
-                        ForEach(records) { record in
-                            TaskCompactCard(record: record)
-                        }
-                    }
+                    recordGrid
                 }
+            }
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private var recordGrid: some View {
+        if let viewportHeight {
+            ScrollView {
+                gridContent
+                    .padding(.trailing, 4)
+            }
+            .frame(height: viewportHeight)
+            .scrollIndicators(.visible)
+            .scrollClipDisabled(false)
+        } else {
+            gridContent
+        }
+    }
+
+    private var gridContent: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], spacing: 10) {
+            ForEach(records) { record in
+                TaskCompactCard(record: record)
             }
         }
     }
@@ -885,10 +1227,10 @@ private struct TaskRecentCompletedSection: View {
 
 private struct TaskHistorySection: View {
     let records: [TaskRecord]
-    @Binding var isExpanded: Bool
     let selectedRecordID: String?
     @Binding var filter: TaskHistoryFilter
     @Binding var retentionPolicy: TaskHistoryRetentionPolicy
+    var viewportHeight: CGFloat? = nil
     let clearStatus: String?
     let onSelect: (TaskRecord) -> Void
     let onClear: (TaskClearAction) -> Void
@@ -896,69 +1238,106 @@ private struct TaskHistorySection: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        GlassPanel(showsShadow: false) {
-            FullWidthDisclosureGroup(isExpanded: $isExpanded) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        Picker("", selection: $filter) {
-                            ForEach(TaskHistoryFilter.allCases) { item in
-                                Text(item.title(language: theme.language)).tag(item)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 520)
-
-                        Picker("", selection: $retentionPolicy) {
-                            ForEach(TaskHistoryRetentionPolicy.allCases) { policy in
-                                Text(policy.title(language: theme.language)).tag(policy)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 190)
-
-                        Spacer()
-
-                        TaskClearMenu(onClear: onClear)
-                    }
-
-                    if let clearStatus {
-                        Text(clearStatus)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if records.isEmpty {
-                        ContentUnavailableView(
-                            localizedString(theme.language, english: "No History", chinese: "没有历史", italian: "Nessuna cronologia", french: "Aucun historique", spanish: "Sin historial"),
-                            systemImage: "tray",
-                            description: Text(localizedString(theme.language, english: "Finished tasks appear here after downloads, installs, launches or diagnostics.", chinese: "下载、安装、启动或诊断结束后会显示在这里。", italian: "Le attività finite appariranno qui.", french: "Les tâches terminées apparaissent ici.", spanish: "Las tareas finalizadas aparecerán aquí."))
-                        )
-                        .frame(minHeight: 140)
-                    } else {
-                        LazyVStack(spacing: 8) {
-                            ForEach(records) { record in
-                                TaskRecordRow(
-                                    record: record,
-                                    isSelected: selectedRecordID == record.id
-                                ) {
-                                    onSelect(record)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 10)
-            } label: {
+        GlassPanel(showsShadow: false, surfaceLevel: .panel) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(localizedString(theme.language, english: "Task History", chinese: "任务历史", italian: "Cronologia attività", french: "Historique des tâches", spanish: "Historial de tareas"))
                         .font(.headline)
                     Spacer()
                     CountText(value: records.count)
                 }
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        historyFilterPicker
+                        historyRetentionPicker
+                        Spacer(minLength: 12)
+                        TaskClearMenu(onClear: onClear)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        historyFilterPicker
+                        HStack(spacing: 10) {
+                            historyRetentionPicker
+                            Spacer(minLength: 12)
+                            TaskClearMenu(onClear: onClear)
+                        }
+                    }
+                }
+
+                if let clearStatus {
+                    Text(clearStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                historyViewport
+            }
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private var historyViewportHeight: CGFloat {
+        viewportHeight ?? (records.isEmpty ? 150 : 360)
+    }
+
+    @ViewBuilder
+    private var historyViewport: some View {
+        if records.isEmpty {
+            emptyHistoryView
+                .frame(height: historyViewportHeight)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(records) { record in
+                        TaskRecordRow(
+                            record: record,
+                            isSelected: selectedRecordID == record.id
+                        ) {
+                            onSelect(record)
+                        }
+                    }
+                }
+                .padding(.trailing, 4)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(height: historyViewportHeight)
+            .scrollIndicators(.visible)
+            .scrollClipDisabled(false)
+        }
+    }
+
+    private var emptyHistoryView: some View {
+        ContentUnavailableView(
+            localizedString(theme.language, english: "No History", chinese: "没有历史", italian: "Nessuna cronologia", french: "Aucun historique", spanish: "Sin historial"),
+            systemImage: "tray",
+            description: Text(localizedString(theme.language, english: "Finished tasks appear here after downloads, installs, launches or diagnostics.", chinese: "下载、安装、启动或诊断结束后会显示在这里。", italian: "Le attività finite appariranno qui.", french: "Les tâches terminées apparaissent ici.", spanish: "Las tareas finalizadas aparecerán aquí."))
+        )
+        .frame(maxWidth: .infinity, minHeight: historyViewportHeight)
+    }
+
+    private var historyFilterPicker: some View {
+        PaninoGlassSegmentedRail {
+            Picker("", selection: $filter) {
+                ForEach(TaskHistoryFilter.allCases) { item in
+                    Text(item.title(language: theme.language)).tag(item)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 560)
+        }
+    }
+
+    private var historyRetentionPicker: some View {
+        Picker("", selection: $retentionPolicy) {
+            ForEach(TaskHistoryRetentionPolicy.allCases) { policy in
+                Text(policy.title(language: theme.language)).tag(policy)
             }
         }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190)
     }
 }
 
@@ -1006,7 +1385,7 @@ private struct TaskCompactCard: View {
         }
         .padding(12)
         .frame(minHeight: 96, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .paninoGlassCard(level: .panel, cornerRadius: 8)
     }
 }
 
@@ -1023,33 +1402,30 @@ private struct TaskRecordRow: View {
                     Text(record.name)
                         .font(.callout.weight(.semibold))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     Text(record.message)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
                 Text(record.finishedAt?.formatted(date: .abbreviated, time: .shortened) ?? record.updatedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 TaskStateLine(title: record.state.title(language: theme.language), style: record.state.badgeStyle)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 12)
             .frame(height: 64)
-            .background(rowBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? theme.semanticSelectionColor.opacity(0.72) : Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 1)
-            }
+            .paninoGlassCard(isSelected: isSelected, level: isSelected ? .elevatedPanel : .panel, cornerRadius: 8, tint: theme.semanticSelectionColor, showsShadow: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(record.name), \(record.state.title(language: theme.language)), \(record.message)")
-    }
-
-    private var rowBackground: Color {
-        isSelected ? theme.semanticSelectionColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor).opacity(0.30)
     }
 }
 
@@ -1098,7 +1474,7 @@ private struct TaskRecordDetailSheet: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.32), in: RoundedRectangle(cornerRadius: 8))
+                    .paninoGlassCard(level: .panel, cornerRadius: 8)
             }
 
             if !recoveryRecords.isEmpty {
@@ -1124,7 +1500,7 @@ private struct TaskRecordDetailSheet: View {
                             Spacer(minLength: 0)
                         }
                         .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.24), in: RoundedRectangle(cornerRadius: 8))
+                        .paninoGlassCard(level: .panel, cornerRadius: 8)
                     }
                 }
             }
@@ -1135,7 +1511,7 @@ private struct TaskRecordDetailSheet: View {
                     .foregroundStyle(.secondary)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                    .paninoGlassCard(isSelected: true, level: .elevatedPanel, cornerRadius: 8, tint: .orange)
             }
 
             Spacer()
@@ -1381,21 +1757,35 @@ struct LogsPage: View {
     @State private var areLogsExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            if let context = errorContext {
-                ErrorDetailPanel(context: context, onCopy: copyErrorContext, onCopyRepro: copyMinimumRepro, onExportDiagnostics: exportDiagnostics)
-                collapsedLogConsole
-            } else {
-                logConsole(showsPanel: true, scrollMinHeight: 320)
-                    .frame(minHeight: 420)
-            }
-        }
+        logWorkspace
         .padding(20)
         .frame(minWidth: 760, minHeight: 620)
     }
 
+    @ViewBuilder
+    private var logWorkspace: some View {
+        if let context = errorContext {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: theme.fontDensity.spacing) {
+                    ErrorDetailPanel(context: context, onCopy: copyErrorContext, onCopyRepro: copyMinimumRepro, onExportDiagnostics: exportDiagnostics)
+                        .frame(minWidth: 420, maxWidth: .infinity, alignment: .topLeading)
+                    logConsole(showsPanel: true, scrollMinHeight: 360)
+                        .frame(width: 440, alignment: .topLeading)
+                }
+
+                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
+                    ErrorDetailPanel(context: context, onCopy: copyErrorContext, onCopyRepro: copyMinimumRepro, onExportDiagnostics: exportDiagnostics)
+                    collapsedLogConsole
+                }
+            }
+        } else {
+            logConsole(showsPanel: true, scrollMinHeight: 320)
+                .frame(minHeight: 420)
+        }
+    }
+
     private var collapsedLogConsole: some View {
-        GlassPanel(showsShadow: false) {
+        GlassPanel(showsShadow: false, surfaceLevel: .panel) {
             FullWidthDisclosureGroup(isExpanded: $areLogsExpanded) {
                 logConsole(showsPanel: false, scrollMinHeight: 220)
                     .padding(.top, 12)
