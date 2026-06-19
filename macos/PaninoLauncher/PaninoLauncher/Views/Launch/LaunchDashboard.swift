@@ -80,7 +80,6 @@ struct LaunchDashboard: View {
                     statusTitle: launchStatusTitle,
                     statusStyle: instanceStatus,
                     primaryTitle: primaryActionTitle,
-                    primarySystemImage: primaryActionSystemImage,
                     primaryDisabled: primaryActionDisabled(for: selectedInstance),
                     canCancel: viewModel.canCancelTask,
                     summaryFor: summary(for:),
@@ -92,11 +91,6 @@ struct LaunchDashboard: View {
                     openDetails: openDetail,
                     toggleFavorite: instanceStore.setFavorite,
                     hideRecent: { instanceStore.setHiddenFromRecent($0, hidden: true) },
-                    updateAppearance: { instanceID, values in
-                        updateInstance(instanceID) { instance in
-                            instance.applyAppearance(values)
-                        }
-                    },
                     openDiscover: openDiscover
                 )
             }

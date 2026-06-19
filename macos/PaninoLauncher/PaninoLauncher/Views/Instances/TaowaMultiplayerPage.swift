@@ -1,6 +1,4 @@
 import AppKit
-import CoreImage
-import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 struct TaowaMultiplayerPage: View {
@@ -51,400 +49,81 @@ struct TaowaMultiplayerPage: View {
     }
 
     private var headerPanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    PanelHeader(
-                        title: localizedString(theme.language, english: "Taowa Multiplayer", chinese: "陶瓦联机", italian: "Multigiocatore Taowa", french: "Multijoueur Taowa", spanish: "Multijugador Taowa"),
-                        systemImage: "network"
-                    )
-                    Spacer()
-                    StatusBadge(title: connectionStateTitle, style: connectionBadgeStyle)
-                }
-
-                Text(localizedString(
-                    theme.language,
-                    english: "Panino does not provide public routes. Use your own third-party FRP service, then share the generated address with friends.",
-                    chinese: "Panino 不提供公网线路。请使用你自备的第三方 FRP 服务，再把生成的地址发给好友。",
-                    italian: "Panino non fornisce linee pubbliche. Usa un servizio FRP di terze parti.",
-                    french: "Panino ne fournit pas de ligne publique. Utilisez votre propre service FRP tiers.",
-                    spanish: "Panino no proporciona rutas públicas. Usa tu propio servicio FRP de terceros."
-                ))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-                if isLoading || isWorking {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-                statusLine
-            }
-        }
+        TaowaHeaderPanel(
+            isLoading: isLoading,
+            isWorking: isWorking,
+            errorText: errorText,
+            copyStatus: copyStatus,
+            statusText: statusText,
+            connectionStateTitle: connectionStateTitle,
+            connectionBadgeStyle: connectionBadgeStyle
+        )
     }
 
     private var workflowPanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    PanelHeader(
-                        title: localizedString(theme.language, english: "Connection Flow", chinese: "联机流程", italian: "Flusso connessione", french: "Flux de connexion", spanish: "Flujo de conexión"),
-                        systemImage: "point.topleft.down.curvedto.point.bottomright.up"
-                    )
-                    Spacer()
-                    StatusBadge(title: "\(workflowSteps.filter(\.isReady).count)/\(workflowSteps.count)", style: workflowSteps.allSatisfy(\.isReady) ? .success : .warning)
-                }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], spacing: 10) {
-                    ForEach(workflowSteps) { step in
-                        TaowaStepCard(step: step)
-                    }
-                }
-            }
-        }
+        TaowaWorkflowPanel(workflowSteps: workflowSteps)
     }
 
     private var profilePanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    PanelHeader(
-                        title: localizedString(theme.language, english: "FRP Profile", chinese: "FRP 配置", italian: "Profilo FRP", french: "Profil FRP", spanish: "Perfil FRP"),
-                        systemImage: "server.rack"
-                    )
-                    Spacer()
-                    GlassButton(systemImage: "arrow.clockwise", title: AppText.refresh.localized(theme.language)) {
-                        Task { await loadState() }
-                    }
-                    .disabled(isWorking)
-                    GlassButton(systemImage: "plus", title: localizedString(theme.language, english: "New", chinese: "新建", italian: "Nuovo", french: "Nouveau", spanish: "Nuevo")) {
-                        startNewProfile()
-                    }
-                    .disabled(isWorking)
-                }
-
-                SettingsRow(title: localizedString(theme.language, english: "Profile", chinese: "配置", italian: "Profilo", french: "Profil", spanish: "Perfil"), systemImage: "list.bullet") {
-                    Picker("", selection: $selectedProfileId) {
-                        Text(localizedString(theme.language, english: "New Profile", chinese: "新配置", italian: "Nuovo profilo", french: "Nouveau profil", spanish: "Nuevo perfil"))
-                            .tag("")
-                        ForEach(profiles) { profile in
-                            Text(profile.displayName).tag(profile.profileId)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 360, alignment: .leading)
-                }
-
-                if !profiles.isEmpty {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], spacing: 10) {
-                        ForEach(profiles) { profile in
-                            TaowaProfileCard(
-                                profile: profile,
-                                isSelected: profile.profileId == selectedProfileId,
-                                hasActiveSession: activeSessionForProfile(profile.profileId) != nil,
-                                onSelect: {
-                                    selectedProfileId = profile.profileId
-                                },
-                                onCopyAddress: {
-                                    copy(profile.remoteAddress, message: localizedString(theme.language, english: "Profile remote address copied.", chinese: "配置远程地址已复制。", italian: "Indirizzo remoto copiato.", french: "Adresse distante copiée.", spanish: "Dirección remota copiada."))
-                                }
-                            )
-                        }
-                    }
-                }
-
-                if let profileTest {
-                    TaowaProfileTestPanel(test: profileTest)
-                }
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 10) {
-                    SettingsRow(title: localizedString(theme.language, english: "Name", chinese: "名称", italian: "Nome", french: "Nom", spanish: "Nombre"), systemImage: "tag") {
-                        PaninoTextInput("My FRP", text: $profileDraft.displayName)
-                    }
-                    SettingsRow(title: "Server", systemImage: "network") {
-                        PaninoTextInput("frp.example.com", text: $profileDraft.serverAddr)
-                    }
-                    SettingsRow(title: "Server Port", systemImage: "number") {
-                        PaninoTextInput("7000", text: $profileDraft.serverPort)
-                    }
-                    SettingsRow(title: "Remote Port", systemImage: "number.circle") {
-                        PaninoTextInput("25565", text: $profileDraft.remotePort)
-                    }
-                    SettingsRow(title: "Token", systemImage: "key") {
-                        PaninoTextInput(profileDraft.hasExistingToken ? "Keep existing token" : "Optional", text: $profileDraft.token, isSecure: true)
-                    }
-                    SettingsRow(title: "frpc", systemImage: "terminal") {
-                        HStack(spacing: 8) {
-                            PaninoTextInput("/path/to/frpc", text: $profileDraft.frpcPath)
-                            GlassButton(systemImage: "folder", title: localizedString(theme.language, english: "Choose", chinese: "选择", italian: "Scegli", french: "Choisir", spanish: "Elegir")) {
-                                chooseFrpc()
-                            }
-                        }
-                    }
-                    SettingsRow(title: localizedString(theme.language, english: "Enabled", chinese: "启用", italian: "Abilitato", french: "Activé", spanish: "Activado"), systemImage: "checkmark.circle") {
-                        Toggle("", isOn: $profileDraft.enabled)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    GlassButton(systemImage: "checkmark", title: localizedString(theme.language, english: "Save", chinese: "保存", italian: "Salva", french: "Enregistrer", spanish: "Guardar"), prominent: true) {
-                        Task { await saveProfile() }
-                    }
-                    .disabled(isWorking)
-                    if let editingProfileId {
-                        GlassButton(systemImage: "checkmark.shield", title: localizedString(theme.language, english: "Test", chinese: "测试", italian: "Test", french: "Tester", spanish: "Probar")) {
-                            Task { await testProfile(editingProfileId) }
-                        }
-                        .disabled(isWorking)
-                        GlassButton(systemImage: "trash", title: AppText.delete.localized(theme.language)) {
-                            Task { await deleteProfile(editingProfileId) }
-                        }
-                        .disabled(isWorking || activeSessionForProfile(editingProfileId) != nil)
-                    }
-                }
-            }
-        }
+        TaowaProfilePanel(
+            profiles: profiles,
+            selectedProfileId: $selectedProfileId,
+            editingProfileId: editingProfileId,
+            profileDraft: $profileDraft,
+            profileTest: profileTest,
+            isWorking: isWorking,
+            activeSessionForProfile: activeSessionForProfile,
+            onRefresh: { Task { await loadState() } },
+            onNewProfile: startNewProfile,
+            onCopyAddress: copy,
+            onChooseFrpc: chooseFrpc,
+            onSave: { Task { await saveProfile() } },
+            onTest: { profileId in Task { await testProfile(profileId) } },
+            onDelete: { profileId in Task { await deleteProfile(profileId) } }
+        )
     }
 
     private var tunnelPanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    PanelHeader(
-                        title: localizedString(theme.language, english: "LAN Tunnel", chinese: "局域网隧道", italian: "Tunnel LAN", french: "Tunnel LAN", spanish: "Túnel LAN"),
-                        systemImage: "point.3.connected.trianglepath.dotted"
-                    )
-                    Spacer()
-                    if let detection {
-                        StatusBadge(title: detection.status, style: detection.isDetected ? .success : .warning)
-                    }
-                }
-
-                SettingsRow(title: localizedString(theme.language, english: "Instance", chinese: "实例", italian: "Istanza", french: "Instance", spanish: "Instancia"), systemImage: "cube.box") {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(instance.name)
-                            .font(.callout.weight(.semibold))
-                        Text(instance.gameDirectory)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .truncationMode(.middle)
-                            .textSelection(.enabled)
-                    }
-                }
-
-                SettingsRow(title: localizedString(theme.language, english: "LAN Port", chinese: "LAN 端口", italian: "Porta LAN", french: "Port LAN", spanish: "Puerto LAN"), systemImage: "number") {
-                    HStack(spacing: 8) {
-                        PaninoTextInput("Minecraft LAN port", text: $localPortText)
-                            .frame(maxWidth: 180)
-                        GlassButton(systemImage: "magnifyingglass", title: localizedString(theme.language, english: "Detect", chinese: "检测", italian: "Rileva", french: "Détecter", spanish: "Detectar")) {
-                            Task { await detectLanPort() }
-                        }
-                        .disabled(isWorking || instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        GlassButton(systemImage: "checkmark.seal", title: localizedString(theme.language, english: "Validate", chinese: "校验", italian: "Valida", french: "Valider", spanish: "Validar")) {
-                            Task { await validatePort() }
-                        }
-                        .disabled(isWorking || parsedLocalPort == nil)
-                    }
-                }
-
-                if let evidence = detection?.evidence, !evidence.isEmpty {
-                    DiagnosticList(
-                        title: localizedString(theme.language, english: "Evidence", chinese: "证据", italian: "Evidenza", french: "Preuve", spanish: "Evidencia"),
-                        systemImage: "doc.text.magnifyingglass",
-                        items: evidence.prefix(4).map(\.message)
-                    )
-                }
-
-                VStack(alignment: .leading, spacing: 7) {
-                    ForEach(startRequirements) { requirement in
-                        TaowaRequirementRow(requirement: requirement)
-                    }
-                    if let startHintText {
-                        Text(startHintText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    GlassButton(systemImage: "play.fill", title: localizedString(theme.language, english: "Start Multiplayer", chinese: "启动联机", italian: "Avvia multiplayer", french: "Démarrer", spanish: "Iniciar multijugador"), prominent: true) {
-                        Task { await startSession() }
-                    }
-                    .disabled(isWorking || !canStartTunnel)
-                    if let session = runningSession {
-                        GlassButton(systemImage: "stop.fill", title: localizedString(theme.language, english: "Stop", chinese: "停止", italian: "Ferma", french: "Arrêter", spanish: "Detener")) {
-                            Task { await stopSession(session) }
-                        }
-                        .disabled(isWorking)
-                    }
-                    GlassButton(systemImage: "clock.arrow.circlepath", title: localizedString(theme.language, english: "Clear History", chinese: "清理历史", italian: "Pulisci cronologia", french: "Effacer historique", spanish: "Limpiar historial")) {
-                        Task { await clearHistory() }
-                    }
-                    .disabled(isWorking)
-                }
-            }
-        }
+        TaowaTunnelPanel(
+            instance: instance,
+            localPortText: $localPortText,
+            detection: detection,
+            startRequirements: startRequirements,
+            startHintText: startHintText,
+            isWorking: isWorking,
+            hasParsedLocalPort: parsedLocalPort != nil,
+            canStartTunnel: canStartTunnel,
+            runningSession: runningSession,
+            onDetectLanPort: { Task { await detectLanPort() } },
+            onValidatePort: { Task { await validatePort() } },
+            onStartSession: { Task { await startSession() } },
+            onStopSession: { session in Task { await stopSession(session) } },
+            onClearHistory: { Task { await clearHistory() } }
+        )
     }
 
     private func sessionPanel(_ session: CoreTaowaSession) -> some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            PanelHeader(
-                                title: localizedString(theme.language, english: "Connection Address", chinese: "连接地址", italian: "Indirizzo", french: "Adresse", spanish: "Dirección"),
-                                systemImage: "link"
-                            )
-                            StatusBadge(title: session.status, style: badgeStyle(for: session.status))
-                        }
-                        Text(session.remoteAddress)
-                            .font(.system(.title3, design: .monospaced).weight(.semibold))
-                            .textSelection(.enabled)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        MetadataLine(items: [
-                            "local \(session.localPort)",
-                            "remote \(session.remotePort)",
-                            "pid \(session.processId.map(String.init) ?? "-")"
-                        ])
-                        HStack(spacing: 8) {
-                            GlassButton(systemImage: "doc.on.doc", title: localizedString(theme.language, english: "Copy Address", chinese: "复制地址", italian: "Copia indirizzo", french: "Copier adresse", spanish: "Copiar dirección")) {
-                                copy(session.remoteAddress, message: localizedString(theme.language, english: "Connection address copied.", chinese: "连接地址已复制。", italian: "Indirizzo copiato.", french: "Adresse copiée.", spanish: "Dirección copiada."))
-                            }
-                            GlassButton(systemImage: "doc.text.magnifyingglass", title: localizedString(theme.language, english: "Load Log", chinese: "读取日志", italian: "Carica log", french: "Charger journal", spanish: "Cargar registro")) {
-                                Task { await loadLog(session) }
-                            }
-                            GlassButton(systemImage: "arrow.triangle.2.circlepath", title: localizedString(theme.language, english: "Refresh Session", chinese: "刷新会话", italian: "Aggiorna sessione", french: "Actualiser session", spanish: "Actualizar sesión")) {
-                                Task { await reloadSession(session) }
-                            }
-                            if !session.frpcLogPath.isEmpty {
-                                GlassButton(systemImage: "arrow.up.forward.app", title: localizedString(theme.language, english: "Open Log File", chinese: "打开日志文件", italian: "Apri log", french: "Ouvrir journal", spanish: "Abrir registro")) {
-                                    NSWorkspace.shared.open(URL(fileURLWithPath: session.frpcLogPath))
-                                }
-                            }
-                        }
-                        if let health {
-                            MetadataLine(items: [
-                                health.localPortReachable ? "local reachable" : "local unreachable",
-                                health.processManaged ? "managed" : "not managed",
-                                health.stale ? "stale" : "current"
-                            ])
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    QRCodeImage(value: session.remoteAddress)
-                        .frame(width: 150, height: 150)
-                        .accessibilityLabel(localizedString(theme.language, english: "QR code for connection address", chinese: "连接地址二维码", italian: "Codice QR indirizzo", french: "QR code adresse", spanish: "Código QR de dirección"))
-                }
-
-                if !logTail.isEmpty {
-                    ScrollView {
-                        Text(logTail)
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .frame(minHeight: 120, maxHeight: 220)
-                    .padding(10)
-                    .background(Color(nsColor: .textBackgroundColor).opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-            }
-        }
-        .task(id: session.sessionId) {
-            await loadHealth(session)
-        }
+        TaowaSessionPanel(
+            session: session,
+            health: health,
+            logTail: logTail,
+            onCopyAddress: copy,
+            onLoadLog: { session in Task { await loadLog(session) } },
+            onReloadSession: { session in Task { await reloadSession(session) } },
+            onLoadHealth: loadHealth
+        )
     }
 
     private var sessionHistoryPanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    PanelHeader(
-                        title: localizedString(theme.language, english: "Session History", chinese: "会话历史", italian: "Cronologia sessioni", french: "Historique sessions", spanish: "Historial de sesiones"),
-                        systemImage: "clock.arrow.circlepath"
-                    )
-                    Spacer()
-                    StatusBadge(title: "\(relevantSessions.count)", style: .neutral)
-                }
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 10)], spacing: 10) {
-                    ForEach(relevantSessions.sorted { $0.updatedAt > $1.updatedAt }.prefix(8)) { session in
-                        TaowaSessionHistoryRow(
-                            session: session,
-                            isSelected: session.sessionId == displaySession?.sessionId,
-                            onSelect: {
-                                selectedSessionId = session.sessionId
-                                if session.status == "failed" || session.status == "stopped" {
-                                    Task { await loadLog(session) }
-                                } else {
-                                    Task { await loadHealth(session) }
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
+        TaowaSessionHistoryPanel(
+            sessions: relevantSessions,
+            selectedSessionId: displaySession?.sessionId,
+            onSelect: selectSession
+        )
     }
 
     private func diagnosticsPanel(_ diagnostics: [CoreDiagnostic]) -> some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 10) {
-                PanelHeader(
-                    title: localizedString(theme.language, english: "Diagnostics", chinese: "诊断", italian: "Diagnostica", french: "Diagnostic", spanish: "Diagnóstico"),
-                    systemImage: "stethoscope"
-                )
-                ForEach(diagnostics, id: \.code) { diagnostic in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(diagnostic.title)
-                                .font(.callout.weight(.semibold))
-                            StatusBadge(title: diagnostic.severity, style: diagnostic.severity == "warning" ? .warning : .error)
-                        }
-                        Text(diagnostic.userSummary)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        MetadataLine(items: [
-                            diagnostic.code,
-                            diagnostic.phase,
-                            diagnostic.actionLabel
-                        ])
-                        if !diagnostic.evidence.isEmpty {
-                            DiagnosticList(
-                                title: localizedString(theme.language, english: "Evidence", chinese: "证据", italian: "Evidenza", french: "Preuve", spanish: "Evidencia"),
-                                systemImage: "list.bullet.clipboard",
-                                items: diagnostic.evidence.prefix(4).map { "\($0.key): \($0.value)" }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var statusLine: some View {
-        if let errorText {
-            Text(errorText)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if !copyStatus.isEmpty {
-            Text(copyStatus)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else if !statusText.isEmpty {
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        TaowaDiagnosticsPanel(diagnostics: diagnostics)
     }
 
     private var displaySession: CoreTaowaSession? {
@@ -816,6 +495,15 @@ struct TaowaMultiplayerPage: View {
         sessions.first { $0.profileId == profileId && $0.isActive }
     }
 
+    private func selectSession(_ session: CoreTaowaSession) {
+        selectedSessionId = session.sessionId
+        if session.status == "failed" || session.status == "stopped" {
+            Task { await loadLog(session) }
+        } else {
+            Task { await loadHealth(session) }
+        }
+    }
+
     private func chooseFrpc() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
@@ -834,366 +522,7 @@ struct TaowaMultiplayerPage: View {
         errorText = nil
     }
 
-    private func badgeStyle(for status: String) -> StatusBadge.Style {
-        switch status {
-        case "running":
-            return .running
-        case "stopped":
-            return .neutral
-        case "failed":
-            return .error
-        default:
-            return .warning
-        }
-    }
-
     private func standardizedPath(_ value: String) -> String {
         URL(fileURLWithPath: value).standardizedFileURL.path
-    }
-}
-
-private struct TaowaProfileDraft: Equatable {
-    var displayName = ""
-    var serverAddr = ""
-    var serverPort = "7000"
-    var token = ""
-    var remotePort = "25565"
-    var frpcPath = ""
-    var enabled = true
-    var hasExistingToken = false
-
-    init() {}
-
-    init(profile: CoreTaowaFrpProfile) {
-        displayName = profile.displayName
-        serverAddr = profile.serverAddr
-        serverPort = String(profile.serverPort)
-        token = ""
-        remotePort = String(profile.remotePort)
-        frpcPath = profile.frpcPath
-        enabled = profile.enabled
-        hasExistingToken = profile.hasToken
-    }
-
-    func request(profileId: String?) -> CoreTaowaFrpProfileRequest? {
-        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let addr = serverAddr.trimmingCharacters(in: .whitespacesAndNewlines)
-        let frpc = frpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty,
-              !addr.isEmpty,
-              !frpc.isEmpty,
-              let serverPortValue = Int(serverPort.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let remotePortValue = Int(remotePort.trimmingCharacters(in: .whitespacesAndNewlines)),
-              (1...65535).contains(serverPortValue),
-              (1...65535).contains(remotePortValue)
-        else {
-            return nil
-        }
-        let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        return CoreTaowaFrpProfileRequest(
-            profileId: profileId,
-            displayName: name,
-            serverAddr: addr,
-            serverPort: serverPortValue,
-            token: trimmedToken.isEmpty ? nil : trimmedToken,
-            remotePort: remotePortValue,
-            protocolName: "tcp",
-            frpcPath: frpc,
-            enabled: enabled
-        )
-    }
-}
-
-private struct TaowaWorkflowStep: Identifiable {
-    let id: String
-    let title: String
-    let detail: String
-    let systemImage: String
-    let style: StatusBadge.Style
-    let isReady: Bool
-}
-
-private struct TaowaStepCard: View {
-    let step: TaowaWorkflowStep
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(step.style.color.opacity(0.18))
-                Image(systemName: step.isReady ? "checkmark" : step.systemImage)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(step.style.color)
-            }
-            .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(step.title)
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
-                Text(step.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(step.style.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(step.style.color.opacity(step.isReady ? 0.26 : 0.14), lineWidth: 1)
-        }
-    }
-}
-
-private struct TaowaProfileCard: View {
-    let profile: CoreTaowaFrpProfile
-    let isSelected: Bool
-    let hasActiveSession: Bool
-    let onSelect: () -> Void
-    let onCopyAddress: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: profile.enabled ? "server.rack" : "pause.circle")
-                    .foregroundStyle(style.color)
-                Text(profile.displayName)
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(style.color)
-                }
-            }
-            Text(profile.remoteAddress)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            HStack(spacing: 6) {
-                StatusBadge(title: profile.enabled ? "enabled" : "disabled", style: style)
-                if profile.hasToken {
-                    StatusBadge(title: "token", style: .neutral)
-                }
-                if hasActiveSession {
-                    StatusBadge(title: "active", style: .running)
-                }
-                Spacer(minLength: 0)
-                Button(action: onCopyAddress) {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.plain)
-                .help("Copy remote address")
-                .accessibilityLabel("Copy remote address")
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(style.color.opacity(isSelected ? 0.14 : 0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(style.color.opacity(isSelected ? 0.45 : 0.14), lineWidth: isSelected ? 1.5 : 1)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .onTapGesture(perform: onSelect)
-    }
-
-    private var style: StatusBadge.Style {
-        if hasActiveSession {
-            return .running
-        }
-        return profile.enabled ? .success : .warning
-    }
-}
-
-private struct TaowaRequirement: Identifiable {
-    enum State {
-        case ready
-        case warning
-        case missing
-
-        var systemImage: String {
-            switch self {
-            case .ready:
-                return "checkmark.circle.fill"
-            case .warning:
-                return "exclamationmark.circle.fill"
-            case .missing:
-                return "xmark.circle.fill"
-            }
-        }
-
-        var style: StatusBadge.Style {
-            switch self {
-            case .ready:
-                return .success
-            case .warning:
-                return .warning
-            case .missing:
-                return .error
-            }
-        }
-    }
-
-    let id: String
-    let title: String
-    let state: State
-}
-
-private struct TaowaRequirementRow: View {
-    let requirement: TaowaRequirement
-
-    var body: some View {
-        Label {
-            Text(requirement.title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        } icon: {
-            Image(systemName: requirement.state.systemImage)
-                .foregroundStyle(requirement.state.style.color)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct TaowaProfileTestPanel: View {
-    let test: CoreTaowaFrpProfileTestResponse
-    @EnvironmentObject private var theme: ThemeSettings
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label(
-                    test.ok
-                        ? localizedString(theme.language, english: "Profile test passed", chinese: "配置测试通过", italian: "Test profilo riuscito", french: "Test du profil réussi", spanish: "Prueba de perfil superada")
-                        : localizedString(theme.language, english: "Profile test needs attention", chinese: "配置测试需要处理", italian: "Test profilo da controllare", french: "Test du profil à vérifier", spanish: "Prueba de perfil requiere atención"),
-                    systemImage: test.ok ? "checkmark.shield.fill" : "exclamationmark.shield.fill"
-                )
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(style.color)
-                Spacer()
-                StatusBadge(title: test.ok ? "ok" : localizedString(theme.language, english: "check failed", chinese: "检查失败", italian: "controllo fallito", french: "échec", spanish: "falló"), style: style)
-            }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 8)], spacing: 8) {
-                ForEach(test.checks) { check in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: check.ok ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(check.ok ? StatusBadge.Style.success.color : StatusBadge.Style.error.color)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(check.name)
-                                .font(.caption.weight(.semibold))
-                            Text(check.message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(3)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(8)
-                    .background((check.ok ? Color.green : Color.red).opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-            }
-        }
-        .padding(10)
-        .background(style.color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(style.color.opacity(0.18), lineWidth: 1)
-        }
-    }
-
-    private var style: StatusBadge.Style {
-        test.ok ? .success : .warning
-    }
-}
-
-private struct TaowaSessionHistoryRow: View {
-    let session: CoreTaowaSession
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack {
-                    Text(session.remoteAddress)
-                        .font(.system(.callout, design: .monospaced).weight(.semibold))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer(minLength: 8)
-                    StatusBadge(title: session.status, style: style)
-                }
-                MetadataLine(items: [
-                    "local \(session.localPort)",
-                    "remote \(session.remotePort)",
-                    session.updatedAt.formatted(date: .abbreviated, time: .shortened)
-                ])
-                if !session.diagnostics.isEmpty {
-                    Text(session.diagnostics.first?.userSummary ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(style.color.opacity(isSelected ? 0.13 : 0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(style.color.opacity(isSelected ? 0.42 : 0.14), lineWidth: isSelected ? 1.5 : 1)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var style: StatusBadge.Style {
-        switch session.status {
-        case "running":
-            return .running
-        case "failed":
-            return .error
-        case "stopped":
-            return .neutral
-        default:
-            return .warning
-        }
-    }
-}
-
-private struct QRCodeImage: View {
-    let value: String
-
-    private static let context = CIContext()
-    private let filter = CIFilter.qrCodeGenerator()
-
-    var body: some View {
-        if let image = makeImage() {
-            Image(nsImage: image)
-                .interpolation(.none)
-                .resizable()
-                .scaledToFit()
-                .padding(10)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
-                }
-        } else {
-            ContentUnavailableView("QR", systemImage: "qrcode")
-        }
-    }
-
-    private func makeImage() -> NSImage? {
-        filter.message = Data(value.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage else { return nil }
-        let transformed = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-        guard let cgImage = Self.context.createCGImage(transformed, from: transformed.extent) else { return nil }
-        return NSImage(cgImage: cgImage, size: NSSize(width: transformed.extent.width, height: transformed.extent.height))
     }
 }

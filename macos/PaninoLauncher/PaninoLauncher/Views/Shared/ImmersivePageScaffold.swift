@@ -1,8 +1,15 @@
 import SwiftUI
 
+enum ImmersivePageContentPlacement: Equatable {
+    case bottom
+    case top
+}
+
 struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, FloatingControls: View, ContextShelf: View, InspectorContent: View>: View {
     var minHeight: CGFloat = 680
     var cornerRadius: CGFloat = PaninoTokens.Radius.panel + 8
+    var contentPlacement: ImmersivePageContentPlacement = .bottom
+    var topContentInset: CGFloat = 54
     @ViewBuilder let backgroundContent: () -> BackgroundContent
     @ViewBuilder let primaryContent: () -> PrimaryContent
     @ViewBuilder let floatingControls: () -> FloatingControls
@@ -17,6 +24,8 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
     init(
         minHeight: CGFloat = 680,
         cornerRadius: CGFloat = PaninoTokens.Radius.panel + 8,
+        contentPlacement: ImmersivePageContentPlacement = .bottom,
+        topContentInset: CGFloat = 54,
         @ViewBuilder backgroundContent: @escaping () -> BackgroundContent,
         @ViewBuilder primaryContent: @escaping () -> PrimaryContent,
         @ViewBuilder floatingControls: @escaping () -> FloatingControls,
@@ -25,6 +34,8 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
     ) {
         self.minHeight = minHeight
         self.cornerRadius = cornerRadius
+        self.contentPlacement = contentPlacement
+        self.topContentInset = topContentInset
         self.backgroundContent = backgroundContent
         self.primaryContent = primaryContent
         self.floatingControls = floatingControls
@@ -41,6 +52,8 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
                 reduceMotion: motionDisabled
             )
             let scaffoldShape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            let outlineWidth = max(1.25, tokens.strokeWidth)
+            let outlineOpacity = max(0.30, min(0.62, tokens.strokeOpacity * 1.70))
             ZStack(alignment: .bottomLeading) {
                 scaffoldShape
                     .fill(
@@ -57,7 +70,7 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
 
                 backgroundContent()
                     .frame(width: proxy.size.width, height: proxy.size.height)
-                    .clipped()
+                    .clipShape(scaffoldShape)
 
                 LinearGradient(
                     colors: [
@@ -80,20 +93,27 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
                 )
 
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .top) {
+                    if contentPlacement == .bottom {
+                        Spacer(minLength: 36)
+                        stagedContent
+                    } else {
+                        stagedContent
+                            .padding(.top, topContentInset)
                         Spacer(minLength: 0)
-                        floatingControls()
                     }
-                    .padding(24)
-
-                    Spacer(minLength: 36)
-
-                    VStack(alignment: .leading, spacing: 18) {
-                        primaryContent()
-                        contextShelf()
-                    }
-                    .padding(24)
                 }
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: contentPlacement == .top ? .topLeading : .bottomLeading
+                )
+
+                HStack(alignment: .top) {
+                    Spacer(minLength: 0)
+                    floatingControls()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(24)
 
                 HStack {
                     Spacer(minLength: 0)
@@ -116,7 +136,19 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
             .compositingGroup()
             .overlay {
                 scaffoldShape
-                    .strokeBorder(tokens.strokeColor.opacity(tokens.strokeOpacity * 0.82), lineWidth: tokens.strokeWidth)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(outlineOpacity * 0.70),
+                                tokens.strokeColor.opacity(outlineOpacity),
+                                tokens.strokeColor.opacity(outlineOpacity * 0.82)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: outlineWidth
+                    )
+                    .allowsHitTesting(false)
             }
             .shadow(
                 color: Color.black.opacity(tokens.shadowOpacity * 0.70),
@@ -127,12 +159,22 @@ struct ImmersivePageScaffold<BackgroundContent: View, PrimaryContent: View, Floa
         }
         .frame(minHeight: minHeight)
     }
+
+    private var stagedContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            primaryContent()
+            contextShelf()
+        }
+        .padding(24)
+    }
 }
 
 extension ImmersivePageScaffold where InspectorContent == EmptyView {
     init(
         minHeight: CGFloat = 680,
         cornerRadius: CGFloat = PaninoTokens.Radius.panel + 8,
+        contentPlacement: ImmersivePageContentPlacement = .bottom,
+        topContentInset: CGFloat = 54,
         @ViewBuilder backgroundContent: @escaping () -> BackgroundContent,
         @ViewBuilder primaryContent: @escaping () -> PrimaryContent,
         @ViewBuilder floatingControls: @escaping () -> FloatingControls,
@@ -141,6 +183,8 @@ extension ImmersivePageScaffold where InspectorContent == EmptyView {
         self.init(
             minHeight: minHeight,
             cornerRadius: cornerRadius,
+            contentPlacement: contentPlacement,
+            topContentInset: topContentInset,
             backgroundContent: backgroundContent,
             primaryContent: primaryContent,
             floatingControls: floatingControls,

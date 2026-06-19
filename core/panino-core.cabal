@@ -210,6 +210,50 @@ test-suite panino-core-test
     warp >= 3.3 && < 3.5,
     panino-core
   other-modules:
+    Integration.ApiJson
+    Integration.ContentPlan
+    Integration.ContentPlan.Search
+    Integration.ContentPlan.Targets
+    Integration.ContentPlan.TypedInstall
+    Integration.ContentPlan.Update
+    Integration.CoreCli
+    Integration.Diagnostics
+    Integration.DownloadManager
+    Integration.DownloadManager.Multipart
+    Integration.DownloadManager.Progress
+    Integration.DownloadVerification
+    Integration.GraphicsTuning
+    Integration.InstallPlanExecutor
+    Integration.InstanceMetadata
+    Integration.JavaRequirements
+    Integration.JavaRuntime
+    Integration.JavaRuntime.Archive
+    Integration.JavaRuntime.Install
+    Integration.JavaRuntime.Local
+    Integration.JavaRuntime.Store
+    Integration.JvmTuning
+    Integration.LaunchArguments
+    Integration.LaunchTask
+    Integration.LocalInstanceStatus
+    Integration.LockfileSolver
+    Integration.LockfileSolver.Room
+    Integration.LockfileSolver.Update
+    Integration.LoaderSelection
+    Integration.LoaderShader
+    Integration.LoaderShader.Preflight
+    Integration.LoaderShaderFixtureServer
+    Integration.MinecraftInstall
+    Integration.MinecraftPlan
+    Integration.Modpack
+    Integration.ModPreflight
+    Integration.ModrinthDependencyResolver
+    Integration.ModrinthDependencyResolver.JavaPolicy
+    Integration.NetworkFailure
+    Integration.Performance
+    Integration.SourceOverrides
+    Integration.Taowa
+    Integration.Taowa.Lan
+    Integration.TypedInstallPlan
     Property.Compatibility
     Property.Diagnostics
     Property.Generators
@@ -217,3 +261,5 @@ test-suite panino-core-test
     Property.Performance
     Property.Plan
     Property.Runner
+    TestFixtures
+    TestSupport
