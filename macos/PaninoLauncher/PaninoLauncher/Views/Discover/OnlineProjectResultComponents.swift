@@ -23,55 +23,6 @@ extension OnlineProjectType {
     }
 }
 
-struct OnlineProjectSkeletonGrid: View {
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 282), spacing: 12)], spacing: 12) {
-            ForEach(0..<6, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 10) {
-                    RoundedRectangle(cornerRadius: 8).fill(.secondary.opacity(0.2)).frame(width: 42, height: 42)
-                    RoundedRectangle(cornerRadius: 4).fill(.secondary.opacity(0.2)).frame(height: 16)
-                    RoundedRectangle(cornerRadius: 4).fill(.secondary.opacity(0.14)).frame(height: 42)
-                    RoundedRectangle(cornerRadius: 4).fill(.secondary.opacity(0.16)).frame(width: 150, height: 14)
-                }
-                .padding(12)
-                .frame(minHeight: 132)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
-                .redacted(reason: .placeholder)
-            }
-        }
-    }
-}
-
-struct OnlineProjectSkeletonList: View {
-    var body: some View {
-        LazyVStack(spacing: 6) {
-            ForEach(0..<8, id: \.self) { _ in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.secondary.opacity(0.2))
-                        .frame(width: 46, height: 46)
-                    VStack(alignment: .leading, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.secondary.opacity(0.2))
-                            .frame(width: 180, height: 14)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.secondary.opacity(0.14))
-                            .frame(height: 12)
-                    }
-                    Spacer()
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.secondary.opacity(0.16))
-                        .frame(width: 88, height: 22)
-                }
-                .padding(10)
-                .frame(minHeight: PaninoTokens.Layout.compactResultRowHeight)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
-                .redacted(reason: .placeholder)
-            }
-        }
-    }
-}
-
 struct OnlineProjectResultRow: View {
     let project: OnlineProject
     let isSelected: Bool
@@ -225,58 +176,5 @@ struct OnlineProjectCard: View {
             "\(project.downloads.formatted()) downloads",
             updated.map { "Updated \($0)" }
         ].compactMap { $0 }.joined(separator: " · ")
-    }
-}
-
-struct OnlineProjectIcon: View {
-    let url: URL?
-    @State private var image: NSImage?
-    @State private var failed = false
-
-    private static let cache = NSCache<NSURL, NSImage>()
-
-    var body: some View {
-        Group {
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else if failed || url == nil {
-                Image(systemName: "shippingbox.fill").font(.title3).foregroundStyle(.secondary)
-            } else {
-                ProgressView().controlSize(.small)
-            }
-        }
-        .frame(width: 42, height: 42)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.62), in: RoundedRectangle(cornerRadius: 8))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .task(id: url) {
-            await loadIcon()
-        }
-    }
-
-    @MainActor
-    private func loadIcon() async {
-        image = nil
-        failed = false
-        guard let url else {
-            failed = true
-            return
-        }
-        if let cached = Self.cache.object(forKey: url as NSURL) {
-            image = cached
-            return
-        }
-
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            guard !Task.isCancelled, let loaded = NSImage(data: data) else { return }
-            Self.cache.setObject(loaded, forKey: url as NSURL)
-            image = loaded
-        } catch {
-            if !Task.isCancelled {
-                failed = true
-            }
-        }
     }
 }

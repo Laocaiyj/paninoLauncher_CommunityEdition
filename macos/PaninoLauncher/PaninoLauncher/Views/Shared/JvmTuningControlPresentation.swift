@@ -1,58 +1,6 @@
 import SwiftUI
 
-enum JvmTuningPreset: String, CaseIterable, Identifiable {
-    case auto
-    case smoother
-    case largePack
-
-    var id: String { rawValue }
-}
-
 extension JvmTuningControl {
-    var presetBinding: Binding<JvmTuningPreset> {
-        Binding(
-            get: {
-                switch jvmProfile {
-                case .largePack:
-                    return .largePack
-                case .lowMemory, .batterySaver:
-                    return .smoother
-                default:
-                    return .auto
-                }
-            },
-            set: { preset in
-                memoryPolicy = .auto
-                customMemoryMb = nil
-                switch preset {
-                case .auto:
-                    jvmProfile = .auto
-                case .largePack:
-                    jvmProfile = .largePack
-                case .smoother:
-                    jvmProfile = .lowMemory
-                }
-            }
-        )
-    }
-
-    var primaryActionTitle: String {
-        if failedWithRollback {
-            return localizedString(theme.language, english: "Restore Last Good", chinese: "恢复上次可用设置", italian: "Ripristina funzionante", french: "Restaurer le dernier réglage", spanish: "Restaurar último válido")
-        }
-        if hasManualOverride {
-            return localizedString(theme.language, english: "Restore Automatic", chinese: "恢复自动推荐", italian: "Ripristina automatico", french: "Restaurer automatique", spanish: "Restaurar automático")
-        }
-        if resolved?.applyMode == "ask" || resolved?.confidence == "estimated" {
-            return localizedString(theme.language, english: "Review Estimate", chinese: "确认估算建议", italian: "Rivedi stima", french: "Vérifier l'estimation", spanish: "Revisar estimación")
-        }
-        return localizedString(theme.language, english: "Apply Recommended", chinese: "应用推荐设置", italian: "Applica consigliato", french: "Appliquer recommandé", spanish: "Aplicar recomendado")
-    }
-
-    var primaryActionIcon: String {
-        failedWithRollback ? "arrow.uturn.backward.circle" : "wand.and.stars"
-    }
-
     var summaryText: String {
         if let resolved {
             return [confidenceText(resolved.confidence), resolved.summary, evidenceText(resolved.evidence)]
@@ -119,77 +67,6 @@ extension JvmTuningControl {
         }
     }
 
-    var advisoryText: String? {
-        if let lastSnapshot, lastSnapshot.state == .failed {
-            if lastSnapshot.heapOutOfMemory || lastSnapshot.nativeOutOfMemory || lastSnapshot.gcOverheadLimit {
-                return localizedString(
-                    theme.language,
-                    english: "Last launch looked memory-related. Restore a known-good setup first, then adjust only if it still fails.",
-                    chinese: "上次启动像是内存相关失败。先恢复可用设置，再根据结果微调。",
-                    italian: "L'ultimo avvio sembra legato alla memoria. Ripristina una configurazione funzionante prima di ritoccare.",
-                    french: "Le dernier lancement semble lié à la mémoire. Restaurez un réglage fiable avant d'ajuster.",
-                    spanish: "El último inicio parece de memoria. Restaura una configuración válida antes de ajustar."
-                )
-            }
-            return localizedString(
-                theme.language,
-                english: "Last launch failed. Panino will not change settings silently.",
-                chinese: "上次启动失败。Panino 不会在你不知情时改配置。",
-                italian: "Ultimo avvio non riuscito. Panino non cambia impostazioni senza dirtelo.",
-                french: "Dernier lancement échoué. Panino ne change rien sans vous prévenir.",
-                spanish: "El último inicio falló. Panino no cambia ajustes sin avisar."
-            )
-        }
-        if hasCustomJvmConflict {
-            return localizedString(
-                theme.language,
-                english: "Custom advanced launch flags conflict with automatic tuning. Core will keep one final recommendation.",
-                chinese: "自定义高级启动参数会和自动调校冲突。Core 最终只保留一组推荐。",
-                italian: "Flag avanzati personalizzati confliggono con l'autotuning. Core conserva una raccomandazione.",
-                french: "Les options avancées personnalisées entrent en conflit. Core garde une recommandation finale.",
-                spanish: "Los flags avanzados chocan con el ajuste automático. Core deja una recomendación final."
-            )
-        }
-        if memoryPolicy == .custom, (customMemoryMb ?? currentMemoryMb) >= 12 * 1024 {
-            return localizedString(
-                theme.language,
-                english: "Very large game memory can starve macOS unified memory and make the game slower.",
-                chinese: "游戏内存太大可能挤压 macOS 统一内存，反而让游戏更卡。",
-                italian: "Memoria gioco troppo grande può comprimere la memoria unificata di macOS e rallentare.",
-                french: "Une mémoire jeu trop grande peut étouffer la mémoire unifiée macOS et ralentir.",
-                spanish: "Memoria de juego muy grande puede presionar la memoria unificada de macOS y ralentizar."
-            )
-        }
-        return nil
-    }
-
-    var advisoryIcon: String {
-        failedWithRollback ? "exclamationmark.triangle" : "info.circle"
-    }
-
-    var advisoryColor: Color {
-        failedWithRollback || hasCustomJvmConflict ? .orange : .secondary
-    }
-
-    func performPrimaryAction() {
-        if let lastKnownGood, failedWithRollback {
-            onRestoreLastKnownGood?(lastKnownGood)
-            return
-        }
-        onRestoreAutomatic()
-    }
-
-    func title(for preset: JvmTuningPreset) -> String {
-        switch preset {
-        case .auto:
-            return localizedString(theme.language, english: "Auto", chinese: "自动推荐", italian: "Auto", french: "Auto", spanish: "Auto")
-        case .largePack:
-            return localizedString(theme.language, english: "Large Pack", chinese: "大型整合包", italian: "Pacchetto grande", french: "Gros pack", spanish: "Pack grande")
-        case .smoother:
-            return localizedString(theme.language, english: "Smoother", chinese: "更流畅", italian: "Più fluido", french: "Plus fluide", spanish: "Más fluido")
-        }
-    }
-
     func snapshotText(_ snapshot: JvmTuningSnapshot) -> String {
         let memory = snapshot.finalXmxMb.map { "\($0) MB" } ?? "\(snapshot.configuredMemoryMb) MB"
         let gc = snapshot.finalGc ?? "GC"
@@ -202,28 +79,6 @@ extension JvmTuningControl {
             return localizedString(theme.language, english: "Launch running", chinese: "启动中", italian: "Avvio in corso", french: "Lancement en cours", spanish: "Iniciando")
         case .cancelled:
             return localizedString(theme.language, english: "Last launch cancelled", chinese: "上次启动已取消", italian: "Ultimo avvio annullato", french: "Dernier lancement annulé", spanish: "Último inicio cancelado")
-        }
-    }
-
-    private var hasManualOverride: Bool {
-        memoryPolicy == .custom
-            || jvmProfile == .custom
-            || !customJvmArguments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var failedWithRollback: Bool {
-        lastSnapshot?.state == .failed && lastKnownGood != nil
-    }
-
-    private var hasCustomJvmConflict: Bool {
-        splitJvmArguments(customJvmArguments).contains { argument in
-            argument.hasPrefix("-Xmx")
-                || argument.hasPrefix("-Xms")
-                || argument.contains("UseZGC")
-                || argument.contains("UseG1GC")
-                || argument.contains("UseShenandoahGC")
-                || argument.contains("UseParallelGC")
-                || argument.contains("UseSerialGC")
         }
     }
 

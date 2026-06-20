@@ -16,93 +16,51 @@ struct LockfileReviewSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: isBlocked ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(isBlocked ? Color.orange : Color.green)
-                    .frame(width: 30)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.title3.weight(.semibold))
-                        .paninoTruncation(.title)
-                    Text(subtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .paninoTruncation(.summary(lines: 2))
-                }
-                Spacer(minLength: 0)
-            }
+            LockfileReviewHeader(title: title, subtitle: subtitle, isBlocked: isBlocked)
 
             MetricStrip(items: metricItems)
 
             if isBlocked {
-                reviewSection(
+                LockfileReviewTextSection(
                     title: localizedString(theme.language, english: "Blocked", chinese: "已阻断", italian: "Bloccato", french: "Bloqué", spanish: "Bloqueado"),
-                    systemImage: "exclamationmark.triangle"
-                ) {
-                    blockedText
-                }
+                    systemImage: "exclamationmark.triangle",
+                    text: blockedText
+                )
             }
 
             if !result.conflicts.isEmpty {
-                reviewSection(
+                LockfileReviewTextSection(
                     title: localizedString(theme.language, english: "Conflicts", chinese: "冲突", italian: "Conflitti", french: "Conflits", spanish: "Conflictos"),
-                    systemImage: "bolt.trianglebadge.exclamationmark"
-                ) {
-                    conflictText
-                }
+                    systemImage: "bolt.trianglebadge.exclamationmark",
+                    text: conflictText
+                )
             }
 
             if !dependencyReasonText.isEmpty {
-                reviewSection(
+                LockfileReviewTextSection(
                     title: localizedString(theme.language, english: "Dependency Reasons", chinese: "依赖原因", italian: "Motivi dipendenze", french: "Raisons des dépendances", spanish: "Motivos de dependencias"),
-                    systemImage: "point.3.connected.trianglepath.dotted"
-                ) {
-                    dependencyReasonText
-                }
+                    systemImage: "point.3.connected.trianglepath.dotted",
+                    text: dependencyReasonText
+                )
             }
 
             if !versionChangeText.isEmpty {
-                reviewSection(
+                LockfileReviewTextSection(
                     title: localizedString(theme.language, english: "Version Changes", chinese: "版本变化", italian: "Cambi versione", french: "Changements de version", spanish: "Cambios de versión"),
-                    systemImage: "arrow.triangle.2.circlepath"
-                ) {
-                    versionChangeText
-                }
+                    systemImage: "arrow.triangle.2.circlepath",
+                    text: versionChangeText
+                )
             }
 
             if !riskText.isEmpty {
-                reviewSection(
+                LockfileReviewTextSection(
                     title: localizedString(theme.language, english: "Risk", chinese: "风险", italian: "Rischio", french: "Risque", spanish: "Riesgo"),
-                    systemImage: "shield.lefthalf.filled"
-                ) {
-                    riskText
-                }
+                    systemImage: "shield.lefthalf.filled",
+                    text: riskText
+                )
             }
 
-            DisclosureGroup {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("fingerprint: \(result.lockfile?.fingerprint ?? result.typedPlan.fingerprint)")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                    ForEach(result.typedPlan.nodes.prefix(18), id: \.id) { node in
-                        nodeRow(node)
-                    }
-                    if result.typedPlan.nodes.count > 18 {
-                        Text(localizedString(theme.language, english: "\(result.typedPlan.nodes.count - 18) more nodes", chinese: "另有 \(result.typedPlan.nodes.count - 18) 个节点", italian: "Altri \(result.typedPlan.nodes.count - 18) nodi", french: "\(result.typedPlan.nodes.count - 18) noeuds en plus", spanish: "\(result.typedPlan.nodes.count - 18) nodos más"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.top, 8)
-            } label: {
-                Label(
-                    localizedString(theme.language, english: "Advanced lockfile", chinese: "高级锁文件", italian: "Lockfile avanzato", french: "Lockfile avancé", spanish: "Lockfile avanzado"),
-                    systemImage: "doc.text.magnifyingglass"
-                )
-                .font(.callout.weight(.semibold))
-            }
+            LockfileAdvancedSection(result: result)
 
             HStack {
                 Button(localizedString(theme.language, english: "Cancel", chinese: "取消", italian: "Annulla", french: "Annuler", spanish: "Cancelar"), action: onCancel)
@@ -173,38 +131,6 @@ struct LockfileReviewSheet: View {
         return lines.prefix(10).joined(separator: "\n")
     }
 
-    private func reviewSection(title: String, systemImage: String, text: () -> String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: systemImage)
-                .font(.callout.weight(.semibold))
-            Text(text())
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.30), in: RoundedRectangle(cornerRadius: PaninoTokens.Radius.card, style: .continuous))
-    }
-
-    private func nodeRow(_ node: CoreInstallPlanNode) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(node.action)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(node.label)
-                    .font(.caption.weight(.semibold))
-                    .paninoTruncation(.title)
-                Text([node.kind, node.targetPath].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-    }
 }
 
 private extension Array where Element == String {

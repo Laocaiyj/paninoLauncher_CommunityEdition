@@ -1,6 +1,6 @@
 import SwiftUI
 
-extension SettingsRuntimeSection {
+extension SettingsMinecraftRuntimePanel {
     var advancedLaunchSection: some View {
         FullWidthDisclosureGroup(isExpanded: $showRuntimeAdvanced) {
             VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {

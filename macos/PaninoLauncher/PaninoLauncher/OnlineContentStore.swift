@@ -16,7 +16,7 @@ final class OnlineContentStore: ObservableObject {
     @Published private(set) var lastSearchUpdatedAt: Date?
     @Published private(set) var curseForgeAPIKeyConfigured: Bool
 
-    private let secretStore = SecureSecretStore()
+    private let credentials = OnlineContentCredentialStore()
     private var backend: OnlineContentCoreBackend?
     private var searchTask: Task<Void, Never>?
     private var projectTask: Task<Void, Never>?
@@ -25,7 +25,7 @@ final class OnlineContentStore: ObservableObject {
     private var projectGeneration = 0
 
     init() {
-        curseForgeAPIKeyConfigured = UserDefaults.standard.bool(forKey: Self.curseForgeAPIKeyConfiguredKey)
+        curseForgeAPIKeyConfigured = credentials.curseForgeAPIKeyConfigured
     }
 
     func configure(coreBackend: OnlineContentCoreBackend) {
@@ -38,16 +38,10 @@ final class OnlineContentStore: ObservableObject {
 
     func saveCurseForgeAPIKey(_ value: String) {
         do {
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                try secretStore.delete(.curseForgeAPIKey)
-                setCurseForgeAPIKeyConfigured(false)
-                statusMessage = "CurseForge API key removed"
-            } else {
-                try secretStore.save(trimmed, for: .curseForgeAPIKey)
-                setCurseForgeAPIKeyConfigured(true)
-                statusMessage = "CurseForge API key saved in Keychain"
-            }
+            curseForgeAPIKeyConfigured = try credentials.saveCurseForgeAPIKey(value)
+            statusMessage = curseForgeAPIKeyConfigured
+                ? "CurseForge API key saved in Keychain"
+                : "CurseForge API key removed"
         } catch {
             statusMessage = "CurseForge API key update failed: \(error.localizedDescription)"
         }
@@ -110,44 +104,37 @@ final class OnlineContentStore: ObservableObject {
         projectFailure = nil
 
         searchTask = Task {
-            var pages: [ContentSourceID: OnlineSearchPage] = [:]
-            var failures: [String] = []
-            var failuresBySource: [ContentSourceID: String] = [:]
-            var failureSnapshotsBySource: [ContentSourceID: String] = [:]
+            var batch = OnlineContentSearchBatchResult()
 
             for source in requestedSources {
                 guard !Task.isCancelled else { return }
                 do {
-                    pages[source] = try await backend.search(query, source, apiKey(for: source))
+                    let page = try await backend.search(query, source, apiKey(for: source))
+                    batch.addPage(page, for: source)
                 } catch {
-                    let message = OnlineContentErrorFormatter.displayMessage(for: error)
-                    failuresBySource[source] = message
-                    failureSnapshotsBySource[source] = query.diagnosticSummary(source: source)
-                    failures.append("\(source.displayName): \(message)")
+                    batch.addFailure(error, source: source, query: query)
                 }
             }
 
             guard !Task.isCancelled, generation == searchGeneration else { return }
             for source in requestedSources {
-                if let page = pages[source] {
+                if let page = batch.pages[source] {
                     searchResults[source] = page
                 }
-                if let failure = failuresBySource[source] {
+                if let failure = batch.failuresBySource[source] {
                     searchFailures[source] = failure
-                    searchFailureSnapshots[source] = failureSnapshotsBySource[source]
+                    searchFailureSnapshots[source] = batch.failureSnapshotsBySource[source]
                 } else {
                     searchFailures.removeValue(forKey: source)
                     searchFailureSnapshots.removeValue(forKey: source)
                 }
             }
             isLoading = false
-            if !pages.isEmpty {
+            if !batch.pages.isEmpty {
                 lastSearchUpdatedAt = Date()
             }
-            statusMessage = failures.isEmpty
-                ? "Loaded \(pages.values.reduce(0) { $0 + $1.projects.count }) online projects"
-                : failures.joined(separator: " | ")
-            completion?(failuresBySource.isEmpty)
+            statusMessage = batch.statusMessage
+            completion?(batch.succeeded)
         }
     }
 
@@ -247,19 +234,10 @@ final class OnlineContentStore: ObservableObject {
 
     private func apiKey(for source: ContentSourceID) -> String? {
         guard source == .curseForge else { return nil }
-        guard curseForgeAPIKeyConfigured else { return nil }
-        let value = (try? secretStore.load(.curseForgeAPIKey))?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value, !value.isEmpty else {
-            setCurseForgeAPIKeyConfigured(false)
-            return nil
+        let result = credentials.curseForgeAPIKey(configured: curseForgeAPIKeyConfigured)
+        if curseForgeAPIKeyConfigured != result.isConfigured {
+            curseForgeAPIKeyConfigured = result.isConfigured
         }
-        return value
+        return result.value
     }
-
-    private func setCurseForgeAPIKeyConfigured(_ configured: Bool) {
-        curseForgeAPIKeyConfigured = configured
-        UserDefaults.standard.set(configured, forKey: Self.curseForgeAPIKeyConfiguredKey)
-    }
-
-    private static let curseForgeAPIKeyConfiguredKey = "OnlineContent.CurseForgeAPIKeyConfigured"
 }

@@ -13,7 +13,7 @@ struct TaskFocusStageContent: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 24) {
+            HStack(alignment: .top, spacing: 22) {
                 TaskFocusPrimaryContent(
                     record: record,
                     coreStatus: coreStatus,
@@ -23,7 +23,7 @@ struct TaskFocusStageContent: View {
                 .frame(minWidth: 420, maxWidth: 720, alignment: .leading)
                 .layoutPriority(1)
 
-                Spacer(minLength: 16)
+                Spacer(minLength: 18)
 
                 TaskFocusInspector(
                     record: record,
@@ -56,6 +56,7 @@ struct TaskFocusStageContent: View {
                     onRetry: onRetry,
                     onDiagnostics: onDiagnostics
                 )
+                .frame(maxWidth: 380, alignment: .topLeading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)

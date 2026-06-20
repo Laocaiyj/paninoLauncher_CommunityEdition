@@ -3,15 +3,40 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct InstanceSavesPage: View {
+    @EnvironmentObject private var theme: ThemeSettings
+
     @ObservedObject var viewModel: LauncherViewModel
     let instance: GameInstance
 
-    @EnvironmentObject private var theme: ThemeSettings
     @State private var preflight: CoreExportBackupPreflightResponse?
     @State private var preflightError = ""
     @State private var isCheckingPreflight = false
     @State private var actionStatus = ""
     @State private var isMutatingSaves = false
+
+    private var saveMetrics: [InstanceArchiveMetricItem] {
+        [
+            InstanceArchiveMetricItem(
+                title: localizedString(theme.language, english: "Configuration", chinese: "游戏配置", italian: "Configurazione", french: "Configuration", spanish: "Configuración"),
+                value: instance.name
+            ),
+            InstanceArchiveMetricItem(
+                title: localizedString(theme.language, english: "Saves Folder", chinese: "存档文件夹", italian: "Cartella salvataggi", french: "Dossier sauvegardes", spanish: "Carpeta de partidas"),
+                value: savesPath
+            )
+        ]
+    }
+
+    private var savesPath: String {
+        let base = instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        return URL(fileURLWithPath: base, isDirectory: true)
+            .appendingPathComponent("saves", isDirectory: true)
+            .path
+    }
+
+    private var effectiveGameDirectory: String {
+        instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         GlassPanel {
@@ -24,39 +49,25 @@ struct InstanceSavesPage: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 10)], spacing: 10) {
-                    saveMetric(localizedString(theme.language, english: "Configuration", chinese: "游戏配置", italian: "Configurazione", french: "Configuration", spanish: "Configuración"), instance.name)
-                    saveMetric(localizedString(theme.language, english: "Saves Folder", chinese: "存档文件夹", italian: "Cartella salvataggi", french: "Dossier sauvegardes", spanish: "Carpeta de partidas"), savesPath)
-                }
+                InstanceArchiveMetricsGrid(items: saveMetrics, minimumColumnWidth: 200)
 
-                HStack(spacing: 8) {
-                    GlassButton(systemImage: "checklist", title: localizedString(theme.language, english: "Run Preflight", chinese: "运行预检", italian: "Preflight", french: "Précontrôle", spanish: "Preflight")) {
-                        runBackupPreflight()
-                    }
-                    .disabled(isCheckingPreflight)
-                    GlassButton(systemImage: "folder", title: localizedString(theme.language, english: "Open Saves Folder", chinese: "打开存档文件夹", italian: "Apri salvataggi", french: "Ouvrir sauvegardes", spanish: "Abrir partidas")) {
-                        FinderIntegration.openSavesDirectory(instance)
-                    }
-                    GlassButton(systemImage: "archivebox", title: localizedString(theme.language, english: "Backup Saves", chinese: "备份存档", italian: "Backup salvataggi", french: "Sauvegarder", spanish: "Respaldar partidas")) {
-                        backupSaves()
-                    }
-                    .disabled(isMutatingSaves)
-                    GlassButton(systemImage: "square.and.arrow.down", title: localizedString(theme.language, english: "Import Saves", chinese: "导入存档", italian: "Importa salvataggi", french: "Importer", spanish: "Importar partidas")) {
-                        importSaves()
-                    }
-                    .disabled(isMutatingSaves)
-                }
+                InstanceSavesActionBar(
+                    isCheckingPreflight: isCheckingPreflight,
+                    isMutatingSaves: isMutatingSaves,
+                    runPreflight: runBackupPreflight,
+                    openSavesFolder: openSavesFolder,
+                    backupSaves: backupSaves,
+                    importSaves: importSaves
+                )
 
                 InstancePreflightResultView(preflight: preflight, error: preflightError, isChecking: isCheckingPreflight)
-                if !actionStatus.isEmpty {
-                    Text(actionStatus)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                }
+                InstanceArchiveStatusText(status: actionStatus)
             }
         }
+    }
+
+    private func openSavesFolder() {
+        FinderIntegration.openSavesDirectory(instance)
     }
 
     private func runBackupPreflight() {
@@ -77,17 +88,6 @@ struct InstanceSavesPage: View {
                 }
             }
         }
-    }
-
-    private var savesPath: String {
-        let base = instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
-        return URL(fileURLWithPath: base, isDirectory: true)
-            .appendingPathComponent("saves", isDirectory: true)
-            .path
-    }
-
-    private var effectiveGameDirectory: String {
-        instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func backupSaves() {
@@ -169,22 +169,5 @@ struct InstanceSavesPage: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return formatter.string(from: Date())
-    }
-
-    private func saveMetric(_ title: String, _ value: String) -> some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
     }
 }

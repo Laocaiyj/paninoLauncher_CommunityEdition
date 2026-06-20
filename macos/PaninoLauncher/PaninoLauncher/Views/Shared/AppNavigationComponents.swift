@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct TopNavigationBar: View {
@@ -17,7 +16,7 @@ struct TopNavigationBar: View {
 
         GeometryReader { proxy in
             let horizontalPadding = PaninoTokens.Layout.pagePadding(for: proxy.size.width)
-            let navigationCornerRadius = navigationContainerCornerRadius(tokens: tokens)
+            let navigationCornerRadius = TopNavigationChrome.containerCornerRadius(tokens: tokens, chromeStyle: theme.chromeStyle)
             let leadingPadding = max(horizontalPadding, titlebarControlReserve(for: proxy.size.width))
 
             HStack(spacing: 16) {
@@ -33,24 +32,13 @@ struct TopNavigationBar: View {
                 .padding(.horizontal, proxy.size.width >= 720 ? 10 : 6)
                 .frame(minHeight: 46)
                 .background {
-                    if theme.chromeStyle == .floatingToolbar {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.clear)
-                            .paninoGlassSurface(
-                                tokens: tokens,
-                                level: .floatingChrome,
-                                cornerRadius: 18,
-                                interactive: true
-                            )
-                            .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.30))
-                            .paninoDepthOverlay(tokens: tokens, level: .floatingChrome, cornerRadius: 18)
-                    }
+                    TopNavigationBrandBackground(tokens: tokens, chromeStyle: theme.chromeStyle)
                 }
                 .shadow(
-                    color: Color.black.opacity(theme.chromeStyle == .floatingToolbar ? tokens.shadowOpacity * 0.35 : 0),
-                    radius: theme.chromeStyle == .floatingToolbar ? tokens.shadowRadius * 0.38 : 0,
+                    color: Color.black.opacity(TopNavigationChrome.brandShadowOpacity(tokens: tokens, chromeStyle: theme.chromeStyle)),
+                    radius: TopNavigationChrome.brandShadowRadius(tokens: tokens, chromeStyle: theme.chromeStyle),
                     x: 0,
-                    y: theme.chromeStyle == .floatingToolbar ? tokens.shadowYOffset * 0.28 : 0
+                    y: TopNavigationChrome.brandShadowYOffset(tokens: tokens, chromeStyle: theme.chromeStyle)
                 )
 
                 HStack(spacing: 4) {
@@ -67,12 +55,16 @@ struct TopNavigationBar: View {
                 }
                 .padding(theme.chromeStyle == .integrated ? 2 : 4)
                 .background {
-                    navigationContainerBackground(tokens: tokens, cornerRadius: navigationCornerRadius)
+                    TopNavigationContainerBackground(
+                        tokens: tokens,
+                        chromeStyle: theme.chromeStyle,
+                        cornerRadius: navigationCornerRadius
+                    )
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: navigationCornerRadius, style: .continuous)
                         .strokeBorder(
-                            tokens.strokeColor.opacity(navigationStrokeOpacity(tokens: tokens)),
+                            tokens.strokeColor.opacity(TopNavigationChrome.containerStrokeOpacity(tokens: tokens, chromeStyle: theme.chromeStyle)),
                             lineWidth: tokens.strokeWidth
                         )
                 }
@@ -90,10 +82,10 @@ struct TopNavigationBar: View {
                         .allowsHitTesting(false)
                 }
                 .shadow(
-                    color: Color.black.opacity(navigationShadowOpacity(tokens: tokens)),
-                    radius: navigationShadowRadius(tokens: tokens),
+                    color: Color.black.opacity(TopNavigationChrome.containerShadowOpacity(tokens: tokens, chromeStyle: theme.chromeStyle)),
+                    radius: TopNavigationChrome.containerShadowRadius(tokens: tokens, chromeStyle: theme.chromeStyle),
                     x: 0,
-                    y: navigationShadowYOffset(tokens: tokens)
+                    y: TopNavigationChrome.containerShadowYOffset(tokens: tokens, chromeStyle: theme.chromeStyle)
                 )
 
                 Spacer(minLength: 16)
@@ -104,137 +96,17 @@ struct TopNavigationBar: View {
         }
         .frame(height: PaninoTokens.Layout.topNavigationHeight)
         .background {
-            topChromeBackground(tokens: tokens)
+            TopChromeBackground(
+                tokens: tokens,
+                chromeStyle: theme.chromeStyle,
+                semanticSelectionColor: theme.semanticSelectionColor,
+                reduceTransparency: reduceTransparency,
+                increasedContrast: colorSchemeContrast == .increased
+            )
         }
     }
 
     private func titlebarControlReserve(for width: CGFloat) -> CGFloat {
         width >= 720 ? 118 : 96
-    }
-
-    @ViewBuilder
-    private func topChromeBackground(tokens: ResolvedThemeTokens) -> some View {
-        if reduceTransparency || colorSchemeContrast == .increased {
-            Color(nsColor: .windowBackgroundColor)
-                .opacity(colorSchemeContrast == .increased ? 1.0 : 0.96)
-                .overlay(theme.semanticSelectionColor.opacity(colorSchemeContrast == .increased ? 0.03 : 0.06))
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(tokens.strokeColor.opacity(max(0.44, tokens.strokeOpacity)))
-                        .frame(height: tokens.strokeWidth)
-                }
-        } else {
-            ZStack(alignment: .leading) {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.12)
-
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.12),
-                        tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.18),
-                        Color.black.opacity(0.04)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                if theme.chromeStyle == .edgeToEdgeSidebar {
-                    Rectangle()
-                        .fill(theme.semanticSelectionColor.opacity(0.07))
-                        .frame(width: 184)
-                }
-            }
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(Color.white.opacity(tokens.depthHighlightOpacity * 0.36))
-                    .blendMode(.plusLighter)
-                    .frame(height: 1)
-            }
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(tokens.strokeColor.opacity(max(0.28, tokens.strokeOpacity * 0.58)))
-                    .frame(height: tokens.strokeWidth)
-            }
-        }
-    }
-
-    private func navigationContainerCornerRadius(tokens: ResolvedThemeTokens) -> CGFloat {
-        switch theme.chromeStyle {
-        case .integrated:
-            return min(tokens.navigationCornerRadius, 14)
-        case .floatingToolbar:
-            return tokens.navigationCornerRadius
-        case .edgeToEdgeSidebar:
-            return min(tokens.navigationCornerRadius, 12)
-        }
-    }
-
-    private func navigationStrokeOpacity(tokens: ResolvedThemeTokens) -> Double {
-        switch theme.chromeStyle {
-        case .integrated:
-            return 0
-        case .floatingToolbar:
-            return tokens.strokeOpacity * 0.78
-        case .edgeToEdgeSidebar:
-            return tokens.strokeOpacity * 0.46
-        }
-    }
-
-    private func navigationShadowOpacity(tokens: ResolvedThemeTokens) -> Double {
-        switch theme.chromeStyle {
-        case .integrated:
-            return tokens.shadowOpacity * 0.28
-        case .floatingToolbar:
-            return tokens.shadowOpacity * PaninoSurfaceLevel.floatingChrome.shadowMultiplier
-        case .edgeToEdgeSidebar:
-            return tokens.shadowOpacity * 0.35
-        }
-    }
-
-    private func navigationShadowRadius(tokens: ResolvedThemeTokens) -> CGFloat {
-        theme.chromeStyle == .floatingToolbar ? tokens.shadowRadius * 0.92 : tokens.shadowRadius * 0.35
-    }
-
-    private func navigationShadowYOffset(tokens: ResolvedThemeTokens) -> CGFloat {
-        theme.chromeStyle == .floatingToolbar ? tokens.shadowYOffset * 0.72 : tokens.shadowYOffset * 0.26
-    }
-
-    @ViewBuilder
-    private func navigationContainerBackground(tokens: ResolvedThemeTokens, cornerRadius: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        switch theme.chromeStyle {
-        case .integrated:
-            shape
-                .fill(Color.clear)
-                .paninoGlassSurface(
-                    tokens: tokens,
-                    level: .elevatedPanel,
-                    cornerRadius: cornerRadius,
-                    interactive: true
-                )
-                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.38))
-                .paninoDepthOverlay(tokens: tokens, level: .elevatedPanel, cornerRadius: cornerRadius)
-                .clipShape(shape)
-        case .floatingToolbar:
-            shape
-                .fill(Color.clear)
-                .paninoGlassSurface(
-                    tokens: tokens,
-                    level: .floatingChrome,
-                    cornerRadius: cornerRadius,
-                    interactive: true
-                )
-                .overlay(tokens.surfaceFill.opacity(tokens.surfaceVeilOpacity * 0.36))
-                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.54))
-                .paninoDepthOverlay(tokens: tokens, level: .floatingChrome, cornerRadius: cornerRadius)
-                .clipShape(shape)
-        case .edgeToEdgeSidebar:
-            shape
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.20))
-                .overlay(tokens.selectionColor.opacity(tokens.accentBackgroundOpacity * 0.28))
-                .paninoDepthOverlay(tokens: tokens, level: .elevatedPanel, cornerRadius: cornerRadius)
-                .clipShape(shape)
-        }
     }
 }

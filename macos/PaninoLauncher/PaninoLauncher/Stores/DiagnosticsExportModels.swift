@@ -79,7 +79,9 @@ struct DiagnosticEffectiveSettings: Codable {
     static func current(javaStatus: JavaRuntimeStatus?) -> DiagnosticEffectiveSettings {
         let download = LauncherSettings.storedDownloadRuntimeOptions()
         let proxyAddress = SettingsStore.string(forKey: "Settings.ProxyAddress", default: "")
-        let curseForgeAPIKeyConfigured = UserDefaults.standard.bool(forKey: "OnlineContent.CurseForgeAPIKeyConfigured")
+        let curseForgeAPIKeyConfigured = UserDefaults.standard.bool(
+            forKey: OnlineContentCredentialStore.curseForgeAPIKeyConfiguredKey
+        )
         return DiagnosticEffectiveSettings(
             downloadStrategy: LauncherSettings.storedDownloadStrategy().rawValue,
             downloadConcurrency: download.concurrency,

@@ -1,0 +1,116 @@
+import SwiftUI
+
+struct InstanceCreationLoaderControls: View {
+    @EnvironmentObject private var theme: ThemeSettings
+
+    @Binding var draft: InstanceCreationDraft
+    let availableLoaderOptions: [LoaderCompatibilityOption]
+    let selectedLoaderOption: LoaderCompatibilityOption?
+    let selectedLoaderVersions: [LoaderMetadata]
+    let nonRecommendedSelectedLoaderVersions: [LoaderMetadata]
+    let loaderStatusText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsRow(title: AppText.loader.localized(theme.language), systemImage: "puzzlepiece.extension") {
+                Picker(AppText.loader.localized(theme.language), selection: $draft.loader) {
+                    ForEach(availableLoaderOptions) { option in
+                        Text(option.kind.title).tag(Optional(option.kind))
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 520)
+                .disabled(availableLoaderOptions.isEmpty)
+            }
+
+            SettingsRow(title: localizedString(theme.language, english: "Loader Version", chinese: "Loader 版本", italian: "Versione loader", french: "Version du loader", spanish: "Versión del loader"), systemImage: "number") {
+                Picker("Loader Version", selection: $draft.loaderVersion) {
+                    if let recommended = selectedLoaderOption?.recommendedVersion {
+                        Text("\(recommended) · Recommended").tag(Optional(recommended))
+                    }
+                    ForEach(nonRecommendedSelectedLoaderVersions, id: \.id) { metadata in
+                        Text(metadata.stable ? metadata.loaderVersion : "\(metadata.loaderVersion) · Experimental")
+                            .tag(Optional(metadata.loaderVersion))
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 280)
+                .disabled(selectedLoaderVersions.isEmpty)
+            }
+
+            Text(loaderStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct InstanceCreationModpackControls: View {
+    @EnvironmentObject private var theme: ThemeSettings
+
+    @Binding var draft: InstanceCreationDraft
+    let modpackPreflight: CoreModpackPreflightResponse?
+    let modpackPreflightSummary: String
+    let isCheckingModpack: Bool
+    let runModpackPreflight: () -> Void
+
+    private var isMissingLocalPath: Bool {
+        draft.modpackPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsRow(title: localizedString(theme.language, english: "Source", chinese: "来源", italian: "Origine", french: "Source", spanish: "Fuente"), systemImage: "tray.and.arrow.down") {
+                Picker("Modpack Source", selection: $draft.modpackSource) {
+                    Text("Online").tag("Online")
+                    Text("Local File").tag("Local File")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 300)
+            }
+            if draft.modpackSource == "Local File" {
+                SettingsRow(title: localizedString(theme.language, english: "File", chinese: "文件", italian: "File", french: "Fichier", spanish: "Archivo"), systemImage: "doc.zipper") {
+                    PaninoTextInput(".mrpack or CurseForge manifest .zip", text: $draft.modpackPath)
+                }
+            }
+            Text(localizedString(theme.language, english: "Modpacks use a dedicated import path. Online import opens the Get page; local files are handed to Core import preflight before any configuration is created.", chinese: "整合包使用专用导入路径。在线整合包会打开“获取”页；本地文件必须先交给 Core 预检，确认后才创建配置。", italian: "I modpack usano un flusso dedicato.", french: "Les modpacks utilisent un flux d'import dédié.", spanish: "Los modpacks usan un flujo de importación dedicado."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if draft.modpackSource == "Local File" {
+                HStack(spacing: 8) {
+                    GlassButton(systemImage: "checklist", title: localizedString(theme.language, english: "Run Preflight", chinese: "运行预检", italian: "Preflight", french: "Précontrôle", spanish: "Preflight"), action: runModpackPreflight)
+                        .disabled(isCheckingModpack || isMissingLocalPath)
+                    Text(modpackPreflightSummary)
+                        .font(.caption)
+                        .foregroundStyle(modpackPreflight?.valid == true ? .secondary : Color.orange)
+                        .lineLimit(2)
+                }
+            }
+        }
+    }
+}
+
+struct InstanceCreationAdvancedOptions: View {
+    @Binding var draft: InstanceCreationDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow(title: "Game Dir", systemImage: "folder") {
+                PaninoTextInput("Game directory", text: $draft.gameDirectory)
+            }
+            SettingsRow(title: "Java", systemImage: "cup.and.saucer") {
+                PaninoTextInput("Custom Java path", text: $draft.javaPath)
+            }
+            SettingsRow(title: "Memory", systemImage: "memorychip") {
+                Stepper(value: $draft.memoryMb, in: PaninoLimits.memoryMb, step: 512) {
+                    Text("\(draft.memoryMb) MB")
+                        .monospacedDigit()
+                }
+            }
+            SettingsRow(title: "Group", systemImage: "folder.badge.gearshape") {
+                PaninoTextInput("Group", text: $draft.group)
+            }
+        }
+        .padding(.top, 8)
+    }
+}

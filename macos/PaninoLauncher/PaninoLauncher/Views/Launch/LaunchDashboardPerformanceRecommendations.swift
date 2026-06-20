@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 
 extension LaunchDashboard {
     var performanceSummaryPreflightItem: LaunchPreflightItem? {
@@ -45,106 +45,6 @@ extension LaunchDashboard {
         )
     }
 
-    func refreshSelectedPerformanceSummary() {
-        let instance = selectedInstance
-        let request = CoreEnvironmentReportRequest(
-            gameDir: instance.gameDirectory,
-            version: instance.contentMinecraftVersion,
-            loader: instance.loader?.rawValue,
-            loaderVersion: instance.loaderVersion,
-            memoryMb: instance.memoryMb,
-            memoryPolicy: instance.memoryPolicy.rawValue,
-            jvmProfile: instance.jvmProfile.rawValue,
-            customMemoryMb: instance.memoryPolicy == .custom ? (instance.customMemoryMb ?? instance.memoryMb) : instance.customMemoryMb,
-            customJvmArgs: instance.customJvmArguments,
-            modCount: versionStore.managedAssets.count,
-            graphicsProfile: instance.graphicsProfile.rawValue
-        )
-        Task {
-            do {
-                let report = try await viewModel.environmentReport(request)
-                await MainActor.run {
-                    guard selectedInstance.id == instance.id else { return }
-                    diagnosticsStore.lastEnvironmentReport = report
-                }
-            } catch {
-                await MainActor.run {
-                    guard selectedInstance.id == instance.id else { return }
-                    diagnosticsStore.lastEnvironmentReport = nil
-                }
-            }
-        }
-    }
-
-    func reviewPerformanceProfileAction() -> (() -> Void)? {
-        let instance = selectedInstance
-        guard !instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return openSettings
-        }
-        let request = CorePerformanceProfileResolveRequest(
-            gameDir: instance.gameDirectory,
-            instanceFingerprint: CoreInstanceFingerprint(
-                minecraftVersion: instance.contentMinecraftVersion,
-                javaRequirement: nil,
-                loaderFamily: instance.loader?.rawValue,
-                loaderVersion: instance.loaderVersion,
-                rendererCapability: instance.graphicsProfile.rawValue,
-                modCount: versionStore.managedAssets.count,
-                shaderLoader: nil,
-                activeShaderPackHash: nil,
-                resourcePackScale: nil,
-                lockfileFingerprint: nil,
-                worldTypeHint: nil
-            ),
-            knobs: CorePerformanceKnobs(
-                heapMaxMb: instance.memoryPolicy == .custom ? (instance.customMemoryMb ?? instance.memoryMb) : instance.memoryMb,
-                heapInitialPolicy: instance.memoryPolicy.rawValue,
-                gcPolicy: instance.jvmProfile.rawValue,
-                renderDistance: nil,
-                simulationDistance: nil,
-                maxFps: nil,
-                vsyncPolicy: instance.graphicsProfile.rawValue,
-                particles: nil,
-                clouds: nil,
-                entityDistanceScaling: nil,
-                performancePackSet: []
-            ),
-            evidence: performanceReviewEvidence(for: instance)
-        )
-        return {
-            showPerformanceProfileReview = true
-            performanceCoachStore.resolveBaseline(request: request)
-        }
-    }
-
-    func applySelectedPerformanceProfile(_ profile: CorePerformanceProfile) {
-        updateSelectedInstance { instance in
-            if let heapMaxMb = profile.knobs.heapMaxMb {
-                instance.memoryPolicy = .custom
-                instance.customMemoryMb = heapMaxMb
-                instance.memoryMb = heapMaxMb
-            }
-
-            if let gcPolicy = profile.knobs.gcPolicy?.lowercased() {
-                if gcPolicy.contains("zgc") {
-                    instance.jvmProfile = .experimentalZgc
-                } else if gcPolicy != "auto" && gcPolicy != "default" && gcPolicy != "g1_or_default" {
-                    instance.jvmProfile = .custom
-                }
-            }
-
-            if profile.knobs.renderDistance != nil
-                || profile.knobs.simulationDistance != nil
-                || profile.knobs.maxFps != nil
-                || profile.knobs.vsyncPolicy != nil
-                || profile.knobs.particles != nil
-                || profile.knobs.clouds != nil
-                || profile.knobs.entityDistanceScaling != nil {
-                instance.graphicsProfile = .performance
-            }
-        }
-    }
-
     private func performanceSummaryAction(_ action: CorePerformancePrimaryAction) -> (() -> Void)? {
         switch action.id {
         case "installPerformancePack":
@@ -170,15 +70,6 @@ extension LaunchDashboard {
         default:
             return openSettings
         }
-    }
-
-    private func performanceReviewEvidence(for instance: GameInstance) -> [CorePerformanceEvidence] {
-        let summaryEvidence = selectedPerformanceSummary?.evidence ?? []
-        return summaryEvidence + [
-            CorePerformanceEvidence(key: "source", value: "launch-ui", source: "swift"),
-            CorePerformanceEvidence(key: "jvmProfile", value: instance.jvmProfile.rawValue, source: "instance"),
-            CorePerformanceEvidence(key: "graphicsProfile", value: instance.graphicsProfile.rawValue, source: "instance")
-        ]
     }
 
     private func performanceSummaryDetail(_ summary: CorePerformanceSummary) -> String {
@@ -217,42 +108,4 @@ extension LaunchDashboard {
         return localizedString(theme.language, english: "Rollback available: \(rollbackRef).", chinese: "可回滚：\(rollbackRef)。", italian: "Rollback disponibile: \(rollbackRef).", french: "Rollback disponible : \(rollbackRef).", spanish: "Rollback disponible: \(rollbackRef).")
     }
 
-    private func installPerformancePackAction() -> (() -> Void)? {
-        let instance = selectedInstance
-        guard let loader = instance.loader?.rawValue,
-              !instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return openDiscover
-        }
-        let request = CorePerformancePackInstallRequest(
-            gameDir: instance.gameDirectory,
-            minecraftVersion: instance.contentMinecraftVersion,
-            loader: loader,
-            includeOptional: false,
-            download: LauncherSettings.storedDownloadRuntimeOptions()
-        )
-        return {
-            Task {
-                do {
-                    let plan = try await viewModel.performancePackPlan(request)
-                    await MainActor.run {
-                        pendingPerformancePackReview = PendingPerformancePackReview(plan: plan, request: request)
-                    }
-                } catch {
-                    await MainActor.run {
-                        showPerformancePackPlanError(error)
-                    }
-                }
-            }
-        }
-    }
-
-    @MainActor
-    private func showPerformancePackPlanError(_ error: Error) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = localizedString(theme.language, english: "Could not prepare performance pack", chinese: "无法准备性能包", italian: "Impossibile preparare il pacchetto", french: "Impossible de préparer le pack", spanish: "No se pudo preparar el paquete")
-        alert.informativeText = error.localizedDescription
-        alert.addButton(withTitle: localizedString(theme.language, english: "OK", chinese: "知道了", italian: "OK", french: "OK", spanish: "OK"))
-        alert.runModal()
-    }
 }

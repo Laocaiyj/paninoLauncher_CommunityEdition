@@ -18,28 +18,16 @@ struct TaskFocusStage<ContextShelf: View>: View {
         VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
             ImmersivePageScaffold(
                 minHeight: focusStageHeight,
+                contentPlacement: .top,
+                topContentInset: 18,
                 backgroundContent: {
                     TaskFocusBackground(record: record)
                 },
                 primaryContent: {
-                    TaskFocusPrimaryContent(
+                    TaskFocusStageContent(
                         record: record,
                         coreStatus: coreStatus,
                         attentionCount: attentionCount,
-                        showsFacts: false
-                    )
-                    .frame(maxWidth: 660, alignment: .leading)
-                },
-                floatingControls: {
-                    EmptyView()
-                },
-                contextShelf: {
-                    EmptyView()
-                },
-                inspectorContent: {
-                    TaskFocusInspector(
-                        record: record,
-                        coreStatus: coreStatus,
                         recentCompletedRecords: recentCompletedRecords,
                         canCancel: canCancel,
                         canRetry: canRetry,
@@ -47,7 +35,13 @@ struct TaskFocusStage<ContextShelf: View>: View {
                         onRetry: onRetry,
                         onDiagnostics: onDiagnostics
                     )
-                    .frame(width: 360, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                },
+                floatingControls: {
+                    EmptyView()
+                },
+                contextShelf: {
+                    EmptyView()
                 }
             )
             .frame(height: focusStageHeight)
@@ -59,13 +53,14 @@ struct TaskFocusStage<ContextShelf: View>: View {
     }
 
     private var focusStageHeight: CGFloat {
-        guard let record else { return recentCompletedRecords.isEmpty ? 340 : 410 }
+        let showsRecentRail = !recentCompletedRecords.isEmpty
+        guard let record else { return showsRecentRail ? 430 : 340 }
         if record.state.isActive {
-            return 440
+            return showsRecentRail ? 460 : 420
         }
         if record.state.needsAttention {
-            return 420
+            return showsRecentRail ? 450 : 410
         }
-        return recentCompletedRecords.isEmpty ? 360 : 400
+        return showsRecentRail ? 420 : 370
     }
 }

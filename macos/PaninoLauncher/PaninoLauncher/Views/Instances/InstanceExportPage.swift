@@ -2,15 +2,38 @@ import Foundation
 import SwiftUI
 
 struct InstanceExportPage: View {
+    @EnvironmentObject private var theme: ThemeSettings
+
     @ObservedObject var viewModel: LauncherViewModel
     let instance: GameInstance
 
-    @EnvironmentObject private var theme: ThemeSettings
     @State private var preflight: CoreExportBackupPreflightResponse?
     @State private var preflightError = ""
     @State private var isCheckingPreflight = false
     @State private var actionStatus = ""
     @State private var isExporting = false
+
+    private var exportMetrics: [InstanceArchiveMetricItem] {
+        [
+            InstanceArchiveMetricItem(
+                title: localizedString(theme.language, english: "Configuration", chinese: "游戏配置", italian: "Configurazione", french: "Configuration", spanish: "Configuración"),
+                value: instance.name
+            ),
+            InstanceArchiveMetricItem(title: "Minecraft", value: instance.minecraftVersion),
+            InstanceArchiveMetricItem(
+                title: localizedString(theme.language, english: "Loader"),
+                value: instance.loaderTitle(language: theme.language)
+            ),
+            InstanceArchiveMetricItem(
+                title: localizedString(theme.language, english: "Directory"),
+                value: effectiveGameDirectory
+            )
+        ]
+    }
+
+    private var effectiveGameDirectory: String {
+        instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         GlassPanel {
@@ -20,41 +43,25 @@ struct InstanceExportPage: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
-                    exportMetric(localizedString(theme.language, english: "Configuration", chinese: "游戏配置", italian: "Configurazione", french: "Configuration", spanish: "Configuración"), instance.name)
-                    exportMetric("Minecraft", instance.minecraftVersion)
-                    exportMetric(localizedString(theme.language, english: "Loader"), instance.loaderTitle(language: theme.language))
-                    exportMetric(localizedString(theme.language, english: "Directory"), effectiveGameDirectory)
-                }
+                InstanceArchiveMetricsGrid(items: exportMetrics, minimumColumnWidth: 190)
 
-                HStack(spacing: 8) {
-                    GlassButton(systemImage: "checklist", title: localizedString(theme.language, english: "Run Preflight", chinese: "运行预检", italian: "Preflight", french: "Précontrôle", spanish: "Preflight")) {
-                        runExportPreflight()
-                    }
-                    .disabled(isCheckingPreflight)
-                    GlassButton(systemImage: "folder", title: AppText.openFolder.localized(theme.language)) {
-                        FinderIntegration.openInstanceDirectory(instance)
-                    }
-                    GlassButton(systemImage: "shippingbox.and.arrow.up", title: localizedString(theme.language, english: "Export Modpack", chinese: "导出整合包", italian: "Esporta modpack", french: "Exporter modpack", spanish: "Exportar modpack")) {
-                        exportArchive(kind: "modpack")
-                    }
-                    .disabled(isExporting)
-                    GlassButton(systemImage: "doc.zipper", title: localizedString(theme.language, english: "Export Zip", chinese: "导出压缩包", italian: "Esporta zip", french: "Exporter zip", spanish: "Exportar zip")) {
-                        exportArchive(kind: "instance")
-                    }
-                    .disabled(isExporting)
-                }
+                InstanceExportActionBar(
+                    isCheckingPreflight: isCheckingPreflight,
+                    isExporting: isExporting,
+                    runPreflight: runExportPreflight,
+                    openFolder: openInstanceFolder,
+                    exportModpack: exportModpack,
+                    exportInstanceZip: exportInstanceZip
+                )
 
                 InstancePreflightResultView(preflight: preflight, error: preflightError, isChecking: isCheckingPreflight)
-                if !actionStatus.isEmpty {
-                    Text(actionStatus)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                }
+                InstanceArchiveStatusText(status: actionStatus)
             }
         }
+    }
+
+    private func openInstanceFolder() {
+        FinderIntegration.openInstanceDirectory(instance)
     }
 
     private func runExportPreflight() {
@@ -77,25 +84,12 @@ struct InstanceExportPage: View {
         }
     }
 
-    private func exportMetric(_ title: String, _ value: String) -> some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+    private func exportModpack() {
+        exportArchive(kind: "modpack")
     }
 
-    private var effectiveGameDirectory: String {
-        instance.gameDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func exportInstanceZip() {
+        exportArchive(kind: "instance")
     }
 
     private func exportArchive(kind: String) {

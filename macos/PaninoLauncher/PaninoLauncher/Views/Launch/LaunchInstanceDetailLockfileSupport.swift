@@ -2,95 +2,27 @@ import SwiftUI
 
 extension LaunchInstanceDetailPage {
     var lockfileStatusPanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label(localizedString(theme.language, english: "Lockfile", chinese: "锁文件", italian: "Lockfile", french: "Lockfile", spanish: "Lockfile"), systemImage: "lock.doc")
-                        .font(.headline)
-                    Spacer()
-                    StatusBadge(title: lockfileStatusTitle, style: lockfileBadgeStyle)
-                }
-                LazyVGrid(columns: detailMetricColumns, alignment: .leading, spacing: 10) {
-                    LaunchMetric(title: localizedString(theme.language, english: "Files", chinese: "文件", italian: "File", french: "Fichiers", spanish: "Archivos"), value: "\(currentLockfile?.files.count ?? 0)")
-                    LaunchMetric(title: localizedString(theme.language, english: "Drift", chinese: "漂移", italian: "Deriva", french: "Dérive", spanish: "Deriva"), value: "\(lockfileVerify?.lockfileDrift.count ?? 0)")
-                    LaunchMetric(title: localizedString(theme.language, english: "Repair", chinese: "修复", italian: "Ripara", french: "Réparer", spanish: "Reparar"), value: lockfileVerify?.repairPlan == nil ? "-" : localizedString(theme.language, english: "Ready", chinese: "可用", italian: "Pronto", french: "Prêt", spanish: "Listo"))
-                    LaunchMetric(title: localizedString(theme.language, english: "Manual", chinese: "手动", italian: "Manuale", french: "Manuel", spanish: "Manual"), value: "\(manualChangeCount)")
-                }
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) { lockfileActionButtons }
-                    VStack(alignment: .leading, spacing: 10) { lockfileActionButtons }
-                }
-                if !lockfileStatusMessage.isEmpty {
-                    Text(lockfileStatusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .paninoTruncation(.summary(lines: 2))
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    var lockfileActionButtons: some View {
-        GlassButton(systemImage: "arrow.clockwise", title: AppText.refresh.localized(theme.language)) {
-            Task { await refreshLockfileState() }
-        }
-        .disabled(lockfileBusy)
-        if lockfileVerify?.repairPlan != nil {
-            GlassButton(systemImage: "wrench.and.screwdriver", title: localizedString(theme.language, english: "Repair", chinese: "修复", italian: "Ripara", french: "Réparer", spanish: "Reparar")) {
-                Task { await prepareLockfileReview(policy: "repair") }
-            }
-            .disabled(lockfileBusy)
-        }
+        LaunchLockfileStatusPanel(
+            language: theme.language,
+            fileCount: currentLockfile?.files.count ?? 0,
+            driftCount: lockfileVerify?.lockfileDrift.count ?? 0,
+            repairReady: lockfileVerify?.repairPlan != nil,
+            manualChangeCount: manualChangeCount,
+            statusTitle: lockfileStatusTitle,
+            badgeStyle: lockfileBadgeStyle,
+            statusMessage: lockfileStatusMessage,
+            busy: lockfileBusy,
+            onRefresh: refreshLockfileFromPanel,
+            onRepair: prepareLockfileRepairReview
+        )
     }
 
     var lockfileUpdatePanel: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(localizedString(theme.language, english: "Lockfile Updates", chinese: "锁文件更新", italian: "Aggiornamenti lockfile", french: "Mises à jour lockfile", spanish: "Actualizaciones lockfile"))
-                    .font(.headline)
-                LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
-                    updatePolicyButton(policy: "keepLocked", systemImage: "lock", title: localizedString(theme.language, english: "Keep Locked", chinese: "保持锁定", italian: "Mantieni bloccato", french: "Garder verrouillé", spanish: "Mantener fijado"))
-                    updatePolicyButton(policy: "updateSelected", systemImage: "checklist.checked", title: localizedString(theme.language, english: "Update Selected", chinese: "只更新选中项", italian: "Aggiorna selezionati", french: "Mettre à jour sélection", spanish: "Actualizar selección"))
-                    updatePolicyButton(policy: "updateAllSafe", systemImage: "shield.checkered", title: localizedString(theme.language, english: "Update All Safe", chinese: "安全更新全部", italian: "Aggiorna sicuro", french: "Tout mettre à jour sûr", spanish: "Actualizar seguro"))
-                    updatePolicyButton(policy: "relock", systemImage: "arrow.triangle.2.circlepath", title: localizedString(theme.language, english: "Relock", chinese: "重新锁定", italian: "Riblocca", french: "Reverrouiller", spanish: "Rebloquear"))
-                }
-            }
-        }
-    }
-
-    func updatePolicyButton(policy: String, systemImage: String, title: String) -> some View {
-        Button {
-            Task { await prepareLockfileReview(policy: policy) }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .frame(width: 18)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.callout.weight(.semibold))
-                        .lineLimit(1)
-                    Text(updatePolicySubtitle(policy))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 74, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.26), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(lockfileBusy)
-    }
-
-    var detailMetricColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 170), spacing: 10, alignment: .top)]
-    }
-
-    var actionColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 190), spacing: 10, alignment: .top)]
+        LaunchLockfileUpdatePanel(
+            language: theme.language,
+            busy: lockfileBusy,
+            onPolicySelected: prepareLockfileUpdateReview
+        )
     }
 
     var manualChangeCount: Int {
@@ -138,6 +70,18 @@ extension LaunchInstanceDetailPage {
             return true
         }
         return false
+    }
+
+    func refreshLockfileFromPanel() {
+        Task { await refreshLockfileState() }
+    }
+
+    func prepareLockfileRepairReview() {
+        Task { await prepareLockfileReview(policy: "repair") }
+    }
+
+    func prepareLockfileUpdateReview(policy: String) {
+        Task { await prepareLockfileReview(policy: policy) }
     }
 
     @MainActor
@@ -205,19 +149,6 @@ extension LaunchInstanceDetailPage {
             } catch {
                 lockfileStatusMessage = error.localizedDescription
             }
-        }
-    }
-
-    func updatePolicySubtitle(_ policy: String) -> String {
-        switch policy {
-        case "updateSelected":
-            return localizedString(theme.language, english: "Selected packages and required dependencies.", chinese: "选中项目及必需依赖。", italian: "Elementi selezionati e dipendenze.", french: "Sélection et dépendances.", spanish: "Selección y dependencias.")
-        case "updateAllSafe":
-            return localizedString(theme.language, english: "Compatible updates only.", chinese: "只接受兼容更新。", italian: "Solo aggiornamenti compatibili.", french: "Mises à jour compatibles.", spanish: "Solo compatibles.")
-        case "relock":
-            return localizedString(theme.language, english: "Resolve from current inputs.", chinese: "按当前输入重新求解。", italian: "Risolvi dagli input attuali.", french: "Résoudre depuis les entrées.", spanish: "Resolver de nuevo.")
-        default:
-            return localizedString(theme.language, english: "Preserve existing locked packages.", chinese: "保留已锁定内容。", italian: "Mantieni pacchetti bloccati.", french: "Conserver le verrou.", spanish: "Conservar bloqueados.")
         }
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-extension SettingsRuntimeSection {
+extension SettingsMinecraftRuntimePanel {
     func restoreGlobalAutomaticGraphicsTuning() {
         launcherSettings.graphicsProfile = .balanced
         graphicsManualOverrides = [:]
