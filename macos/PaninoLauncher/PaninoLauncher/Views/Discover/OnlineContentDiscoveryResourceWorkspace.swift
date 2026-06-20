@@ -8,7 +8,6 @@ extension OnlineContentDiscoveryPage {
                 MinecraftVersionInstallDetailPage(
                     version: selectedMinecraftVersion,
                     instances: instanceStore.instances,
-                    selectedInstance: instanceStore.selectedInstance,
                     target: $minecraftInstallTarget,
                     instanceName: $minecraftInstanceName,
                     loader: $selectedMinecraftLoader,

@@ -52,10 +52,8 @@ struct TaskFocusInspector: View {
 
     private var factColumns: [GridItem] {
         [
-            GridItem(.flexible(minimum: 72), spacing: 6),
-            GridItem(.flexible(minimum: 72), spacing: 6),
-            GridItem(.flexible(minimum: 72), spacing: 6),
-            GridItem(.flexible(minimum: 72), spacing: 6)
+            GridItem(.flexible(minimum: 128), spacing: 8),
+            GridItem(.flexible(minimum: 128), spacing: 8)
         ]
     }
 
@@ -91,7 +89,7 @@ private struct TaskFocusInspectorFact: View {
     }
 }
 
-private struct TaskFocusRecentRail: View {
+struct TaskFocusRecentRail: View {
     let records: [TaskRecord]
     @EnvironmentObject private var theme: ThemeSettings
 
@@ -111,7 +109,7 @@ private struct TaskFocusRecentRail: View {
                 }
             }
         }
-        .padding(10)
+        .padding(9)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.black.opacity(0.22))
@@ -144,8 +142,8 @@ private struct TaskFocusRecentRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(height: 38)
+        .padding(.vertical, 5)
+        .frame(height: 34)
         .background {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color.white.opacity(0.058))

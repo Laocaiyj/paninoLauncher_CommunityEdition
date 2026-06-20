@@ -8,165 +8,138 @@ final class LauncherSettings: ObservableObject {
     static let downloadConcurrencyRange = 1...64
     static let downloadRetryCountRange = 0...10
 
-    private enum Key {
-        static let autoConnectCore = "Settings.AutoConnectCore"
-        static let autoCheckUpdates = "Settings.AutoCheckUpdates"
-        static let closeWindowBehavior = "Settings.CloseWindowBehavior"
-        static let defaultGameDirectory = "Settings.DefaultGameDirectory"
-        static let windowWidth = "Settings.WindowWidth"
-        static let windowHeight = "Settings.WindowHeight"
-        static let jvmArguments = "Settings.JVMArguments"
-        static let memoryPolicy = "Settings.MemoryPolicy"
-        static let jvmProfile = "Settings.JVMProfile"
-        static let graphicsProfile = "Settings.GraphicsProfile"
-        static let performanceApplyMode = "Settings.PerformanceApplyMode"
-        static let performanceLocalTelemetryEnabled = "Settings.PerformanceLocalTelemetryEnabled"
-        static let performanceExperimentsEnabled = "Settings.PerformanceExperimentsEnabled"
-        static let performanceShareAnonymousPriors = "Settings.PerformanceShareAnonymousPriors"
-        static let installMissingFilesBeforeLaunch = "Settings.InstallMissingFilesBeforeLaunch"
-        static let autoDetectJava = "Settings.AutoDetectJava"
-        static let downloadStrategy = "Settings.DownloadStrategy"
-        static let downloadConcurrency = "Settings.DownloadConcurrency"
-        static let downloadRetryCount = "Settings.DownloadRetryCount"
-        static let proxyAddress = "Settings.ProxyAddress"
-        static let downloadSource = "Settings.DownloadSource"
-        static let autoSaveLogs = "Settings.AutoSaveLogs"
-        static let logRetentionDays = "Settings.LogRetentionDays"
-        static let advancedModeEnabled = "Settings.AdvancedModeEnabled"
+    @Published var autoConnectCore = SettingsStore.bool(forKey: LauncherSettingsKey.autoConnectCore, default: true) {
+        didSet { SettingsStore.set(autoConnectCore, forKey: LauncherSettingsKey.autoConnectCore) }
     }
 
-    @Published var autoConnectCore = SettingsStore.bool(forKey: Key.autoConnectCore, default: true) {
-        didSet { SettingsStore.set(autoConnectCore, forKey: Key.autoConnectCore) }
-    }
-
-    @Published var autoCheckUpdates = SettingsStore.bool(forKey: Key.autoCheckUpdates, default: true) {
-        didSet { SettingsStore.set(autoCheckUpdates, forKey: Key.autoCheckUpdates) }
+    @Published var autoCheckUpdates = SettingsStore.bool(forKey: LauncherSettingsKey.autoCheckUpdates, default: true) {
+        didSet { SettingsStore.set(autoCheckUpdates, forKey: LauncherSettingsKey.autoCheckUpdates) }
     }
 
     @Published var closeWindowBehavior: CloseWindowBehavior = LauncherSettings.loadEnum(
-        key: Key.closeWindowBehavior,
+        key: LauncherSettingsKey.closeWindowBehavior,
         defaultValue: .quit
     ) {
-        didSet { SettingsStore.set(closeWindowBehavior.rawValue, forKey: Key.closeWindowBehavior) }
+        didSet { SettingsStore.set(closeWindowBehavior.rawValue, forKey: LauncherSettingsKey.closeWindowBehavior) }
     }
 
     @Published var defaultGameDirectory = SettingsStore.string(
-        forKey: Key.defaultGameDirectory,
+        forKey: LauncherSettingsKey.defaultGameDirectory,
         default: LauncherSettings.defaultMinecraftDirectory
     ) {
-        didSet { SettingsDebouncer.set(defaultGameDirectory, forKey: Key.defaultGameDirectory) }
+        didSet { SettingsDebouncer.set(defaultGameDirectory, forKey: LauncherSettingsKey.defaultGameDirectory) }
     }
 
-    @Published var windowWidth = LauncherSettings.integer(forKey: Key.windowWidth, defaultValue: 1280, range: 640...3840) {
-        didSet { SettingsStore.set(String(windowWidth), forKey: Key.windowWidth) }
+    @Published var windowWidth = LauncherSettings.integer(forKey: LauncherSettingsKey.windowWidth, defaultValue: 1280, range: 640...3840) {
+        didSet { SettingsStore.set(String(windowWidth), forKey: LauncherSettingsKey.windowWidth) }
     }
 
-    @Published var windowHeight = LauncherSettings.integer(forKey: Key.windowHeight, defaultValue: 720, range: 480...2160) {
-        didSet { SettingsStore.set(String(windowHeight), forKey: Key.windowHeight) }
+    @Published var windowHeight = LauncherSettings.integer(forKey: LauncherSettingsKey.windowHeight, defaultValue: 720, range: 480...2160) {
+        didSet { SettingsStore.set(String(windowHeight), forKey: LauncherSettingsKey.windowHeight) }
     }
 
-    @Published var jvmArguments = SettingsStore.string(forKey: Key.jvmArguments, default: "") {
-        didSet { SettingsDebouncer.set(jvmArguments, forKey: Key.jvmArguments) }
+    @Published var jvmArguments = SettingsStore.string(forKey: LauncherSettingsKey.jvmArguments, default: "") {
+        didSet { SettingsDebouncer.set(jvmArguments, forKey: LauncherSettingsKey.jvmArguments) }
     }
 
     @Published var memoryPolicy: InstanceMemoryPolicy = LauncherSettings.storedMemoryPolicy() {
-        didSet { SettingsStore.set(memoryPolicy.rawValue, forKey: Key.memoryPolicy) }
+        didSet { SettingsStore.set(memoryPolicy.rawValue, forKey: LauncherSettingsKey.memoryPolicy) }
     }
 
     @Published var jvmProfile: InstanceJvmProfile = LauncherSettings.storedJvmProfile() {
-        didSet { SettingsStore.set(jvmProfile.rawValue, forKey: Key.jvmProfile) }
+        didSet { SettingsStore.set(jvmProfile.rawValue, forKey: LauncherSettingsKey.jvmProfile) }
     }
 
     @Published var graphicsProfile: InstanceGraphicsProfile = LauncherSettings.storedGraphicsProfile() {
-        didSet { SettingsStore.set(graphicsProfile.rawValue, forKey: Key.graphicsProfile) }
+        didSet { SettingsStore.set(graphicsProfile.rawValue, forKey: LauncherSettingsKey.graphicsProfile) }
     }
 
     @Published var performanceApplyMode: PerformanceApplyMode = LauncherSettings.storedPerformanceApplyMode() {
-        didSet { SettingsStore.set(performanceApplyMode.rawValue, forKey: Key.performanceApplyMode) }
+        didSet { SettingsStore.set(performanceApplyMode.rawValue, forKey: LauncherSettingsKey.performanceApplyMode) }
     }
 
     @Published var performanceLocalTelemetryEnabled = SettingsStore.bool(
-        forKey: Key.performanceLocalTelemetryEnabled,
+        forKey: LauncherSettingsKey.performanceLocalTelemetryEnabled,
         default: true
     ) {
-        didSet { SettingsStore.set(performanceLocalTelemetryEnabled, forKey: Key.performanceLocalTelemetryEnabled) }
+        didSet { SettingsStore.set(performanceLocalTelemetryEnabled, forKey: LauncherSettingsKey.performanceLocalTelemetryEnabled) }
     }
 
     @Published var performanceExperimentsEnabled = SettingsStore.bool(
-        forKey: Key.performanceExperimentsEnabled,
+        forKey: LauncherSettingsKey.performanceExperimentsEnabled,
         default: true
     ) {
-        didSet { SettingsStore.set(performanceExperimentsEnabled, forKey: Key.performanceExperimentsEnabled) }
+        didSet { SettingsStore.set(performanceExperimentsEnabled, forKey: LauncherSettingsKey.performanceExperimentsEnabled) }
     }
 
     @Published var performanceShareAnonymousPriors = SettingsStore.bool(
-        forKey: Key.performanceShareAnonymousPriors,
+        forKey: LauncherSettingsKey.performanceShareAnonymousPriors,
         default: false
     ) {
-        didSet { SettingsStore.set(performanceShareAnonymousPriors, forKey: Key.performanceShareAnonymousPriors) }
+        didSet { SettingsStore.set(performanceShareAnonymousPriors, forKey: LauncherSettingsKey.performanceShareAnonymousPriors) }
     }
 
     @Published var installMissingFilesBeforeLaunch = SettingsStore.bool(
-        forKey: Key.installMissingFilesBeforeLaunch,
+        forKey: LauncherSettingsKey.installMissingFilesBeforeLaunch,
         default: true
     ) {
-        didSet { SettingsStore.set(installMissingFilesBeforeLaunch, forKey: Key.installMissingFilesBeforeLaunch) }
+        didSet { SettingsStore.set(installMissingFilesBeforeLaunch, forKey: LauncherSettingsKey.installMissingFilesBeforeLaunch) }
     }
 
-    @Published var autoDetectJava = SettingsStore.bool(forKey: Key.autoDetectJava, default: true) {
-        didSet { SettingsStore.set(autoDetectJava, forKey: Key.autoDetectJava) }
+    @Published var autoDetectJava = SettingsStore.bool(forKey: LauncherSettingsKey.autoDetectJava, default: true) {
+        didSet { SettingsStore.set(autoDetectJava, forKey: LauncherSettingsKey.autoDetectJava) }
     }
 
     @Published var downloadStrategy: DownloadStrategy = LauncherSettings.storedDownloadStrategy() {
-        didSet { SettingsStore.set(downloadStrategy.rawValue, forKey: Key.downloadStrategy) }
+        didSet { SettingsStore.set(downloadStrategy.rawValue, forKey: LauncherSettingsKey.downloadStrategy) }
     }
 
     @Published var downloadConcurrency = LauncherSettings.integer(
-        forKey: Key.downloadConcurrency,
+        forKey: LauncherSettingsKey.downloadConcurrency,
         defaultValue: LauncherSettings.defaultDownloadConcurrency,
         range: LauncherSettings.downloadConcurrencyRange
     ) {
-        didSet { SettingsStore.set(String(Self.clampedDownloadConcurrency(downloadConcurrency)), forKey: Key.downloadConcurrency) }
+        didSet { SettingsStore.set(String(Self.clampedDownloadConcurrency(downloadConcurrency)), forKey: LauncherSettingsKey.downloadConcurrency) }
     }
 
     @Published var downloadRetryCount = LauncherSettings.integer(
-        forKey: Key.downloadRetryCount,
+        forKey: LauncherSettingsKey.downloadRetryCount,
         defaultValue: LauncherSettings.defaultDownloadRetryCount,
         range: LauncherSettings.downloadRetryCountRange
     ) {
-        didSet { SettingsStore.set(String(Self.clampedDownloadRetryCount(downloadRetryCount)), forKey: Key.downloadRetryCount) }
+        didSet { SettingsStore.set(String(Self.clampedDownloadRetryCount(downloadRetryCount)), forKey: LauncherSettingsKey.downloadRetryCount) }
     }
 
-    @Published var proxyAddress = SettingsStore.string(forKey: Key.proxyAddress, default: "") {
-        didSet { SettingsDebouncer.set(proxyAddress, forKey: Key.proxyAddress) }
+    @Published var proxyAddress = SettingsStore.string(forKey: LauncherSettingsKey.proxyAddress, default: "") {
+        didSet { SettingsDebouncer.set(proxyAddress, forKey: LauncherSettingsKey.proxyAddress) }
     }
 
     @Published var downloadSource: DownloadSource = LauncherSettings.storedDownloadSource() {
-        didSet { SettingsStore.set(downloadSource.rawValue, forKey: Key.downloadSource) }
+        didSet { SettingsStore.set(downloadSource.rawValue, forKey: LauncherSettingsKey.downloadSource) }
     }
 
-    @Published var autoSaveLogs = SettingsStore.bool(forKey: Key.autoSaveLogs, default: true) {
-        didSet { SettingsStore.set(autoSaveLogs, forKey: Key.autoSaveLogs) }
+    @Published var autoSaveLogs = SettingsStore.bool(forKey: LauncherSettingsKey.autoSaveLogs, default: true) {
+        didSet { SettingsStore.set(autoSaveLogs, forKey: LauncherSettingsKey.autoSaveLogs) }
     }
 
     @Published var logRetentionDays = LauncherSettings.integer(
-        forKey: Key.logRetentionDays,
+        forKey: LauncherSettingsKey.logRetentionDays,
         defaultValue: 14,
         range: 1...365
     ) {
-        didSet { SettingsStore.set(String(logRetentionDays), forKey: Key.logRetentionDays) }
+        didSet { SettingsStore.set(String(logRetentionDays), forKey: LauncherSettingsKey.logRetentionDays) }
     }
 
-    @Published var advancedModeEnabled = SettingsStore.bool(forKey: Key.advancedModeEnabled, default: false) {
-        didSet { SettingsStore.set(advancedModeEnabled, forKey: Key.advancedModeEnabled) }
+    @Published var advancedModeEnabled = SettingsStore.bool(forKey: LauncherSettingsKey.advancedModeEnabled, default: false) {
+        didSet { SettingsStore.set(advancedModeEnabled, forKey: LauncherSettingsKey.advancedModeEnabled) }
     }
 
     @Published private(set) var cacheStatus = "Cache not checked"
     @Published private(set) var cacheSummaries: [CacheScopeSummary] = []
 
     init() {
-        if SettingsStore.string(forKey: Key.downloadSource, default: DownloadSource.official.rawValue) == DownloadSource.custom.rawValue {
-            SettingsStore.set(DownloadSource.official.rawValue, forKey: Key.downloadSource)
+        if SettingsStore.string(forKey: LauncherSettingsKey.downloadSource, default: DownloadSource.official.rawValue) == DownloadSource.custom.rawValue {
+            SettingsStore.set(DownloadSource.official.rawValue, forKey: LauncherSettingsKey.downloadSource)
             downloadSource = .official
         }
         refreshCacheSummaries()
@@ -240,24 +213,6 @@ final class LauncherSettings: ObservableObject {
         }
     }
 
-    static func javaRecommendation(for minecraftVersion: String) -> String {
-        let normalized = minecraftVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let version = MinecraftVersionNumber(normalized) else {
-            return "Select a Minecraft version to calculate the Java recommendation from its release family."
-        }
-
-        if version >= MinecraftVersionNumber(1, 20, 5) {
-            return "Minecraft \(normalized) recommends Java 21."
-        }
-        if version >= MinecraftVersionNumber(1, 18, 0) {
-            return "Minecraft \(normalized) recommends Java 17."
-        }
-        if version >= MinecraftVersionNumber(1, 17, 0) {
-            return "Minecraft \(normalized) recommends Java 16."
-        }
-        return "Minecraft \(normalized) generally uses Java 8."
-    }
-
     private func clearCacheScope(_ scope: CacheScope) throws {
         switch scope {
         case .urlCache:
@@ -314,120 +269,10 @@ final class LauncherSettings: ObservableObject {
         }
     }
 
-    static func storedDownloadConcurrency() -> Int {
-        integer(
-            forKey: Key.downloadConcurrency,
-            defaultValue: defaultDownloadConcurrency,
-            range: downloadConcurrencyRange
-        )
-    }
-
-    static func storedDownloadRetryCount() -> Int {
-        integer(
-            forKey: Key.downloadRetryCount,
-            defaultValue: defaultDownloadRetryCount,
-            range: downloadRetryCountRange
-        )
-    }
-
-    static func storedDownloadRuntimeOptions() -> CoreDownloadRuntimeOptions {
-        let strategy = storedDownloadStrategy()
-        let storedConcurrency = storedDownloadConcurrency()
-        let storedRetryCount = storedDownloadRetryCount()
-        let effectiveConcurrency: Int
-        let effectiveRetryCount: Int
-        switch strategy {
-        case .auto:
-            effectiveConcurrency = storedConcurrency
-            effectiveRetryCount = storedRetryCount
-        case .fast:
-            effectiveConcurrency = min(downloadConcurrencyRange.upperBound, max(storedConcurrency, 48))
-            effectiveRetryCount = min(downloadRetryCountRange.upperBound, max(storedRetryCount, 4))
-        case .conservative:
-            effectiveConcurrency = max(downloadConcurrencyRange.lowerBound, min(storedConcurrency, 12))
-            effectiveRetryCount = min(downloadRetryCountRange.upperBound, max(storedRetryCount, 2))
-        }
-        return CoreDownloadRuntimeOptions(
-            concurrency: effectiveConcurrency,
-            retryCount: effectiveRetryCount,
-            strategy: strategy.rawValue
-        )
-    }
-
-    static func storedDownloadStrategy() -> DownloadStrategy {
-        loadEnum(key: Key.downloadStrategy, defaultValue: .auto)
-    }
-
-    static func storedDownloadSource() -> DownloadSource {
-        let source: DownloadSource = loadEnum(key: Key.downloadSource, defaultValue: .official)
-        return source == .custom ? .official : source
-    }
-
-    static func storedCloseWindowBehavior() -> CloseWindowBehavior {
-        loadEnum(key: Key.closeWindowBehavior, defaultValue: .quit)
-    }
-
-    static func storedInstallMissingFilesBeforeLaunch() -> Bool {
-        SettingsStore.bool(forKey: Key.installMissingFilesBeforeLaunch, default: true)
-    }
-
-    static func storedJVMArguments() -> [String] {
-        shellSplit(SettingsStore.string(forKey: Key.jvmArguments, default: ""))
-    }
-
-    static func storedMemoryPolicy() -> InstanceMemoryPolicy {
-        loadEnum(key: Key.memoryPolicy, defaultValue: .auto)
-    }
-
-    static func storedJvmProfile() -> InstanceJvmProfile {
-        loadEnum(key: Key.jvmProfile, defaultValue: .auto)
-    }
-
-    static func storedGraphicsProfile() -> InstanceGraphicsProfile {
-        loadEnum(key: Key.graphicsProfile, defaultValue: .balanced)
-    }
-
-    static func storedPerformanceApplyMode() -> PerformanceApplyMode {
-        loadEnum(key: Key.performanceApplyMode, defaultValue: .ask)
-    }
-
-    static func storedPerformanceLocalTelemetryEnabled() -> Bool {
-        SettingsStore.bool(forKey: Key.performanceLocalTelemetryEnabled, default: true)
-    }
-
-    static func storedPerformanceExperimentsEnabled() -> Bool {
-        SettingsStore.bool(forKey: Key.performanceExperimentsEnabled, default: true)
-    }
-
-    static func storedPerformanceShareAnonymousPriors() -> Bool {
-        SettingsStore.bool(forKey: Key.performanceShareAnonymousPriors, default: false)
-    }
-
-    static func storedWindowSize() -> (width: Int, height: Int) {
-        (
-            width: integer(forKey: Key.windowWidth, defaultValue: 1280, range: 640...3840),
-            height: integer(forKey: Key.windowHeight, defaultValue: 720, range: 480...2160)
-        )
-    }
-
     static var defaultMinecraftDirectory: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/minecraft", isDirectory: true)
             .path
-    }
-
-    private static func integer(forKey key: String, defaultValue: Int, range: ClosedRange<Int>) -> Int {
-        let rawValue = SettingsStore.string(forKey: key, default: String(defaultValue))
-        let value = Int(rawValue) ?? defaultValue
-        return min(max(value, range.lowerBound), range.upperBound)
-    }
-
-    private static func clampedDownloadConcurrency(_ value: Int) -> Int {
-        min(max(value, downloadConcurrencyRange.lowerBound), downloadConcurrencyRange.upperBound)
-    }
-
-    private static func clampedDownloadRetryCount(_ value: Int) -> Int {
-        min(max(value, downloadRetryCountRange.lowerBound), downloadRetryCountRange.upperBound)
     }
 
     private static func fileSize(at url: URL) -> Int64 {
@@ -464,88 +309,4 @@ final class LauncherSettings: ObservableObject {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    private static func loadEnum<Value: RawRepresentable>(
-        key: String,
-        defaultValue: Value
-    ) -> Value where Value.RawValue == String {
-        let rawValue = SettingsStore.string(forKey: key, default: defaultValue.rawValue)
-        return Value(rawValue: rawValue) ?? defaultValue
-    }
-
-    private static func shellSplit(_ value: String) -> [String] {
-        var result: [String] = []
-        var current = ""
-        var quote: Character?
-        var escaping = false
-
-        for character in value {
-            if escaping {
-                current.append(character)
-                escaping = false
-                continue
-            }
-
-            if character == "\\" {
-                escaping = true
-                continue
-            }
-
-            if let activeQuote = quote {
-                if character == activeQuote {
-                    quote = nil
-                } else {
-                    current.append(character)
-                }
-                continue
-            }
-
-            if character == "\"" || character == "'" {
-                quote = character
-            } else if character.isWhitespace {
-                if !current.isEmpty {
-                    result.append(current)
-                    current = ""
-                }
-            } else {
-                current.append(character)
-            }
-        }
-
-        if escaping {
-            current.append("\\")
-        }
-        if !current.isEmpty {
-            result.append(current)
-        }
-        return result
-    }
-}
-
-private struct MinecraftVersionNumber: Comparable {
-    let major: Int
-    let minor: Int
-    let patch: Int
-
-    init(_ major: Int, _ minor: Int, _ patch: Int) {
-        self.major = major
-        self.minor = minor
-        self.patch = patch
-    }
-
-    init?(_ rawValue: String) {
-        let numberPrefix = rawValue.prefix { character in
-            character.isNumber || character == "."
-        }
-        let parts = numberPrefix.split(separator: ".").compactMap { Int($0) }
-        guard parts.count >= 2 else { return nil }
-        major = parts[0]
-        minor = parts[1]
-        patch = parts.count > 2 ? parts[2] : 0
-    }
-
-    static func < (lhs: MinecraftVersionNumber, rhs: MinecraftVersionNumber) -> Bool {
-        if lhs.major != rhs.major { return lhs.major < rhs.major }
-        if lhs.minor != rhs.minor { return lhs.minor < rhs.minor }
-        return lhs.patch < rhs.patch
-    }
 }

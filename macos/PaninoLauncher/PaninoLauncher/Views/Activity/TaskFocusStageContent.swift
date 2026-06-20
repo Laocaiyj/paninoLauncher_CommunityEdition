@@ -17,7 +17,8 @@ struct TaskFocusStageContent: View {
                 TaskFocusPrimaryContent(
                     record: record,
                     coreStatus: coreStatus,
-                    attentionCount: attentionCount
+                    attentionCount: attentionCount,
+                    showsFacts: false
                 )
                 .frame(minWidth: 460, maxWidth: 760, alignment: .leading)
                 .layoutPriority(1)
@@ -41,7 +42,8 @@ struct TaskFocusStageContent: View {
                 TaskFocusPrimaryContent(
                     record: record,
                     coreStatus: coreStatus,
-                    attentionCount: attentionCount
+                    attentionCount: attentionCount,
+                    showsFacts: false
                 )
 
                 TaskFocusInspector(

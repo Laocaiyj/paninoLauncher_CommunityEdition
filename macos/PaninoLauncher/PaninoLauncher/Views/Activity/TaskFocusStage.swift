@@ -6,6 +6,7 @@ struct TaskFocusStage<ContextShelf: View>: View {
     let attentionCount: Int
     let canCancel: Bool
     let canRetry: Bool
+    let recentCompletedRecords: [TaskRecord]
     let onCancel: () -> Void
     let onRetry: () -> Void
     let onDiagnostics: () -> Void
@@ -28,14 +29,21 @@ struct TaskFocusStage<ContextShelf: View>: View {
                     )
                 },
                 floatingControls: {
-                    TaskFocusControls(
-                        record: record,
-                        canCancel: canCancel,
-                        canRetry: canRetry,
-                        onCancel: onCancel,
-                        onRetry: onRetry,
-                        onDiagnostics: onDiagnostics
-                    )
+                    VStack(alignment: .trailing, spacing: 12) {
+                        TaskFocusControls(
+                            record: record,
+                            canCancel: canCancel,
+                            canRetry: canRetry,
+                            onCancel: onCancel,
+                            onRetry: onRetry,
+                            onDiagnostics: onDiagnostics
+                        )
+
+                        if !recentCompletedRecords.isEmpty {
+                            TaskFocusRecentRail(records: Array(recentCompletedRecords.prefix(3)))
+                                .frame(width: 360)
+                        }
+                    }
                 },
                 contextShelf: {
                     EmptyView()

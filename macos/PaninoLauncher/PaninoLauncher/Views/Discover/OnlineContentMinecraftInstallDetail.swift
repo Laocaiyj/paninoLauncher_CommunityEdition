@@ -4,7 +4,6 @@ import SwiftUI
 struct MinecraftVersionInstallDetailPage: View {
     let version: MinecraftVersionInfo
     let instances: [GameInstance]
-    let selectedInstance: GameInstance?
     @Binding var target: MinecraftInstallTarget
     @Binding var instanceName: String
     @Binding var loader: LoaderKind?
@@ -32,151 +31,55 @@ struct MinecraftVersionInstallDetailPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            GlassPanel(surfaceLevel: .elevatedPanel) {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    HStack(spacing: 10) {
-                        GlassButton(systemImage: "chevron.left", title: localizedString(theme.language, english: "Back", chinese: "返回", italian: "Indietro", french: "Retour", spanish: "Atrás"), action: back)
-                        PanelHeader(
-                            title: localizedString(theme.language, english: "Install Minecraft \(version.id)", chinese: "安装 Minecraft \(version.id)", italian: "Installa Minecraft \(version.id)", french: "Installer Minecraft \(version.id)", spanish: "Instalar Minecraft \(version.id)"),
-                            systemImage: "arrow.down.circle"
-                        )
-                        Spacer()
-                        MetadataLine(items: [version.kind.title(language: theme.language)], font: .caption.weight(.semibold))
-                    }
+            MinecraftInstallHeaderPanel(version: version, onBack: back)
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 10)], spacing: 10) {
-                        installMetric(localizedString(theme.language, english: "Released", chinese: "发布时间", italian: "Rilascio", french: "Sortie", spanish: "Publicado"), version.releasedAt)
-                        installMetric("Java", version.javaRequirement)
-                        installMetric(localizedString(theme.language, english: "Files", chinese: "文件", italian: "File", french: "Fichiers", spanish: "Archivos"), discoverVisibleDownloadState(version, language: theme.language) ?? "-")
-                        installMetric(localizedString(theme.language, english: "Verify", chinese: "校验", italian: "Verifica", french: "Vérifier", spanish: "Verificar"), version.verificationState.localizedVersionState(theme.language))
-                    }
-                }
-            }
+            MinecraftInstallLoaderPanel(
+                loader: $loader,
+                loaderVersion: $loaderVersion,
+                compatibleLoaders: compatibleLoaders,
+                loaderOptions: loaderOptions,
+                versionOptionsStatus: versionOptionsStatus,
+                versionMenuLimit: versionMenuLimit,
+                choiceState: loaderChoiceState,
+                onSelectLoader: selectLoader,
+                notice: loaderInstallNotice
+            )
 
-            GlassPanel(surfaceLevel: .panel) {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    PanelHeader(title: localizedString(theme.language, english: "Loader", chinese: "加载器", italian: "Loader", french: "Loader", spanish: "Loader"), systemImage: "puzzlepiece.extension")
-                    HStack(spacing: 8) {
-                        loaderButton(title: "Vanilla", isSelected: loader == nil, disabled: false, state: loaderChoiceState(nil)) {
-                            selectLoader(nil)
-                        }
-                        ForEach(LoaderKind.allCases) { kind in
-                            loaderButton(title: kind.title, isSelected: loader == kind, disabled: !compatibleLoaders.contains(kind), state: loaderChoiceState(kind)) {
-                                selectLoader(kind)
-                            }
-                        }
-                    }
-                    loaderVersionPicker
+            MinecraftInstallShaderPanel(
+                shaderLoader: $shaderLoader,
+                shaderLoaderVersion: $shaderLoaderVersion,
+                shaderReleases: shaderReleases,
+                versionOptionsStatus: versionOptionsStatus,
+                versionMenuLimit: versionMenuLimit,
+                choiceState: shaderChoiceState,
+                isChoiceDisabled: shaderChoiceDisabled,
+                helpText: shaderHelpText
+            )
 
-                    Text(loaderInstallNotice)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
+            MinecraftInstallInstancePanel(
+                instanceName: $instanceName,
+                targetDirectoryLabel: targetDirectoryLabel
+            )
 
-            GlassPanel(surfaceLevel: .panel) {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    PanelHeader(title: localizedString(theme.language, english: "Shader Loader", chinese: "光影加载器", italian: "Shader loader", french: "Loader de shaders", spanish: "Loader de shaders"), systemImage: "sparkles.rectangle.stack")
-                    HStack(spacing: 8) {
-                        ForEach(ShaderLoaderChoice.allCases) { choice in
-                            loaderButton(title: choice.title, isSelected: shaderLoader == choice, disabled: shaderChoiceDisabled(choice), state: shaderChoiceState(choice)) {
-                                shaderLoaderVersion = nil
-                                shaderLoader = choice
-                            }
-                        }
-                    }
-                    shaderVersionPicker
-                    Text(shaderHelpText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-
-            GlassPanel(surfaceLevel: .panel) {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    PanelHeader(title: localizedString(theme.language, english: "Local Instance", chinese: "本地实例", italian: "Istanza locale", french: "Instance locale", spanish: "Instancia local"), systemImage: "folder.badge.plus")
-                    PaninoTextInput(
-                        localizedString(theme.language, english: "Instance name", chinese: "实例名称", italian: "Nome istanza", french: "Nom de l'instance", spanish: "Nombre de instancia"),
-                        text: $instanceName
-                    )
-                    Text(localizedString(
-                        theme.language,
-                        english: "Folder: \(targetDirectoryLabel)",
-                        chinese: "目录：\(targetDirectoryLabel)",
-                        italian: "Cartella: \(targetDirectoryLabel)",
-                        french: "Dossier : \(targetDirectoryLabel)",
-                        spanish: "Carpeta: \(targetDirectoryLabel)"
-                    ))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                }
-            }
-
-            GlassPanel(surfaceLevel: .floatingChrome) {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    PanelHeader(title: localizedString(theme.language, english: "Install Plan", chinese: "安装计划", italian: "Piano installazione", french: "Plan d'installation", spanish: "Plan de instalación"), systemImage: "checklist")
-                    SettingsRow(title: localizedString(theme.language, english: "Result", chinese: "结果", italian: "Risultato", french: "Résultat", spanish: "Resultado"), systemImage: "square.stack.3d.up") {
-                        Text(targetSummary)
-                            .lineLimit(2)
-                    }
-                    SettingsRow(title: localizedString(theme.language, english: "Components", chinese: "组件", italian: "Componenti", french: "Composants", spanish: "Componentes"), systemImage: "shippingbox") {
-                        Text(effectiveComponentSummary)
-                            .lineLimit(2)
-                    }
-                    SettingsRow(title: "Java Runtime", systemImage: "cup.and.saucer") {
-                        Text(javaRuntimePlanSummary)
-                            .lineLimit(2)
-                    }
-                    if let javaRuntime = preflight?.javaRuntime {
-                        SettingsRow(title: localizedString(theme.language, english: "Java Preflight", chinese: "Java 预检", italian: "Preflight Java", french: "Précontrôle Java", spanish: "Preflight Java"), systemImage: "terminal") {
-                            HStack(spacing: 8) {
-                                Text(javaRuntime.conciseStatus)
-                                    .lineLimit(1)
-                                if javaRuntime.isDownloadable {
-                                    GlassButton(systemImage: "arrow.down.circle", title: localizedString(theme.language, english: "Download Java \(javaRuntime.requiredMajorVersion)", chinese: "下载 Java \(javaRuntime.requiredMajorVersion)", italian: "Scarica Java \(javaRuntime.requiredMajorVersion)", french: "Télécharger Java \(javaRuntime.requiredMajorVersion)", spanish: "Descargar Java \(javaRuntime.requiredMajorVersion)")) {
-                                        downloadJava(javaRuntime.requiredMajorVersion)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if let shaderFallbackSummary {
-                        SettingsRow(title: localizedString(theme.language, english: "Shader Fallback", chinese: "光影回退", italian: "Fallback shader", french: "Repli shader", spanish: "Fallback shader"), systemImage: "arrow.triangle.branch") {
-                            Text(shaderFallbackSummary)
-                                .lineLimit(2)
-                        }
-                    }
-                    if let installerProbeSummary {
-                        SettingsRow(title: localizedString(theme.language, english: "Installer Probe", chinese: "安装器探测", italian: "Probe installer", french: "Sonde installateur", spanish: "Probe instalador"), systemImage: "antenna.radiowaves.left.and.right") {
-                            Text(installerProbeSummary)
-                                .lineLimit(2)
-                        }
-                    }
-                    if let blockReason {
-                        Label(blockReason, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    installPreflightSummary
-                    installFailureBanner
-                    HStack {
-                        if preflight != nil {
-                            GlassButton(systemImage: "list.bullet.rectangle", title: localizedString(theme.language, english: "Review Plan", chinese: "查看计划", italian: "Rivedi piano", french: "Voir le plan", spanish: "Revisar plan")) {
-                                showingInstallPlanReview = true
-                            }
-                        }
-                        Spacer()
-                        GlassButton(systemImage: "arrow.down.circle", title: installButtonTitle, prominent: true) {
-                            confirmInstall = true
-                        }
-                        .disabled(blockReason != nil)
-                    }
-                }
-            }
+            MinecraftInstallPlanPanel(
+                targetSummary: targetSummary,
+                effectiveComponentSummary: effectiveComponentSummary,
+                javaRuntimePlanSummary: javaRuntimePlanSummary,
+                preflight: preflight,
+                preflightStatus: preflightStatus,
+                shaderFallbackSummary: shaderFallbackSummary,
+                installerProbeSummary: installerProbeSummary,
+                blockReason: blockReason,
+                lastInstallFailure: lastInstallFailure,
+                installButtonTitle: installButtonTitle,
+                reviewPlan: { showingInstallPlanReview = true },
+                confirmInstall: { confirmInstall = true },
+                retryInstall: install,
+                openTasks: openTasks,
+                exportDiagnostics: exportDiagnostics,
+                openInstanceDirectory: openInstanceDirectory,
+                downloadJava: downloadJava
+            )
         }
         .confirmationDialog(
             localizedString(theme.language, english: "Confirm install?", chinese: "确认安装？", italian: "Confermare installazione?", french: "Confirmer l'installation ?", spanish: "¿Confirmar instalación?"),
@@ -220,125 +123,6 @@ struct MinecraftVersionInstallDetailPage: View {
         if !minecraftShaderLoaderCompatible(loader: candidate?.rawValue, shaderLoader: shaderLoader == .none ? nil : shaderLoader.rawValue) {
             shaderLoader = .none
         }
-    }
-
-    @ViewBuilder
-    private var loaderVersionPicker: some View {
-        if loader != nil {
-            SettingsRow(title: localizedString(theme.language, english: "Loader Version", chinese: "加载器版本", italian: "Versione loader", french: "Version du loader", spanish: "Versión del loader"), systemImage: "number") {
-                versionMenu(
-                    title: selectedLoaderVersionTitle,
-                    isEmpty: selectedLoaderVersions.isEmpty,
-                    emptyTitle: versionOptionsStatus.isEmpty ? localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando") : versionOptionsStatus
-                ) {
-                    ForEach(visibleSelectedLoaderVersions) { metadata in
-                        Button(loaderVersionTitle(metadata)) {
-                            loaderVersion = metadata.loaderVersion
-                        }
-                    }
-                    if hiddenSelectedLoaderVersionCount > 0 {
-                        Divider()
-                        Text(localizedString(theme.language, english: "Showing first \(versionMenuLimit) versions", chinese: "已显示前 \(versionMenuLimit) 个版本", italian: "Mostrate prime \(versionMenuLimit) versioni", french: "Affiche les \(versionMenuLimit) premieres versions", spanish: "Mostrando primeras \(versionMenuLimit) versiones"))
-                    }
-                }
-                .disabled(selectedLoaderVersions.isEmpty)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var shaderVersionPicker: some View {
-        if shaderLoader == .iris || shaderLoader == .oculus {
-            SettingsRow(title: localizedString(theme.language, english: "Shader Loader Version", chinese: "光影加载器版本", italian: "Versione shader loader", french: "Version du loader shader", spanish: "Versión del loader de shaders"), systemImage: "sparkles") {
-                versionMenu(
-                    title: selectedShaderReleaseTitle,
-                    isEmpty: shaderReleases.isEmpty,
-                    emptyTitle: versionOptionsStatus.isEmpty ? localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando") : versionOptionsStatus
-                ) {
-                    ForEach(visibleShaderReleases) { release in
-                        Button(shaderReleaseTitle(release)) {
-                            shaderLoaderVersion = release.id
-                        }
-                    }
-                    if hiddenShaderReleaseCount > 0 {
-                        Divider()
-                        Text(localizedString(theme.language, english: "Showing first \(versionMenuLimit) releases", chinese: "已显示前 \(versionMenuLimit) 个 release", italian: "Mostrate prime \(versionMenuLimit) release", french: "Affiche les \(versionMenuLimit) premieres releases", spanish: "Mostrando primeras \(versionMenuLimit) releases"))
-                    }
-                }
-                .disabled(shaderReleases.isEmpty)
-            }
-        }
-    }
-
-    private func versionMenu<Content: View>(title: String, isEmpty: Bool, emptyTitle: String, @ViewBuilder content: () -> Content) -> some View {
-        Menu {
-            if isEmpty {
-                Text(emptyTitle)
-            } else {
-                content()
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(isEmpty ? emptyTitle : title)
-                    .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: 260, alignment: .trailing)
-        }
-        .menuStyle(.borderlessButton)
-    }
-
-    private var selectedLoaderOption: LoaderCompatibilityOption? {
-        guard let loader else { return nil }
-        return loaderOptions.first { $0.kind == loader }
-    }
-
-    private var selectedLoaderVersions: [LoaderMetadata] {
-        selectedLoaderOption?.versions ?? []
-    }
-
-    private var visibleSelectedLoaderVersions: [LoaderMetadata] {
-        Array(selectedLoaderVersions.prefix(versionMenuLimit))
-    }
-
-    private var hiddenSelectedLoaderVersionCount: Int {
-        max(selectedLoaderVersions.count - visibleSelectedLoaderVersions.count, 0)
-    }
-
-    private var selectedLoaderVersionTitle: String {
-        if let selected = selectedLoaderVersions.first(where: { $0.loaderVersion == loaderVersion }) {
-            return loaderVersionTitle(selected)
-        }
-        if let loaderVersion {
-            return loaderVersion
-        }
-        return selectedLoaderOption?.recommendedVersion ?? "-"
-    }
-
-    private func loaderVersionTitle(_ metadata: LoaderMetadata) -> String {
-        metadata.stable ? metadata.loaderVersion : "\(metadata.loaderVersion) · Beta"
-    }
-
-    private var selectedShaderReleaseTitle: String {
-        if let selected = shaderReleases.first(where: { $0.id == shaderLoaderVersion }) {
-            return shaderReleaseTitle(selected)
-        }
-        return shaderReleases.first.map(shaderReleaseTitle) ?? "-"
-    }
-
-    private var visibleShaderReleases: [OnlineRelease] {
-        Array(shaderReleases.prefix(versionMenuLimit))
-    }
-
-    private var hiddenShaderReleaseCount: Int {
-        max(shaderReleases.count - visibleShaderReleases.count, 0)
-    }
-
-    private func shaderReleaseTitle(_ release: OnlineRelease) -> String {
-        let versionText = release.versionNumber.isEmpty ? release.versionName : release.versionNumber
-        return release.releaseType == .release ? versionText : "\(versionText) · \(release.releaseType.rawValue.capitalized)"
     }
 
     private var shaderFallbackSummary: String? {
@@ -432,66 +216,6 @@ struct MinecraftVersionInstallDetailPage: View {
         return nil
     }
 
-    @ViewBuilder
-    private var installPreflightSummary: some View {
-        if let preflight {
-            Label(preflight.displaySummary, systemImage: preflightSummaryIcon(preflight))
-                .font(.caption)
-                .foregroundStyle(preflightSummaryColor(preflight))
-                .lineLimit(2)
-        } else if !preflightStatus.isEmpty {
-            Label(preflightStatus, systemImage: "waveform.path.ecg")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-    }
-
-    @ViewBuilder
-    private var installFailureBanner: some View {
-        if let failure = lastInstallFailure,
-           failure.state == .failed,
-           failure.kind.lowercased().contains("install") {
-            VStack(alignment: .leading, spacing: 6) {
-                Label(localizedString(theme.language, english: "Install failed", chinese: "安装失败", italian: "Installazione fallita", french: "Installation échouée", spanish: "Instalación fallida"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout.weight(.semibold))
-                Text(failure.diagnostic?.userSummary ?? failure.message ?? failure.errorCode ?? failure.version)
-                    .font(.caption)
-                    .lineLimit(2)
-                if let diagnostic = failure.diagnostic {
-                    Text(diagnostic.actionLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let errorCode = failure.errorCode {
-                    Text(errorCode)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                if let detail = failure.errorDetail {
-                    DisclosureGroup(localizedString(theme.language, english: "Details", chinese: "详情", italian: "Dettagli", french: "Détails", spanish: "Detalles")) {
-                        Text(detail)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                            .lineLimit(6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .font(.caption)
-                }
-                HStack(spacing: 8) {
-                    GlassButton(systemImage: "arrow.clockwise", title: localizedString(theme.language, english: "Retry", chinese: "重试", italian: "Riprova", french: "Réessayer", spanish: "Reintentar"), action: install)
-                    GlassButton(systemImage: "list.bullet.rectangle", title: localizedString(theme.language, english: "Tasks", chinese: "任务", italian: "Attività", french: "Tâches", spanish: "Tareas"), action: openTasks)
-                    GlassButton(systemImage: "square.and.arrow.up", title: localizedString(theme.language, english: "Export Diagnostics", chinese: "导出诊断", italian: "Esporta diagnostica", french: "Exporter diagnostics", spanish: "Exportar diagnóstico"), action: exportDiagnostics)
-                    GlassButton(systemImage: "folder", title: localizedString(theme.language, english: "Open Folder", chinese: "打开目录", italian: "Apri cartella", french: "Ouvrir dossier", spanish: "Abrir carpeta"), action: openInstanceDirectory)
-                }
-                .font(.caption)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .paninoGlassCard(isSelected: true, level: .popover, cornerRadius: 8, tint: .orange, showsShadow: true)
-        }
-    }
-
     private var targetSummary: String {
         switch target {
         case .newConfiguration:
@@ -502,15 +226,6 @@ struct MinecraftVersionInstallDetailPage: View {
         case .downloadOnly:
             return localizedString(theme.language, english: "Download-only installs are disabled here. Installed files become a local instance.", chinese: "此处不再提供仅下载模式。安装后的文件会成为本地实例。", italian: "Solo download disabilitato.", french: "Téléchargement seul désactivé.", spanish: "Solo descarga desactivada.")
         }
-    }
-
-    private var componentSummary: String {
-        [
-            loader?.title ?? localizedString(theme.language, english: "Vanilla"),
-            shaderLoader == .none ? nil : shaderLoader.title
-        ]
-        .compactMap { $0 }
-        .joined(separator: " · ")
     }
 
     private var effectiveComponentSummary: String {
@@ -592,10 +307,6 @@ struct MinecraftVersionInstallDetailPage: View {
             : "minecraft/versions/\(targetDirectoryName)"
     }
 
-    private var targetDirectoryPath: String {
-        targetDirectoryURL.path
-    }
-
     private var targetDirectoryURL: URL {
         let root = (try? LauncherPaths.gameConfigurationsDirectory())
             ?? FileManager.default.homeDirectoryForCurrentUser
@@ -607,44 +318,6 @@ struct MinecraftVersionInstallDetailPage: View {
         guard target == .newConfiguration else { return false }
         guard !targetDirectoryName.isEmpty else { return false }
         return minecraftInstallTargetDirectoryConflictExists(targetDirectoryURL)
-    }
-
-    @ViewBuilder
-    private func installMetric(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.callout.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.14), in: RoundedRectangle(cornerRadius: 6))
-    }
-
-    private func loaderButton(title: String, isSelected: Bool, disabled: Bool, state: InstallChoicePreflightState = .normal, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Text(title)
-                    .lineLimit(1)
-                if let image = state.systemImage {
-                    Image(systemName: image)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? .white : state.tint)
-                }
-            }
-            .font(.callout.weight(isSelected ? .semibold : .regular))
-            .padding(.horizontal, 12)
-            .frame(minHeight: PaninoTokens.Layout.controlMinSize)
-            .background(isSelected ? theme.semanticSelectionColor.opacity(0.92) : Color(nsColor: .controlBackgroundColor).opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
-            .foregroundStyle(isSelected ? .white : .primary)
-        }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-        .opacity(disabled ? 0.45 : 1)
     }
 
     private func loaderChoiceState(_ candidate: LoaderKind?) -> InstallChoicePreflightState {
@@ -690,23 +363,6 @@ struct MinecraftVersionInstallDetailPage: View {
                 || normalized.hasPrefix("shader_release_not_found")
                 || normalized.hasPrefix("shader_dependency_unresolved")
         }
-    }
-
-    private func preflightSummaryIcon(_ preflight: CoreLoaderInstallPreflightResponse) -> String {
-        if preflight.isBlocked {
-            return "xmark.octagon"
-        }
-        if preflight.status == "warning" || !preflight.warnings.isEmpty {
-            return "exclamationmark.triangle"
-        }
-        return "checkmark.seal"
-    }
-
-    private func preflightSummaryColor(_ preflight: CoreLoaderInstallPreflightResponse) -> Color {
-        if preflight.isBlocked || preflight.status == "warning" || !preflight.warnings.isEmpty {
-            return .orange
-        }
-        return .secondary
     }
 
     private func slug(_ value: String) -> String {

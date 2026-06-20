@@ -23,14 +23,14 @@ struct TaskFocusBackground: View {
                     .offset(x: proxy.size.width * 0.28, y: -proxy.size.height * 0.30)
 
                 Circle()
-                    .strokeBorder(Color.white.opacity(0.085), lineWidth: 1.6)
+                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 1.6)
                     .frame(width: proxy.size.width * 0.58, height: proxy.size.width * 0.58)
                     .offset(x: proxy.size.width * 0.26, y: -proxy.size.height * 0.24)
 
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(0..<5, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(Color.white.opacity(Double(5 - index) * 0.026))
+                            .fill(Color.black.opacity(0.040 - Double(index) * 0.004))
                             .frame(width: proxy.size.width * CGFloat(0.88 - Double(index) * 0.10), height: 5)
                     }
                 }
@@ -65,9 +65,9 @@ private struct TaskFocusDarkTexture: View {
             ZStack {
                 LinearGradient(
                     colors: [
-                        Color.black.opacity(0.08),
-                        statusColor.opacity(0.030),
-                        Color.black.opacity(0.28)
+                        Color.black.opacity(0.16),
+                        statusColor.opacity(0.032),
+                        Color.black.opacity(0.38)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -76,8 +76,8 @@ private struct TaskFocusDarkTexture: View {
                 LinearGradient(
                     colors: [
                         Color.black.opacity(0.00),
-                        Color.black.opacity(0.16),
-                        Color.black.opacity(0.36)
+                        Color.black.opacity(0.24),
+                        Color.black.opacity(0.50)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -86,19 +86,33 @@ private struct TaskFocusDarkTexture: View {
                 LinearGradient(
                     colors: [
                         Color.clear,
-                        Color.black.opacity(0.06),
-                        Color.black.opacity(0.18)
+                        Color.black.opacity(0.13),
+                        Color.black.opacity(0.34)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
 
+                ForEach(0..<6, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.black.opacity(0.040 - Double(index) * 0.003))
+                        .frame(
+                            width: proxy.size.width * CGFloat(0.72 - Double(index) * 0.050),
+                            height: 18
+                        )
+                        .offset(
+                            x: -proxy.size.width * CGFloat(0.20 - Double(index) * 0.050),
+                            y: proxy.size.height * CGFloat(0.16 + Double(index) * 0.085)
+                        )
+                }
+                .rotationEffect(.degrees(-9))
+
                 ForEach(0..<7, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.white.opacity(0.040 - Double(index) * 0.003))
+                        .fill(Color.white.opacity(0.022 - Double(index) * 0.002))
                         .frame(
                             width: proxy.size.width * CGFloat(0.76 - Double(index) * 0.055),
-                            height: 4
+                            height: 3
                         )
                         .offset(
                             x: -proxy.size.width * CGFloat(0.18 - Double(index) * 0.045),
@@ -108,7 +122,7 @@ private struct TaskFocusDarkTexture: View {
                 .rotationEffect(.degrees(-9))
 
                 Circle()
-                    .strokeBorder(Color.white.opacity(0.055), lineWidth: 1.1)
+                    .strokeBorder(Color.black.opacity(0.065), lineWidth: 1.1)
                     .frame(width: proxy.size.width * 0.46, height: proxy.size.width * 0.46)
                     .offset(x: proxy.size.width * 0.18, y: -proxy.size.height * 0.34)
             }

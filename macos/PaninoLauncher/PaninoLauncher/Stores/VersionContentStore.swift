@@ -3,20 +3,6 @@ import AppKit
 import SwiftUI
 
 @MainActor
-struct VersionContentCoreBackend {
-    let minecraftVersions: () async throws -> [MinecraftRemoteVersion]
-    let minecraftInstallStatus: (_ versionIds: [String], _ gameDirs: [String]) async throws -> [CoreMinecraftInstallStatus]
-    let installedMinecraftInstances: (_ versionIds: [String], _ gameDirs: [String]) async throws -> [CoreInstalledMinecraftInstance]
-    let minecraftPackage: (MinecraftRemoteVersion) async throws -> MinecraftVersionPackage
-    let localResources: (_ gameDir: String, _ kind: ManagedAssetKind, _ loader: LoaderKind) async throws -> [CoreManagedAsset]
-    let toggleLocalResource: (_ path: String) async throws -> CoreLocalResourceMutationResponse
-    let deleteLocalResource: (_ path: String) async throws -> CoreLocalResourceMutationResponse
-    let importLocalResource: (_ sourcePath: String, _ gameDir: String, _ kind: ManagedAssetKind) async throws -> CoreLocalResourceMutationResponse
-    let cleanMinecraftVersion: (_ version: String, _ gameDir: String) async throws -> CoreLocalResourceMutationResponse
-    let mutateMinecraftVersionStorage: (_ version: String, _ gameDir: String, _ action: CoreMinecraftVersionStorageAction) async throws -> CoreLocalResourceMutationResponse
-}
-
-@MainActor
 final class VersionContentStore: ObservableObject {
     @Published var selectedVersionKind: MinecraftVersionKind = .release
     @Published var versionUsageFilter: VersionUsageFilter = .all
@@ -40,7 +26,7 @@ final class VersionContentStore: ObservableObject {
     @Published private(set) var versions: [MinecraftVersionInfo]
 
     init() {
-        versions = VersionContentStore.fallbackVersions
+        versions = VersionContentInfoFactory.fallbackVersions
         loadAssetLinks()
     }
 
@@ -77,7 +63,7 @@ final class VersionContentStore: ObservableObject {
         versionRefreshTask = Task {
             do {
                 let remoteVersions = try await coreBackend.minecraftVersions()
-                let gameDirectories = Self.candidateGameDirectories(instances: instances, settings: settings)
+                let gameDirectories = VersionContentInfoFactory.candidateGameDirectories(instances: instances, settings: settings)
                 let statuses: [CoreMinecraftInstallStatus]
                 do {
                     statuses = try await coreBackend.minecraftInstallStatus(
@@ -94,11 +80,11 @@ final class VersionContentStore: ObservableObject {
                         gameDirectories.map(\.path)
                     )
                 } catch {
-                    installedInstances = Self.installedInstances(from: statuses)
+                    installedInstances = VersionContentInfoFactory.installedInstances(from: statuses)
                 }
                 let statusByVersion = Dictionary(uniqueKeysWithValues: statuses.map { ($0.versionId, $0) })
                 let nextVersions = remoteVersions.map {
-                    Self.versionInfo(
+                    VersionContentInfoFactory.versionInfo(
                         remoteVersion: $0,
                         instances: instances,
                         settings: settings,
@@ -137,9 +123,9 @@ final class VersionContentStore: ObservableObject {
                     id: version.id,
                     type: version.kind.manifestType,
                     url: manifestURL,
-                    releasedAt: Self.parseDate(version.releasedAt)
+                    releasedAt: VersionContentInfoFactory.parseDate(version.releasedAt)
                 )
-                let gameDirectories = Self.candidateGameDirectories(instances: instances, settings: settings)
+                let gameDirectories = VersionContentInfoFactory.candidateGameDirectories(instances: instances, settings: settings)
                 let installStatus = try await coreBackend.minecraftInstallStatus(
                     [version.id],
                     gameDirectories.map(\.path)
@@ -147,7 +133,7 @@ final class VersionContentStore: ObservableObject {
                 let package = try await coreBackend.minecraftPackage(remoteVersion)
                 guard !Task.isCancelled else { return }
                 if let index = versions.firstIndex(where: { $0.id == version.id }) {
-                    versions[index] = Self.versionInfo(
+                    versions[index] = VersionContentInfoFactory.versionInfo(
                         remoteVersion: remoteVersion,
                         instances: instances,
                         settings: settings,
@@ -186,8 +172,8 @@ final class VersionContentStore: ObservableObject {
         assetRefreshTask = Task {
             do {
                 let assets = try await coreBackend.localResources(gameDirectory, selectedKind, selectedLoader)
-                    .map { Self.asset(from: $0, links: assetLinks) }
-                    .sorted { Self.assetSort($0, $1, sort: selectedSort) }
+                    .map { ManagedAsset.fromCoreAsset($0, links: assetLinks) }
+                    .sorted { ManagedAsset.sort($0, $1, by: selectedSort) }
 
                 guard !Task.isCancelled else { return }
                 managedAssets = assets
@@ -247,7 +233,7 @@ final class VersionContentStore: ObservableObject {
             versionStatus = "Core backend is not ready for Minecraft version storage"
             return
         }
-        versionStatus = "\(actionStatusPrefix(action)) \(version.id) via Core"
+        versionStatus = "\(VersionContentInfoFactory.actionStatusPrefix(action)) \(version.id) via Core"
         Task {
             do {
                 guard let installRoot = version.installRoot else {
@@ -291,42 +277,6 @@ final class VersionContentStore: ObservableObject {
             .appendingPathComponent(selectedAssetKind.folderName, isDirectory: true)
     }
 
-    nonisolated private static func asset(
-        from coreAsset: CoreManagedAsset,
-        links: [String: AssetManualLink]
-    ) -> ManagedAsset {
-        let url = URL(fileURLWithPath: coreAsset.path)
-        let link = links[coreAsset.path]
-        return ManagedAsset(
-            id: coreAsset.id,
-            name: coreAsset.name,
-            url: url,
-            isEnabled: coreAsset.isEnabled,
-            conflictMessage: coreAsset.conflictMessage,
-            metadata: coreAsset.metadata,
-            fileSizeBytes: coreAsset.fileSizeBytes,
-            modifiedAt: coreAsset.modifiedAt,
-            source: link?.source ?? coreAsset.source,
-            projectURL: link?.projectURL ?? coreAsset.projectURL
-        )
-    }
-
-    nonisolated private static func assetSort(_ lhs: ManagedAsset, _ rhs: ManagedAsset, sort: ManagedAssetSort) -> Bool {
-        switch sort {
-        case .name:
-            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-        case .status:
-            if lhs.isEnabled != rhs.isEnabled { return lhs.isEnabled && !rhs.isEnabled }
-            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-        case .source:
-            return (lhs.source ?? "").localizedCaseInsensitiveCompare(rhs.source ?? "") == .orderedAscending
-        case .updated:
-            return (lhs.modifiedAt ?? .distantPast) > (rhs.modifiedAt ?? .distantPast)
-        case .size:
-            return lhs.fileSizeBytes > rhs.fileSizeBytes
-        }
-    }
-
     private func loadAssetLinks() {
         do {
             let url = try assetLinksURL()
@@ -353,131 +303,4 @@ final class VersionContentStore: ObservableObject {
         try LauncherPaths.appSupportDirectory().appendingPathComponent("asset-links.json")
     }
 
-    private static let fallbackVersions: [MinecraftVersionInfo] = [
-        MinecraftVersionInfo(id: "1.21.5", kind: .release, releasedAt: "2025-03-25", javaRequirement: "Java 21", downloadState: "Available", verificationState: "Needs download", manifestURL: nil, libraryCount: nil, assetIndexState: "-", clientJarState: "-", nativesState: "-", diskUsageBytes: nil, installRoot: nil, isInstalled: false, isArchived: false, archivePath: nil, isUsedByInstance: false),
-        MinecraftVersionInfo(id: "1.20.1", kind: .release, releasedAt: "2023-06-12", javaRequirement: "Java 17", downloadState: "Available", verificationState: "Needs download", manifestURL: nil, libraryCount: nil, assetIndexState: "-", clientJarState: "-", nativesState: "-", diskUsageBytes: nil, installRoot: nil, isInstalled: false, isArchived: false, archivePath: nil, isUsedByInstance: false)
-    ]
-
-    private static func versionInfo(
-        remoteVersion: MinecraftRemoteVersion,
-        instances: [GameInstance],
-        settings: LauncherSettings,
-        package: MinecraftVersionPackage?,
-        installStatus: CoreMinecraftInstallStatus?
-    ) -> MinecraftVersionInfo {
-        let gameDirectories = candidateGameDirectories(instances: instances, settings: settings)
-        let installed = installStatus?.installed ?? false
-        let archived = installStatus?.archived ?? false
-        let completeInstall = installStatus?.versionJson == true && installStatus?.clientJar == true
-        let used = instances.contains { $0.minecraftVersion == remoteVersion.id }
-        let packageURL = package.map { _ in remoteVersion.url } ?? remoteVersion.url
-        return MinecraftVersionInfo(
-            id: remoteVersion.id,
-            kind: MinecraftVersionKind(manifestType: remoteVersion.type),
-            releasedAt: remoteVersion.releasedAt?.formatted(date: .numeric, time: .omitted) ?? "-",
-            javaRequirement: javaRequirement(package?.javaMajorVersion, versionID: remoteVersion.id),
-            downloadState: completeInstall ? "Installed" : (archived ? "Archived" : (installed ? "Incomplete" : "Available")),
-            verificationState: verificationState(installStatus: installStatus, archived: archived),
-            manifestURL: packageURL,
-            libraryCount: package?.libraryCount,
-            assetIndexState: assetIndexState(package?.assetIndex, gameDirectories: gameDirectories),
-            clientJarState: clientJarState(package: package, installStatus: installStatus),
-            nativesState: nativesState(package),
-            diskUsageBytes: installed ? installStatus?.diskUsageBytes : nil,
-            installRoot: installStatus?.installRoot,
-            isInstalled: installed,
-            isArchived: archived,
-            archivePath: installStatus?.archivePath,
-            isUsedByInstance: used
-        )
-    }
-
-    private func actionStatusPrefix(_ action: CoreMinecraftVersionStorageAction) -> String {
-        switch action {
-        case .delete:
-            return "Deleting"
-        case .archive:
-            return "Archiving"
-        case .restore:
-            return "Restoring"
-        }
-    }
-
-    private static func verificationState(installStatus: CoreMinecraftInstallStatus?, archived: Bool) -> String {
-        if archived { return "Archived" }
-        guard let installStatus else { return "Needs download" }
-        if installStatus.versionJson && installStatus.clientJar { return "Files complete" }
-        if !installStatus.versionJson { return "Missing version.json" }
-        if !installStatus.clientJar { return "Missing client.jar" }
-        return "Needs repair"
-    }
-
-    private static func candidateGameDirectories(instances: [GameInstance], settings: LauncherSettings) -> [URL] {
-        let configurationsDirectory = try? LauncherPaths.gameConfigurationsDirectory()
-            .path
-        let legacyMinecraftDirectory = try? LauncherPaths.appSupportDirectory()
-            .appendingPathComponent("minecraft", isDirectory: true)
-            .path
-        let configuredDefault = settings.defaultGameDirectory
-        let paths = ([configurationsDirectory, legacyMinecraftDirectory, configuredDefault].compactMap { $0 } + instances.map(\.gameDirectory))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        var seen = Set<String>()
-        return paths.compactMap { path in
-            let standardized = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
-            guard seen.insert(standardized.path).inserted else { return nil }
-            return standardized
-        }
-    }
-
-    private static func installedInstances(from statuses: [CoreMinecraftInstallStatus]) -> [CoreInstalledMinecraftInstance] {
-        statuses.compactMap { status in
-            guard status.versionJson, status.clientJar, !status.archived, let installRoot = status.installRoot else {
-                return nil
-            }
-            return CoreInstalledMinecraftInstance(
-                versionId: status.versionId,
-                minecraftVersion: status.versionId,
-                loader: nil,
-                loaderVersion: nil,
-                name: nil,
-                gameDir: installRoot,
-                versionJson: status.versionJson,
-                clientJar: status.clientJar,
-                diskUsageBytes: status.diskUsageBytes,
-                archived: status.archived,
-                archivePath: status.archivePath
-            )
-        }
-    }
-
-    private static func assetIndexState(_ assetIndex: MinecraftAssetIndex?, gameDirectories: [URL]) -> String {
-        guard let assetIndex else { return "Not loaded" }
-        let cached = gameDirectories.contains { gameDirectory in
-            let url = gameDirectory.appendingPathComponent("assets/indexes/\(assetIndex.id).json")
-            return FileManager.default.fileExists(atPath: url.path)
-        }
-        return cached ? "Cached" : "Missing"
-    }
-
-    private static func clientJarState(package: MinecraftVersionPackage?, installStatus: CoreMinecraftInstallStatus?) -> String {
-        if installStatus?.clientJar == true { return "Cached" }
-        return package?.downloads[.client] == nil ? "Unknown" : "Missing"
-    }
-
-    private static func nativesState(_ package: MinecraftVersionPackage?) -> String {
-        guard let package else { return "Not loaded" }
-        return package.nativeLibraryCount == 0 ? "None" : "\(package.nativeLibraryCount) native libraries"
-    }
-
-    private static func javaRequirement(_ majorVersion: Int?, versionID: String) -> String {
-        if let majorVersion { return "Java \(majorVersion)" }
-        if versionID.compare("1.20.5", options: .numeric) != .orderedAscending { return "Java 21" }
-        if versionID.compare("1.18", options: .numeric) != .orderedAscending { return "Java 17" }
-        return "Java 8"
-    }
-
-    private static func parseDate(_ text: String) -> Date? {
-        DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none) == text ? Date() : nil
-    }
 }

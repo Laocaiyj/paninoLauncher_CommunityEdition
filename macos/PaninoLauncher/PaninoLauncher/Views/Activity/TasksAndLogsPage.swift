@@ -24,6 +24,7 @@ struct TasksPage: View {
             attentionCount: taskCenterStore.attentionRecords.count,
             canCancel: viewModel.canCancelTask,
             canRetry: summaryRetryRecord != nil,
+            recentCompletedRecords: taskCenterStore.recentCompletedRecords,
             onCancel: viewModel.cancelCurrentTask,
             onRetry: retrySummarySelection,
             onDiagnostics: openDiagnostics
@@ -60,8 +61,8 @@ struct TasksPage: View {
                 onOpenLogs: openDiagnostics,
                 onExportDiagnostics: { exportDiagnostics(record) },
                 onOpenFolder: { openRelevantFolder(record) },
-                diagnosticActionTitle: diagnosticActionTitle(for: record),
-                diagnosticActionSystemImage: diagnosticActionSystemImage(for: record),
+                diagnosticActionTitle: TaskRetrySupport.diagnosticActionTitle(for: record, canRetryAutomatically: canRetryAutomatically(record)),
+                diagnosticActionSystemImage: TaskRetrySupport.diagnosticActionSystemImage(for: record),
                 onDiagnosticAction: { performDiagnosticAction(record) }
             )
         }
@@ -79,16 +80,13 @@ struct TasksPage: View {
                     onOpenLogs: openDiagnostics,
                     onExportDiagnostics: exportDiagnostics,
                     onOpenFolder: openRelevantFolder,
-                    diagnosticActionTitle: { diagnosticActionTitle(for: $0) },
-                    diagnosticActionSystemImage: { diagnosticActionSystemImage(for: $0) },
+                    diagnosticActionTitle: { TaskRetrySupport.diagnosticActionTitle(for: $0, canRetryAutomatically: canRetryAutomatically($0)) },
+                    diagnosticActionSystemImage: { TaskRetrySupport.diagnosticActionSystemImage(for: $0) },
                     onDiagnosticAction: { performDiagnosticAction($0) }
                 )
                 .frame(maxWidth: 760, alignment: .leading)
             }
 
-            if !taskCenterStore.recentCompletedRecords.isEmpty {
-                TaskRecentCompletedSection(records: taskCenterStore.recentCompletedRecords)
-            }
             taskHistoryPanel
         }
     }
@@ -143,17 +141,7 @@ struct TasksPage: View {
     }
 
     private func retryTargetDescription(_ record: TaskRecord) -> String {
-        let kind = record.kind.lowercased()
-        if kind == "runtime.install" {
-            return localizedString(theme.language, english: "Retry Java download", chinese: "重试 Java 下载", italian: "Riprova download Java", french: "Réessayer Java", spanish: "Reintentar Java")
-        }
-        if kind.contains("launch") {
-            return localizedString(theme.language, english: "Retry launch", chinese: "重新启动", italian: "Riprova avvio", french: "Relancer", spanish: "Reintentar inicio")
-        }
-        if kind.contains("install") || kind.contains("download") {
-            return localizedString(theme.language, english: "Retry install/download", chinese: "重试安装/下载", italian: "Riprova installazione/download", french: "Réessayer installation/téléchargement", spanish: "Reintentar instalación/descarga")
-        }
-        return localizedString(theme.language, english: "Retry task", chinese: "重试任务", italian: "Riprova attività", french: "Réessayer la tâche", spanish: "Reintentar tarea")
+        TaskRetrySupport.targetDescription(for: record, language: theme.language)
     }
 
     private func retry(_ record: TaskRecord) {
@@ -162,7 +150,7 @@ struct TasksPage: View {
         let restartActiveTask = record.state.isActive
         switch record.kind.lowercased() {
         case "runtime.install":
-            if let featureVersion = javaFeatureVersion(from: record) {
+            if let featureVersion = TaskRetrySupport.javaFeatureVersion(from: record) {
                 viewModel.installManagedJavaRuntime(featureVersion: featureVersion)
             } else {
                 taskCenterStore.enqueueLocal(
@@ -178,7 +166,7 @@ struct TasksPage: View {
                 message: localizedString(theme.language, english: "This content task needs its original project release context. Reinstall it from the project detail page.", chinese: "此内容任务需要原始项目版本上下文。请从项目详情页重新安装。", italian: "Questa attività contenuto richiede il contesto originale della release. Reinstallala dalla pagina progetto.", french: "Cette tâche de contenu nécessite le contexte de version d'origine. Réinstallez depuis la page du projet.", spanish: "Esta tarea de contenido necesita el contexto de la versión original. Reinstálala desde el detalle del proyecto.")
             )
         case let kind where kind.contains("install") || kind.contains("download"):
-            let components = installRetryComponents(from: record)
+            let components = TaskRetrySupport.installRetryComponents(from: record)
             viewModel.install(
                 version: record.version,
                 gameDir: gameDir,
@@ -211,54 +199,7 @@ struct TasksPage: View {
     }
 
     private func canRetryAutomatically(_ record: TaskRecord) -> Bool {
-        let kind = record.kind.lowercased()
-        guard record.state.isActive || record.state.needsAttention else { return false }
-        guard !kind.contains("content") else { return false }
-        return kind == "runtime.install" || kind.contains("install") || kind.contains("download") || kind.contains("launch") || kind.contains("log")
-    }
-
-    private func installRetryComponents(from record: TaskRecord) -> (loader: LoaderKind?, shaderLoader: String?) {
-        let loaderValue = record.requestedLoader ?? detailValue("requestedLoader", in: record.errorDetail)
-        let shaderValue = record.requestedShaderLoader ?? detailValue("requestedShaderLoader", in: record.errorDetail)
-        return (
-            loader: loaderValue.flatMap(loaderKind),
-            shaderLoader: normalizedRetryComponent(shaderValue)
-        )
-    }
-
-    private func loaderKind(_ value: String) -> LoaderKind? {
-        let normalized = normalizedRetryComponent(value)?.lowercased()
-        return LoaderKind.allCases.first { kind in
-            kind.rawValue.lowercased().replacingOccurrences(of: "-", with: "").replacingOccurrences(of: "_", with: "") == normalized
-        }
-    }
-
-    private func detailValue(_ key: String, in detail: String?) -> String? {
-        guard let detail else { return nil }
-        let prefix = "\(key)="
-        return detail
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .first { $0.hasPrefix(prefix) }
-            .map { String($0.dropFirst(prefix.count)) }
-    }
-
-    private func normalizedRetryComponent(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == "-" || trimmed.lowercased() == "none" || trimmed.lowercased() == "vanilla" {
-            return nil
-        }
-        return trimmed
-    }
-
-    private func javaFeatureVersion(from record: TaskRecord) -> Int? {
-        if let major = javaMajorVersion(from: record.version) {
-            return major
-        }
-        if let major = javaMajorVersion(from: record.name) {
-            return major
-        }
-        return nil
+        TaskRetrySupport.canRetryAutomatically(record)
     }
 
     private func openRelevantFolder(_ record: TaskRecord) {
@@ -351,41 +292,6 @@ struct TasksPage: View {
         default:
             openDiagnostics()
             exportDiagnostics(record)
-        }
-    }
-
-    private func diagnosticActionTitle(for record: TaskRecord) -> String? {
-        guard let diagnostic = record.diagnostic ?? record.diagnostics?.first else { return nil }
-        if diagnostic.action.kind == "retry", canRetryAutomatically(record) {
-            return nil
-        }
-        return diagnostic.actionLabel
-    }
-
-    private func diagnosticActionSystemImage(for record: TaskRecord) -> String {
-        switch (record.diagnostic ?? record.diagnostics?.first)?.action.kind {
-        case "installJava":
-            return "cup.and.saucer"
-        case "switchLoader", "switchVersion":
-            return "slider.horizontal.3"
-        case "configureApiKey":
-            return "key"
-        case "clearCache":
-            return "trash"
-        case "openFolder", "manualInstall":
-            return "folder"
-        case "configureTaowaFrp", "editFrpProfile":
-            return "server.rack"
-        case "openFrpcLog":
-            return "terminal"
-        case "lowerMemory":
-            return "memorychip"
-        case "applyGraphicsRecommendation":
-            return "display"
-        case "retry":
-            return "arrow.clockwise"
-        default:
-            return "stethoscope"
         }
     }
 

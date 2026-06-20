@@ -1,69 +1,5 @@
 import SwiftUI
 
-struct TaskRecentCompletedSection: View {
-    let records: [TaskRecord]
-    var viewportHeight: CGFloat? = nil
-
-    @EnvironmentObject private var theme: ThemeSettings
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: PaninoTokens.Radius.panel, style: .continuous)
-
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(localizedString(theme.language, english: "Recent Completed", chinese: "最近完成", italian: "Completate di recente", french: "Récemment terminées", spanish: "Completadas recientes"))
-                    .font(.headline)
-                Spacer()
-                CountText(value: records.count, style: .success)
-            }
-
-            if records.isEmpty {
-                Text(localizedString(theme.language, english: "No completed tasks yet.", chinese: "暂时没有已完成任务。", italian: "Nessuna attività completata.", french: "Aucune tâche terminée.", spanish: "No hay tareas completadas."))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: viewportHeight ?? 62)
-            } else {
-                recordGrid
-            }
-        }
-        .padding(theme.fontDensity.panelPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(.regularMaterial, in: shape)
-        .background {
-            shape
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.54))
-                .overlay(theme.semanticSelectionColor.opacity(0.030))
-        }
-        .clipShape(shape)
-        .overlay {
-            shape.strokeBorder(Color.primary.opacity(0.075), lineWidth: 1)
-        }
-    }
-
-    @ViewBuilder
-    private var recordGrid: some View {
-        if let viewportHeight {
-            ScrollView {
-                gridContent
-                    .padding(.trailing, 4)
-            }
-            .frame(height: viewportHeight)
-            .scrollIndicators(.visible)
-            .scrollClipDisabled(false)
-        } else {
-            gridContent
-        }
-    }
-
-    private var gridContent: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], spacing: 10) {
-            ForEach(records) { record in
-                TaskCompactCard(record: record)
-            }
-        }
-    }
-}
-
 struct TaskHistorySection: View {
     let records: [TaskRecord]
     let selectedRecordID: String?
@@ -220,44 +156,6 @@ private struct TaskClearMenu: View {
         }
         .menuStyle(.button)
         .fixedSize()
-    }
-}
-
-private struct TaskCompactCard: View {
-    let record: TaskRecord
-
-    @EnvironmentObject private var theme: ThemeSettings
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(record.name)
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
-                Spacer()
-                TaskStateLine(title: record.state.title(language: theme.language), style: record.state.badgeStyle)
-            }
-
-            Text(record.message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-
-            Text(record.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .frame(minHeight: 96, alignment: .topLeading)
-        .background {
-            shape
-                .fill(Color(nsColor: .textBackgroundColor).opacity(0.28))
-        }
-        .overlay {
-            shape.strokeBorder(Color.primary.opacity(0.055), lineWidth: 0.7)
-        }
     }
 }
 

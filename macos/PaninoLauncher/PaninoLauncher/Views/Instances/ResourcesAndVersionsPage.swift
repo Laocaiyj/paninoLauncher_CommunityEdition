@@ -26,136 +26,69 @@ struct ResourcesManagementPage: View {
         let selectedInstance = instanceStore.selectedInstance
         let capabilities = selectedInstance.map(GameConfigurationCapabilities.capabilities)
         VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            GlassPanel {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    HStack {
-                        PanelHeader(title: localizedString(theme.language, english: "Current Configuration Resources", chinese: "当前游戏配置资源", italian: "Risorse configurazione attuale", french: "Ressources de la configuration", spanish: "Recursos de configuración"), systemImage: "folder.badge.gearshape")
-                        Spacer()
-                        if let instance = instanceStore.selectedInstance {
-                            MetadataLine(items: ["Minecraft \(instance.minecraftVersion)", instance.loaderTitle(language: theme.language)])
-                        }
-                        GlassButton(systemImage: "arrow.clockwise", title: AppText.refresh.localized(theme.language)) {
-                            configureVersionCoreBackend()
-                            versionStore.refreshAssets(for: instanceStore.selectedInstance)
-                        }
-                        GlassButton(systemImage: "folder", title: AppText.openFolder.localized(theme.language)) {
-                            versionStore.openFolder(for: instanceStore.selectedInstance)
-                        }
-                    }
-
-                    if isCurrentAssetKindAvailable(capabilities: capabilities) {
-                    HStack(spacing: 8) {
-                        PaninoTextInput(
-                            localizedString(theme.language, english: "Search installed content", chinese: "搜索已安装内容", italian: "Cerca contenuti installati", french: "Rechercher contenu installé", spanish: "Buscar contenido instalado"),
-                            text: $assetSearchText
-                        )
-
-                        GlassButton(systemImage: "folder", title: AppText.openFolder.localized(theme.language)) {
-                            versionStore.openFolder(for: instanceStore.selectedInstance)
-                        }
-
-                        GlassButton(systemImage: "arrow.down.app", title: installActionTitle) {
-                            openDiscover?()
-                        }
-
-                        GlassButton(systemImage: "checklist", title: localizedString(theme.language, english: "Select All", chinese: "全选", italian: "Seleziona tutto", french: "Tout sélectionner", spanish: "Seleccionar todo")) {
-                            selectedAssetIDs = Set(filteredManagedAssets.map(\.id))
-                        }
-                        .disabled(filteredManagedAssets.isEmpty)
-                    }
-
-                    SettingsRow(title: localizedString(theme.language, english: "Sort", chinese: "排序", italian: "Ordina", french: "Tri", spanish: "Orden"), systemImage: "arrow.up.arrow.down") {
-                        Picker(localizedString(theme.language, english: "Sort"), selection: $versionStore.selectedAssetSort) {
-                            ForEach(ManagedAssetSort.allCases) { sort in
-                                Text(sort.title(language: theme.language)).tag(sort)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: versionStore.selectedAssetSort) {
-                            versionStore.refreshAssets(for: instanceStore.selectedInstance)
-                        }
-                    }
-
-                    Text(
-                        localizedString(
-                            theme.language,
-                            english: "Installed content is scoped to the selected game configuration. Drop .jar or .zip files anywhere in this window to import through Core.",
-                            chinese: "已安装内容以当前游戏配置为上下文。可将 .jar 或 .zip 文件拖入窗口并通过 Core 导入。",
-                            italian: "Il contenuto installato è legato all'istanza selezionata. Trascina .jar o .zip nella finestra per importare via Core.",
-                            french: "Le contenu installé est lié à la configuration sélectionnée. Déposez .jar ou .zip pour importer via Core.",
-                            spanish: "El contenido instalado pertenece a la instancia seleccionada. Suelta .jar o .zip para importar mediante Core."
-                        )
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                    if filteredManagedAssets.isEmpty {
-                        ContentUnavailableView(
-                            AppText.noItems.localized(theme.language, versionStore.selectedAssetKind.title(language: theme.language)),
-                            systemImage: "tray",
-                            description: Text(versionStore.fileStatus)
-                        )
-                        .frame(minHeight: 220)
-                    } else {
-                        LazyVStack(spacing: 8) {
-                            ForEach(groupedAssets, id: \.title) { group in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(group.title)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 4)
-                                    ForEach(group.assets) { asset in
-                                        HStack(alignment: .center, spacing: 8) {
-                                            Button {
-                                                toggleSelection(asset.id)
-                                            } label: {
-                                                Image(systemName: selectedAssetIDs.contains(asset.id) ? "checkmark.circle.fill" : "circle")
-                                                    .foregroundStyle(selectedAssetIDs.contains(asset.id) ? theme.semanticSelectionColor : .secondary)
-                                                    .frame(width: 22)
-                                            }
-                                            .buttonStyle(.plain)
-
-                                            ManagedAssetRow(asset: asset) {
-                                                versionStore.toggle(asset, instance: instanceStore.selectedInstance)
-                                            } onLink: {
-                                                pendingAssetLink = asset
-                                                assetLinkSource = asset.source ?? ""
-                                                assetLinkURL = asset.projectURL?.absoluteString ?? ""
-                                            } onDelete: {
-                                                pendingAssetDelete = asset
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    } else {
-                        ContentUnavailableView(
-                            unavailableTitle,
-                            systemImage: "exclamationmark.circle",
-                            description: Text(unavailableDescription)
-                        )
-                        .frame(minHeight: 220)
-                    }
-
-                    Text(versionStore.fileStatus)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                    if !updatePlanStatus.isEmpty {
-                        Text(updatePlanStatus)
-                            .font(.caption)
-                            .foregroundStyle(Color.orange)
-                            .lineLimit(2)
-                            .truncationMode(.middle)
-                    }
+            ResourcesManagementPanel(
+                selectedInstance: selectedInstance,
+                isAssetKindAvailable: isCurrentAssetKindAvailable(capabilities: capabilities),
+                assetSearchText: $assetSearchText,
+                selectedSort: $versionStore.selectedAssetSort,
+                filteredManagedAssets: filteredManagedAssets,
+                groupedAssets: groupedAssets,
+                selectedAssetIDs: selectedAssetIDs,
+                emptyTitle: AppText.noItems.localized(theme.language, versionStore.selectedAssetKind.title(language: theme.language)),
+                fileStatus: versionStore.fileStatus,
+                updatePlanStatus: updatePlanStatus,
+                installActionTitle: installActionTitle,
+                unavailableTitle: unavailableTitle,
+                unavailableDescription: unavailableDescription,
+                refresh: {
+                    configureVersionCoreBackend()
+                    versionStore.refreshAssets(for: instanceStore.selectedInstance)
+                },
+                openFolder: {
+                    versionStore.openFolder(for: instanceStore.selectedInstance)
+                },
+                openDiscover: {
+                    openDiscover?()
+                },
+                selectAll: {
+                    selectedAssetIDs = Set(filteredManagedAssets.map(\.id))
+                },
+                sortChanged: {
+                    versionStore.refreshAssets(for: instanceStore.selectedInstance)
+                },
+                toggleSelection: toggleSelection,
+                toggleAsset: { asset in
+                    versionStore.toggle(asset, instance: instanceStore.selectedInstance)
+                },
+                linkAsset: { asset in
+                    pendingAssetLink = asset
+                    assetLinkSource = asset.source ?? ""
+                    assetLinkURL = asset.projectURL?.absoluteString ?? ""
+                },
+                deleteAsset: { asset in
+                    pendingAssetDelete = asset
                 }
-            }
+            )
 
             if !selectedAssetIDs.isEmpty {
-                selectedAssetActionBar
+                SelectedAssetActionBar(
+                    selectedCount: selectedAssetIDs.count,
+                    update: prepareContentUpdatePlan,
+                    enable: {
+                        selectedAssets.filter { !$0.isEnabled }.forEach { versionStore.toggle($0, instance: instanceStore.selectedInstance) }
+                        selectedAssetIDs.removeAll()
+                    },
+                    disable: {
+                        selectedAssets.filter(\.isEnabled).forEach { versionStore.toggle($0, instance: instanceStore.selectedInstance) }
+                        selectedAssetIDs.removeAll()
+                    },
+                    delete: {
+                        confirmBatchDelete = true
+                    },
+                    deselect: {
+                        selectedAssetIDs.removeAll()
+                    }
+                )
             }
         }
         .task {
@@ -301,35 +234,6 @@ struct ResourcesManagementPage: View {
         }
     }
 
-    private var selectedAssetActionBar: some View {
-        GlassPanel {
-            HStack(spacing: 10) {
-                PlainStatusText(
-                    title: localizedString(theme.language, english: "\(selectedAssetIDs.count) selected", chinese: "已选 \(selectedAssetIDs.count) 个", italian: "\(selectedAssetIDs.count) selezionati", french: "\(selectedAssetIDs.count) sélectionnés", spanish: "\(selectedAssetIDs.count) seleccionados"),
-                    style: .download
-                )
-                Spacer()
-                GlassButton(systemImage: "arrow.up.circle", title: localizedString(theme.language, english: "Update", chinese: "更新", italian: "Aggiorna", french: "Mettre à jour", spanish: "Actualizar")) {
-                    prepareContentUpdatePlan()
-                }
-                GlassButton(systemImage: "play", title: AppText.enable.localized(theme.language)) {
-                    selectedAssets.filter { !$0.isEnabled }.forEach { versionStore.toggle($0, instance: instanceStore.selectedInstance) }
-                    selectedAssetIDs.removeAll()
-                }
-                GlassButton(systemImage: "pause", title: AppText.disable.localized(theme.language)) {
-                    selectedAssets.filter(\.isEnabled).forEach { versionStore.toggle($0, instance: instanceStore.selectedInstance) }
-                    selectedAssetIDs.removeAll()
-                }
-                GlassButton(systemImage: "trash", title: AppText.delete.localized(theme.language)) {
-                    confirmBatchDelete = true
-                }
-                GlassButton(systemImage: "xmark", title: localizedString(theme.language, english: "Deselect", chinese: "取消选择", italian: "Deseleziona", french: "Désélectionner", spanish: "Deseleccionar")) {
-                    selectedAssetIDs.removeAll()
-                }
-            }
-        }
-    }
-
     private func toggleSelection(_ id: String) {
         if selectedAssetIDs.contains(id) {
             selectedAssetIDs.remove(id)
@@ -401,265 +305,7 @@ struct ResourcesManagementPage: View {
 
     private func configureVersionCoreBackend() {
         versionStore.configure(
-            coreBackend: VersionContentCoreBackend(
-                minecraftVersions: {
-                    try await viewModel.minecraftVersions()
-                },
-                minecraftInstallStatus: { versionIds, gameDirs in
-                    try await viewModel.minecraftInstallStatus(versionIds: versionIds, gameDirs: gameDirs)
-                },
-                installedMinecraftInstances: { versionIds, gameDirs in
-                    try await viewModel.installedMinecraftInstances(versionIds: versionIds, gameDirs: gameDirs)
-                },
-                minecraftPackage: { version in
-                    try await viewModel.minecraftPackage(for: version)
-                },
-                localResources: { gameDir, kind, loader in
-                    try await viewModel.localResources(gameDir: gameDir, kind: kind, loader: loader)
-                },
-                toggleLocalResource: { path in
-                    try await viewModel.toggleLocalResource(path: path)
-                },
-                deleteLocalResource: { path in
-                    try await viewModel.deleteLocalResource(path: path)
-                },
-                importLocalResource: { sourcePath, gameDir, kind in
-                    try await viewModel.importLocalResource(sourcePath: sourcePath, gameDir: gameDir, kind: kind)
-                },
-                cleanMinecraftVersion: { version, gameDir in
-                    try await viewModel.cleanMinecraftVersion(version: version, gameDir: gameDir)
-                },
-                mutateMinecraftVersionStorage: { version, gameDir, action in
-                    try await viewModel.mutateMinecraftVersionStorage(version: version, gameDir: gameDir, action: action)
-                }
-            )
-        )
-    }
-}
-
-struct VersionsAndModsPage: View {
-    @ObservedObject var viewModel: LauncherViewModel
-    @EnvironmentObject private var versionStore: VersionContentStore
-    @EnvironmentObject private var instanceStore: InstanceStore
-    @EnvironmentObject private var launcherSettings: LauncherSettings
-    @EnvironmentObject private var theme: ThemeSettings
-    @State private var versionSearchText = ""
-    @State private var showReleaseVersions = false
-    @State private var showSnapshots = false
-    @State private var showHistorical = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-            GlassPanel {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    HStack {
-                        PanelHeader(title: AppText.versionSelector.localized(theme.language), systemImage: "clock.arrow.circlepath")
-                        Spacer()
-                        GlassButton(systemImage: "arrow.clockwise", title: AppText.refresh.localized(theme.language)) {
-                            configureVersionCoreBackend()
-                            versionStore.refreshMinecraftVersions(instances: instanceStore.instances, settings: launcherSettings)
-                        }
-                    }
-
-                    VersionBrowserHeader(
-                        searchText: $versionSearchText,
-                        usageFilter: $versionStore.versionUsageFilter
-                    )
-
-                    VersionBrowserSection(
-                        title: localizedString(theme.language, english: "Recommended", chinese: "推荐", italian: "Consigliate", french: "Recommandées", spanish: "Recomendadas"),
-                        versions: recommendedVersions,
-                        selectedVersionID: versionStore.selectedVersion?.id,
-                        select: selectVersion
-                    )
-
-                    FullWidthDisclosureGroup(isExpanded: $showReleaseVersions) {
-                        VersionBrowserSection(
-                            title: localizedString(theme.language, english: "Release", chinese: "正式版", italian: "Release", french: "Release", spanish: "Release"),
-                            versions: filteredVersions(kind: .release),
-                            selectedVersionID: versionStore.selectedVersion?.id,
-                            select: selectVersion
-                        )
-                        .padding(.top, 8)
-                    } label: {
-                        Text("Release / Installed")
-                            .font(.headline)
-                    }
-
-                    FullWidthDisclosureGroup(isExpanded: $showSnapshots) {
-                        VersionBrowserSection(
-                            title: localizedString(theme.language, english: "Snapshots", chinese: "快照版", italian: "Snapshot", french: "Snapshots", spanish: "Snapshots"),
-                            versions: filteredVersions(kind: .snapshot),
-                            selectedVersionID: versionStore.selectedVersion?.id,
-                            select: selectVersion
-                        )
-                        .padding(.top, 8)
-                    } label: {
-                        Text("Snapshot")
-                            .font(.headline)
-                    }
-
-                    FullWidthDisclosureGroup(isExpanded: $showHistorical) {
-                        VersionBrowserSection(
-                            title: localizedString(theme.language, english: "Historical", chinese: "历史版本", italian: "Storiche", french: "Historiques", spanish: "Históricas"),
-                            versions: filteredVersions(kind: .oldBeta) + filteredVersions(kind: .oldAlpha),
-                            selectedVersionID: versionStore.selectedVersion?.id,
-                            select: selectVersion
-                        )
-                        .padding(.top, 8)
-                    } label: {
-                        Text("Old Beta / Old Alpha")
-                            .font(.headline)
-                    }
-
-                    if let selectedVersion = versionStore.selectedVersion {
-                        VersionDetailPanel(
-                            version: selectedVersion,
-                            status: versionStore.versionStatus,
-                            install: {
-                                viewModel.version = selectedVersion.id
-                                viewModel.install(gameDir: instanceStore.selectedInstance?.gameDirectory)
-                            },
-                            repair: {
-                                viewModel.version = selectedVersion.id
-                                viewModel.install(gameDir: instanceStore.selectedInstance?.gameDirectory)
-                            },
-                            cleanUnused: {
-                                versionStore.cleanUnusedVersion(selectedVersion, instances: instanceStore.instances, settings: launcherSettings)
-                            }
-                        )
-                    }
-                }
-            }
-
-            GlassPanel {
-                VStack(alignment: .leading, spacing: theme.fontDensity.spacing) {
-                    PanelHeader(title: AppText.loaderPlan.localized(theme.language), systemImage: "puzzlepiece.extension")
-
-                    if compatibleLoaderKinds.isEmpty {
-                        MetadataLine(items: [localizedString(theme.language, english: "Vanilla only", chinese: "仅原版", italian: "Solo Vanilla", french: "Vanilla uniquement", spanish: "Solo Vanilla")])
-                    } else {
-                        Picker(AppText.loader.localized(theme.language), selection: $versionStore.selectedLoader) {
-                            ForEach(compatibleLoaderKinds) { loader in
-                                Text(loader.title).tag(loader)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-
-                    Text(loaderCompatibilityMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                }
-            }
-        }
-        .task {
-            configureVersionCoreBackend()
-            versionStore.refreshMinecraftVersions(instances: instanceStore.instances, settings: launcherSettings)
-        }
-    }
-
-    private var recommendedVersions: [MinecraftVersionInfo] {
-        uniqueVersions(
-            currentInstanceVersions
-                + latestReleaseVersions
-                + versionStore.versions.filter(\.isInstalled)
-                + versionStore.versions.filter(\.isUsedByInstance)
-                + Array(versionStore.versions.filter { $0.kind == .release }.prefix(8))
-        )
-        .filter(matchesSearchAndUsage)
-    }
-
-    private var currentInstanceVersions: [MinecraftVersionInfo] {
-        guard let currentVersion = instanceStore.selectedInstance?.minecraftVersion else { return [] }
-        return versionStore.versions.filter { $0.id == currentVersion }
-    }
-
-    private var latestReleaseVersions: [MinecraftVersionInfo] {
-        guard let latestReleaseID = versionStore.latestReleaseID else { return [] }
-        return versionStore.versions.filter { $0.id == latestReleaseID }
-    }
-
-    private var compatibleLoaderKinds: [LoaderKind] {
-        guard let selectedVersion = versionStore.selectedVersion else { return LoaderKind.allCases }
-        return selectedVersion.kind == .oldAlpha || selectedVersion.kind == .oldBeta ? [] : LoaderKind.allCases
-    }
-
-    private var loaderCompatibilityMessage: String {
-        guard let selectedVersion = versionStore.selectedVersion else {
-            return AppText.loaderPlanDescription.localized(theme.language)
-        }
-        if selectedVersion.kind == .oldAlpha || selectedVersion.kind == .oldBeta {
-            return localizedString(theme.language, english: "Historical versions default to Vanilla because modern loader metadata is not reliable.", chinese: "历史版本默认使用原版，因为现代 Loader 元数据不可可靠判断。", italian: "Le versioni storiche usano Vanilla perché i metadata loader non sono affidabili.", french: "Les versions historiques utilisent Vanilla car les métadonnées des loaders ne sont pas fiables.", spanish: "Las versiones históricas usan Vanilla porque los metadatos de loaders no son fiables.")
-        }
-        return AppText.loaderPlanDescription.localized(theme.language)
-    }
-
-    private func filteredVersions(kind: MinecraftVersionKind) -> [MinecraftVersionInfo] {
-        versionStore.versions
-            .filter { $0.kind == kind }
-            .filter(matchesSearchAndUsage)
-            .prefix(120)
-            .map { $0 }
-    }
-
-    private func matchesSearchAndUsage(_ version: MinecraftVersionInfo) -> Bool {
-        let query = versionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard query.isEmpty || version.id.localizedCaseInsensitiveContains(query) else { return false }
-        switch versionStore.versionUsageFilter {
-        case .all:
-            return true
-        case .installed:
-            return version.isInstalled
-        case .usedByInstance:
-            return version.isUsedByInstance
-        }
-    }
-
-    private func selectVersion(_ version: MinecraftVersionInfo) {
-        versionStore.selectedVersionID = version.id
-        versionStore.loadDetails(
-            for: version,
-            instances: instanceStore.instances,
-            settings: launcherSettings
-        )
-    }
-
-    private func configureVersionCoreBackend() {
-        versionStore.configure(
-            coreBackend: VersionContentCoreBackend(
-                minecraftVersions: {
-                    try await viewModel.minecraftVersions()
-                },
-                minecraftInstallStatus: { versionIds, gameDirs in
-                    try await viewModel.minecraftInstallStatus(versionIds: versionIds, gameDirs: gameDirs)
-                },
-                installedMinecraftInstances: { versionIds, gameDirs in
-                    try await viewModel.installedMinecraftInstances(versionIds: versionIds, gameDirs: gameDirs)
-                },
-                minecraftPackage: { version in
-                    try await viewModel.minecraftPackage(for: version)
-                },
-                localResources: { gameDir, kind, loader in
-                    try await viewModel.localResources(gameDir: gameDir, kind: kind, loader: loader)
-                },
-                toggleLocalResource: { path in
-                    try await viewModel.toggleLocalResource(path: path)
-                },
-                deleteLocalResource: { path in
-                    try await viewModel.deleteLocalResource(path: path)
-                },
-                importLocalResource: { sourcePath, gameDir, kind in
-                    try await viewModel.importLocalResource(sourcePath: sourcePath, gameDir: gameDir, kind: kind)
-                },
-                cleanMinecraftVersion: { version, gameDir in
-                    try await viewModel.cleanMinecraftVersion(version: version, gameDir: gameDir)
-                },
-                mutateMinecraftVersionStorage: { version, gameDir, action in
-                    try await viewModel.mutateMinecraftVersionStorage(version: version, gameDir: gameDir, action: action)
-                }
-            )
+            coreBackend: .live(viewModel: viewModel)
         )
     }
 }

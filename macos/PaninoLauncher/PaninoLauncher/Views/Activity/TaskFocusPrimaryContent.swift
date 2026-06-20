@@ -4,6 +4,7 @@ struct TaskFocusPrimaryContent: View {
     let record: TaskRecord?
     let coreStatus: String
     let attentionCount: Int
+    var showsFacts: Bool = true
 
     @EnvironmentObject private var theme: ThemeSettings
 
@@ -59,9 +60,11 @@ struct TaskFocusPrimaryContent: View {
                 .paninoGlassCard(level: .floatingChrome, cornerRadius: PaninoTokens.Radius.panel, tint: record.state.badgeStyle.color, showsShadow: true)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) { facts }
-                VStack(alignment: .leading, spacing: 8) { facts }
+            if showsFacts {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { facts }
+                    VStack(alignment: .leading, spacing: 8) { facts }
+                }
             }
         }
         .frame(maxWidth: 820, alignment: .leading)
