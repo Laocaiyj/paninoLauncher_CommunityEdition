@@ -15,64 +15,30 @@ struct InstanceVersionWorkspace: View {
             systemImage: "rectangle.3.group"
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Minecraft \(instance.minecraftVersion)")
-                            .font(.headline)
-                        Text(versionSummary)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+                InstanceVersionWorkspaceHeader(
+                    minecraftVersion: instance.minecraftVersion,
+                    summary: versionSummary,
+                    stateTitle: versionStateTitle,
+                    badgeStyle: versionBadgeStyle
+                )
 
-                    Spacer()
+                InstanceVersionWorkspaceMetricGrid(
+                    javaRequirement: selectedVersion?.javaRequirement ?? "--",
+                    loaderTitle: instance.loader?.title ?? "Vanilla",
+                    resourceCount: versionStore.managedAssets.count,
+                    fileStateTitle: versionFileStateTitle
+                )
 
-                    StatusBadge(title: versionStateTitle, style: versionBadgeStyle)
-                }
+                InstanceVersionWorkspaceActions(
+                    installTitle: installActionTitle,
+                    installProminent: selectedVersion?.isInstalled != true,
+                    install: installSelectedVersion,
+                    repair: repairSelectedVersion,
+                    manageResources: openResources,
+                    findContent: openDiscover
+                )
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 10)], spacing: 10) {
-                    workspaceMetric(
-                        localizedString(theme.language, english: "Java", chinese: "Java", italian: "Java", french: "Java", spanish: "Java"),
-                        selectedVersion?.javaRequirement ?? "--",
-                        "cup.and.saucer"
-                    )
-                    workspaceMetric(
-                        localizedString(theme.language, english: "Loader", chinese: "Loader", italian: "Loader", french: "Loader", spanish: "Loader"),
-                        instance.loader?.title ?? "Vanilla",
-                        "puzzlepiece.extension"
-                    )
-                    workspaceMetric(
-                        localizedString(theme.language, english: "Resources", chinese: "资源", italian: "Risorse", french: "Ressources", spanish: "Recursos"),
-                        "\(versionStore.managedAssets.count)",
-                        "shippingbox"
-                    )
-                    workspaceMetric(
-                        localizedString(theme.language, english: "Files", chinese: "文件", italian: "File", french: "Fichiers", spanish: "Archivos"),
-                        selectedVersion?.clientJarState.localizedVersionState(theme.language) ?? localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando"),
-                        "checkmark.seal"
-                    )
-                }
-
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) {
-                        versionActions
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        versionActions
-                    }
-                }
-
-                if !versionStore.managedAssets.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(localizedString(theme.language, english: "Local resources in this configuration", chinese: "当前游戏配置资源概况", italian: "Risorse locali in questa configurazione", french: "Ressources locales de cette configuration", spanish: "Recursos locales de esta configuración"))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        ForEach(versionStore.managedAssets.prefix(4)) { asset in
-                            InstanceVersionResourcePreviewRow(asset: asset)
-                        }
-                    }
-                }
+                InstanceVersionResourceSummary(assets: Array(versionStore.managedAssets.prefix(4)))
 
                 Text(resourceStatusLine)
                     .font(.caption)
@@ -84,20 +50,6 @@ struct InstanceVersionWorkspace: View {
         .task(id: instanceRefreshKey) {
             refreshSelectedVersion()
         }
-    }
-
-    @ViewBuilder
-    private var versionActions: some View {
-        GlassButton(systemImage: "arrow.down.circle", title: installActionTitle, prominent: selectedVersion?.isInstalled != true) {
-            applyInstanceRuntime()
-            viewModel.install(gameDir: instance.gameDirectory)
-        }
-        GlassButton(systemImage: "checkmark.seal", title: localizedString(theme.language, english: "Repair", chinese: "修复", italian: "Ripara", french: "Réparer", spanish: "Reparar")) {
-            applyInstanceRuntime()
-            viewModel.install(gameDir: instance.gameDirectory)
-        }
-        GlassButton(systemImage: "shippingbox", title: localizedString(theme.language, english: "Manage Resources", chinese: "管理资源", italian: "Gestisci risorse", french: "Gérer ressources", spanish: "Gestionar recursos"), action: openResources)
-        GlassButton(systemImage: "magnifyingglass.circle", title: localizedString(theme.language, english: "Find Content", chinese: "查找内容", italian: "Trova contenuti", french: "Trouver contenu", spanish: "Buscar contenido"), action: openDiscover)
     }
 
     private var selectedVersion: MinecraftVersionInfo? {
@@ -142,6 +94,11 @@ struct InstanceVersionWorkspace: View {
         return localizedString(theme.language, english: "Install", chinese: "安装", italian: "Installa", french: "Installer", spanish: "Instalar")
     }
 
+    private var versionFileStateTitle: String {
+        selectedVersion?.clientJarState.localizedVersionState(theme.language)
+            ?? localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando")
+    }
+
     private var resourceStatusLine: String {
         let resourceTitle = versionStore.selectedAssetKind.title(language: theme.language)
         return localizedString(
@@ -154,24 +111,17 @@ struct InstanceVersionWorkspace: View {
         )
     }
 
-    private func workspaceMetric(_ title: String, _ value: String, _ systemImage: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(9)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
+    private func installSelectedVersion() {
+        installOrRepairSelectedVersion()
+    }
+
+    private func repairSelectedVersion() {
+        installOrRepairSelectedVersion()
+    }
+
+    private func installOrRepairSelectedVersion() {
+        applyInstanceRuntime()
+        viewModel.install(gameDir: instance.gameDirectory)
     }
 
     private func applyInstanceRuntime() {
