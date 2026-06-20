@@ -13,7 +13,7 @@ struct TaskFocusInspector: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             TaskFocusControls(
                 record: record,
                 canCancel: canCancel,
@@ -52,8 +52,8 @@ struct TaskFocusInspector: View {
 
     private var factColumns: [GridItem] {
         [
-            GridItem(.flexible(minimum: 128), spacing: 8),
-            GridItem(.flexible(minimum: 128), spacing: 8)
+            GridItem(.flexible(minimum: 116), spacing: 7),
+            GridItem(.flexible(minimum: 116), spacing: 7)
         ]
     }
 
@@ -80,8 +80,8 @@ private struct TaskFocusInspectorFact: View {
                 .minimumScaleFactor(0.78)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.black.opacity(0.20))
@@ -94,7 +94,7 @@ struct TaskFocusRecentRail: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(localizedString(theme.language, english: "Recent Completed", chinese: "最近完成", italian: "Completate di recente", french: "Récemment terminées", spanish: "Completadas recientes"))
                     .font(.caption.weight(.bold))
@@ -103,13 +103,13 @@ struct TaskFocusRecentRail: View {
                 CountText(value: records.count, style: .success)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 ForEach(records) { record in
                     TaskFocusRecentRow(record: record)
                 }
             }
         }
-        .padding(9)
+        .padding(8)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.black.opacity(0.22))
@@ -141,9 +141,9 @@ private struct TaskFocusRecentRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .frame(height: 34)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .frame(height: 31)
         .background {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color.white.opacity(0.058))

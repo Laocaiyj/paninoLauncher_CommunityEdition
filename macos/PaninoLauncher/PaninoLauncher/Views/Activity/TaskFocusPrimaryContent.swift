@@ -25,14 +25,14 @@ struct TaskFocusPrimaryContent: View {
             }
 
             Text(title)
-                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .font(.system(size: 36, weight: .bold, design: .rounded))
                 .lineLimit(2)
-                .minimumScaleFactor(0.62)
+                .minimumScaleFactor(0.68)
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.38), radius: 10, x: 0, y: 4)
 
             Text(subtitle)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.82))
                 .lineLimit(3)
                 .frame(maxWidth: 720, alignment: .leading)

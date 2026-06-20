@@ -29,7 +29,7 @@ final class CoreProcessManager {
     private var process: Process?
     private var outputPipe: Pipe?
     private var endpoint: CoreEndpoint?
-    private var outputBuffer = ""
+    private var outputBuffer = CoreProcessOutputBuffer()
     private var lastTerminationStatus: Int32?
     private var managedExecutableURL: URL?
     private var managedStartedAt: Date?
@@ -154,28 +154,13 @@ final class CoreProcessManager {
     }
 
     private func consumeProcessOutput(_ text: String, onOutput: @MainActor (String) -> Void) {
-        outputBuffer += text
-        let parts = outputBuffer.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
-
-        guard !parts.isEmpty else { return }
-
-        let endedWithNewline = outputBuffer.last?.isNewline == true
-        let completeLines = endedWithNewline ? parts : parts.dropLast()
-
-        for line in completeLines {
-            let value = String(line)
-            if !value.isEmpty {
-                onOutput(value)
-            }
+        for line in outputBuffer.append(text) {
+            onOutput(line)
         }
-
-        outputBuffer = endedWithNewline ? "" : String(parts.last ?? "")
     }
 
     private func flushProcessOutput(onOutput: @MainActor (String) -> Void) {
-        let value = outputBuffer.trimmingCharacters(in: .newlines)
-        outputBuffer = ""
-        if !value.isEmpty {
+        if let value = outputBuffer.flush() {
             onOutput(value)
         }
     }
@@ -185,7 +170,7 @@ final class CoreProcessManager {
         process = nil
         outputPipe = nil
         endpoint = nil
-        outputBuffer = ""
+        outputBuffer.reset()
         managedExecutableURL = nil
         managedStartedAt = nil
         if !keepingLastTerminationStatus {

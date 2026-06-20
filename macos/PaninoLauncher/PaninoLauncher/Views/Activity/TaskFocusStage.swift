@@ -25,28 +25,29 @@ struct TaskFocusStage<ContextShelf: View>: View {
                     TaskFocusPrimaryContent(
                         record: record,
                         coreStatus: coreStatus,
-                        attentionCount: attentionCount
+                        attentionCount: attentionCount,
+                        showsFacts: false
                     )
+                    .frame(maxWidth: 660, alignment: .leading)
                 },
                 floatingControls: {
-                    VStack(alignment: .trailing, spacing: 12) {
-                        TaskFocusControls(
-                            record: record,
-                            canCancel: canCancel,
-                            canRetry: canRetry,
-                            onCancel: onCancel,
-                            onRetry: onRetry,
-                            onDiagnostics: onDiagnostics
-                        )
-
-                        if !recentCompletedRecords.isEmpty {
-                            TaskFocusRecentRail(records: Array(recentCompletedRecords.prefix(3)))
-                                .frame(width: 360)
-                        }
-                    }
+                    EmptyView()
                 },
                 contextShelf: {
                     EmptyView()
+                },
+                inspectorContent: {
+                    TaskFocusInspector(
+                        record: record,
+                        coreStatus: coreStatus,
+                        recentCompletedRecords: recentCompletedRecords,
+                        canCancel: canCancel,
+                        canRetry: canRetry,
+                        onCancel: onCancel,
+                        onRetry: onRetry,
+                        onDiagnostics: onDiagnostics
+                    )
+                    .frame(width: 360, alignment: .topLeading)
                 }
             )
             .frame(height: focusStageHeight)
@@ -58,13 +59,13 @@ struct TaskFocusStage<ContextShelf: View>: View {
     }
 
     private var focusStageHeight: CGFloat {
-        guard let record else { return 340 }
+        guard let record else { return recentCompletedRecords.isEmpty ? 340 : 410 }
         if record.state.isActive {
             return 440
         }
         if record.state.needsAttention {
-            return 400
+            return 420
         }
-        return 380
+        return recentCompletedRecords.isEmpty ? 360 : 400
     }
 }

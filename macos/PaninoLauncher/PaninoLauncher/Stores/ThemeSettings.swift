@@ -1,6 +1,6 @@
 import Foundation
 import AppKit
-import SwiftUI
+import Combine
 
 @MainActor
 final class ThemeSettings: ObservableObject {
@@ -203,80 +203,11 @@ final class ThemeSettings: ObservableObject {
         didSet { SettingsStore.set(visualNoiseReductionEnabled, forKey: Key.visualNoiseReductionEnabled) }
     }
 
-    var accentColor: Color {
-        if accent == .custom {
-            return Color.paninoHex(customAccentHex, fallback: .red)
-        }
-        return accent.color ?? Color.accentColor
-    }
-
-    var effectiveMaterialStrength: MaterialStrength {
-        quietModeEnabled ? .off : materialStrength
-    }
-
-    var effectiveBackgroundMode: ThemeBackgroundMode {
-        quietModeEnabled ? .solidColor : backgroundMode
-    }
-
-    var effectiveSoftBackgroundEnabled: Bool {
-        !quietModeEnabled && !visualNoiseReductionEnabled && softBackgroundEnabled
-    }
-
-    var reducesInterfaceMotion: Bool {
-        quietModeEnabled || motionStyle == .reduced
-    }
-
-    static func normalizedCustomAccentHex(_ value: String) -> String {
-        let normalized = value.normalizedHex
-        return normalized.isEmpty ? "#FF4F5E" : normalized
-    }
-
     func loadCustomBackgroundImage() {
-        cachedBackgroundImage = Self.loadCustomBackgroundImage(
+        cachedBackgroundImage = ThemeBackgroundImageLoader.image(
             bookmark: customImageBookmark,
             path: customImagePath
         )
-    }
-
-    private static func loadCustomBackgroundImage(bookmark: Data?, path: String) -> NSImage? {
-        if let bookmark {
-            var isStale = false
-            do {
-                let url = try URL(
-                    resolvingBookmarkData: bookmark,
-                    options: [.withSecurityScope],
-                    relativeTo: nil,
-                    bookmarkDataIsStale: &isStale
-                )
-                let accessing = url.startAccessingSecurityScopedResource()
-                defer {
-                    if accessing {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
-                let data = try Data(contentsOf: url)
-                return downsampledImage(NSImage(data: data))
-            } catch {
-                return nil
-            }
-        }
-
-        guard !path.isEmpty else { return nil }
-        return downsampledImage(NSImage(contentsOfFile: path))
-    }
-
-    private static func downsampledImage(_ image: NSImage?) -> NSImage? {
-        guard let image else { return nil }
-        let maxEdge: CGFloat = 2560
-        let size = image.size
-        guard size.width > maxEdge || size.height > maxEdge else { return image }
-        let scale = min(maxEdge / max(size.width, 1), maxEdge / max(size.height, 1))
-        let targetSize = NSSize(width: floor(size.width * scale), height: floor(size.height * scale))
-        let resized = NSImage(size: targetSize)
-        resized.lockFocus()
-        image.draw(in: NSRect(origin: .zero, size: targetSize), from: .zero, operation: .copy, fraction: 1)
-        resized.unlockFocus()
-        return resized
     }
 
     private static func loadEnum<Value: RawRepresentable>(

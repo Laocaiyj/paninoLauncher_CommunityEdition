@@ -16,69 +16,6 @@ enum TaskState: String, Decodable, Equatable {
     }
 }
 
-struct CoreDiagnostic: Codable, Equatable, Sendable {
-    let code: String
-    let phase: String
-    let severity: String
-    let title: String
-    let message: String
-    let cause: String
-    let action: CoreDiagnosticAction
-    let retryable: Bool
-    let userVisible: Bool
-    let source: String
-    let taskId: String?
-    let planId: String?
-    let packageId: String?
-    let filePath: String?
-    let urlHost: String?
-    let evidence: [CoreDiagnosticEvidence]
-    let developerDetail: String?
-
-    var userSummary: String {
-        message.isEmpty ? title : message
-    }
-
-    var actionLabel: String {
-        action.label.isEmpty ? action.kind : action.label
-    }
-}
-
-struct CoreDiagnosticAction: Codable, Equatable, Sendable {
-    let kind: String
-    let label: String
-    let target: String?
-    let payload: [String: String]?
-
-    private enum CodingKeys: String, CodingKey {
-        case kind
-        case label
-        case target
-        case payload
-    }
-
-    init(kind: String, label: String, target: String? = nil, payload: [String: String]? = nil) {
-        self.kind = kind
-        self.label = label
-        self.target = target
-        self.payload = payload
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        kind = try container.decodeIfPresent(String.self, forKey: .kind) ?? "openDiagnostics"
-        label = try container.decodeIfPresent(String.self, forKey: .label) ?? "Open diagnostics"
-        target = try container.decodeIfPresent(String.self, forKey: .target)
-        payload = try? container.decode([String: String].self, forKey: .payload)
-    }
-}
-
-struct CoreDiagnosticEvidence: Codable, Equatable, Sendable {
-    let key: String
-    let value: String
-    let redacted: Bool
-}
-
 struct TaskSnapshot: Decodable, Equatable, Identifiable {
     let taskId: String
     let kind: String
@@ -197,85 +134,8 @@ struct TaskSnapshot: Decodable, Equatable, Identifiable {
     }
 }
 
-struct TaskProgress: Codable, Equatable {
-    let taskId: String
-    let phaseId: String
-    let phaseTitle: String
-    let phaseIndex: Int
-    let phaseCount: Int
-    let phasePercent: Double?
-    let overallPercent: Double?
-    let completedJobs: Int
-    let totalJobs: Int
-    let completedBytes: Int64
-    let totalBytes: Int64
-    let speedBytesPerSecond: Int64
-    let movingAverageSpeedBytesPerSecond: Int64?
-    let etaSeconds: Int64?
-    let currentLabel: String
-    let activeWorkers: Int
-    let retryCount: Int
-    let sourceHost: String?
-    let hosts: [TaskProgressHost]?
-    let throttleReason: String?
-    let multipart: TaskProgressMultipart?
-
-    var fractionComplete: Double? {
-        overallPercent.map { min(max($0 / 100, 0), 1) }
-    }
-}
-
-struct TaskProgressHost: Codable, Equatable {
-    let host: String
-    let lane: String
-    let activeConnections: Int
-    let gate: Int
-    let maxGate: Int
-    let bytesPerSecond: Int64
-    let completedBytes: Int64
-    let completedJobs: Int
-    let retryCount: Int
-
-    var displayText: String {
-        "\(host) \(activeConnections)/\(gate) \(formattedBytes(bytesPerSecond))/s"
-    }
-}
-
-struct TaskProgressMultipart: Codable, Equatable {
-    let label: String
-    let completedSegments: Int
-    let totalSegments: Int
-    let activeSegments: Int
-    let segmentBytes: Int64
-    let totalBytes: Int64
-    let currentSegment: Int?
-
-    var displayText: String {
-        "\(completedSegments)/\(totalSegments) segments"
-    }
-}
-
 struct TaskAccepted: Decodable, Equatable {
     let taskId: String
     let state: TaskState
     let task: TaskSnapshot
-}
-
-struct CoreTaskHistoryResponse: Decodable, Equatable {
-    let tasks: [TaskSnapshot]
-    let totalCount: Int
-    let offset: Int
-    let limit: Int
-}
-
-struct CoreTaskHistoryClearRequest: Encodable, Equatable {
-    let statuses: [String]?
-    let olderThanDays: Int?
-    let keepFailed: Bool?
-}
-
-struct CoreTaskHistoryClearResponse: Decodable, Equatable {
-    let deleted: Int
-    let kept: Int
-    let skippedActive: Int
 }

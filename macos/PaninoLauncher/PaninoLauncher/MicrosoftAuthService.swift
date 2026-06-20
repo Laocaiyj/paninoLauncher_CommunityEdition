@@ -32,35 +32,26 @@ enum MicrosoftAuthError: LocalizedError, Equatable {
 
 struct MicrosoftAuthService {
     private let tokenStore = SecureTokenStore()
-    private let session: URLSession
-
-    init() {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 90
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpMaximumConnectionsPerHost = 4
-        self.session = URLSession(configuration: configuration)
-    }
+    private let httpClient = MicrosoftAuthHTTPClient()
 
     func hasStoredRefreshToken(accountID: String? = nil) -> Bool {
         (try? tokenStore.loadRefreshToken(accountID: accountID)) != nil
     }
 
     func startDeviceCode(clientId: String) async throws -> DeviceCodeSession {
-        let clientId = sanitizeClientId(clientId)
+        let clientId = MicrosoftAuthInput.sanitizeClientID(clientId)
         guard !clientId.isEmpty else {
             throw MicrosoftAuthError.missingClientId
         }
 
-        let request = try formRequest(
+        let request = try httpClient.formRequest(
             url: MicrosoftAuthEndpoints.deviceCode,
             fields: [
                 "client_id": clientId,
                 "scope": MicrosoftAuthEndpoints.scope
             ]
         )
-        let response: DeviceCodeResponse = try await send(request)
+        let response: DeviceCodeResponse = try await httpClient.send(request)
         guard let verificationURI = URL(string: response.verificationURI) else {
             throw MicrosoftAuthError.invalidVerificationURI
         }
@@ -85,7 +76,7 @@ struct MicrosoftAuthService {
     }
 
     func restoreStoredAccount(clientId: String, accountID: String? = nil) async throws -> MinecraftAccount? {
-        let clientId = sanitizeClientId(clientId)
+        let clientId = MicrosoftAuthInput.sanitizeClientID(clientId)
         guard !clientId.isEmpty else {
             throw MicrosoftAuthError.missingClientId
         }
@@ -134,17 +125,17 @@ struct MicrosoftAuthService {
         while Date() < deviceSession.expiresAt {
             try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
 
-            let request = try formRequest(
+            let request = try httpClient.formRequest(
                 url: MicrosoftAuthEndpoints.token,
                 fields: [
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                    "client_id": sanitizeClientId(clientId),
+                    "client_id": MicrosoftAuthInput.sanitizeClientID(clientId),
                     "device_code": deviceSession.deviceCode
                 ]
             )
 
             do {
-                return try await send(request)
+                return try await httpClient.send(request)
             } catch let error as OAuthServiceError {
                 switch error.code {
                 case "authorization_pending":
@@ -166,16 +157,16 @@ struct MicrosoftAuthService {
     }
 
     private func refreshMicrosoftToken(clientId: String, refreshToken: String) async throws -> MicrosoftTokenResponse {
-        let request = try formRequest(
+        let request = try httpClient.formRequest(
             url: MicrosoftAuthEndpoints.token,
             fields: [
                 "grant_type": "refresh_token",
-                "client_id": sanitizeClientId(clientId),
+                "client_id": MicrosoftAuthInput.sanitizeClientID(clientId),
                 "refresh_token": refreshToken,
                 "scope": MicrosoftAuthEndpoints.scope
             ]
         )
-        return try await send(request)
+        return try await httpClient.send(request)
     }
 
     private func authenticateXboxLive(microsoftAccessToken: String) async throws -> XboxAuthToken {
@@ -188,8 +179,8 @@ struct MicrosoftAuthService {
             relyingParty: "http://auth.xboxlive.com",
             tokenType: "JWT"
         )
-        let response: XboxAuthResponse = try await send(
-            jsonRequest(url: MicrosoftAuthEndpoints.xboxUserAuth, body: body)
+        let response: XboxAuthResponse = try await httpClient.send(
+            httpClient.jsonRequest(url: MicrosoftAuthEndpoints.xboxUserAuth, body: body)
         )
         return XboxAuthToken(token: response.token, userHash: response.userHash)
     }
@@ -200,15 +191,15 @@ struct MicrosoftAuthService {
             relyingParty: "rp://api.minecraftservices.com/",
             tokenType: "JWT"
         )
-        let response: XboxAuthResponse = try await send(
-            jsonRequest(url: MicrosoftAuthEndpoints.xstsAuthorize, body: body)
+        let response: XboxAuthResponse = try await httpClient.send(
+            httpClient.jsonRequest(url: MicrosoftAuthEndpoints.xstsAuthorize, body: body)
         )
         return XboxAuthToken(token: response.token, userHash: response.userHash)
     }
 
     private func authenticateMinecraft(userHash: String, xstsToken: String) async throws -> MinecraftTokenResponse {
         let body = MinecraftLoginRequest(identityToken: "XBL3.0 x=\(userHash);\(xstsToken)")
-        return try await send(jsonRequest(url: MicrosoftAuthEndpoints.minecraftLogin, body: body))
+        return try await httpClient.send(httpClient.jsonRequest(url: MicrosoftAuthEndpoints.minecraftLogin, body: body))
     }
 
     private func fetchMinecraftProfile(accessToken: String) async throws -> MinecraftProfileResponse {
@@ -217,66 +208,10 @@ struct MicrosoftAuthService {
         request.timeoutInterval = 20
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        let profile: MinecraftProfileResponse = try await send(request)
+        let profile: MinecraftProfileResponse = try await httpClient.send(request)
         guard !profile.id.isEmpty, !profile.name.isEmpty else {
             throw MicrosoftAuthError.minecraftProfileMissing
         }
         return profile
-    }
-
-    private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw MicrosoftAuthError.invalidResponse
-        }
-
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            if let oauthError = try? JSONDecoder().decode(OAuthErrorResponse.self, from: data) {
-                throw OAuthServiceError(response: oauthError)
-            }
-            if let minecraftError = try? JSONDecoder().decode(MinecraftErrorResponse.self, from: data) {
-                throw MicrosoftAuthError.serviceError(minecraftError.safeDescription)
-            }
-            throw MicrosoftAuthError.serviceError("Authentication service returned HTTP \(httpResponse.statusCode).")
-        }
-
-        return try JSONDecoder().decode(Response.self, from: data)
-    }
-
-    private func formRequest(url: URL, fields: [String: String]) throws -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = formEncoded(fields).data(using: .utf8)
-        return request
-    }
-
-    private func jsonRequest<Body: Encodable>(url: URL, body: Body) throws -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        return request
-    }
-
-    private func formEncoded(_ fields: [String: String]) -> String {
-        fields
-            .map { key, value in
-                "\(percentEncode(key))=\(percentEncode(value))"
-            }
-            .sorted()
-            .joined(separator: "&")
-    }
-
-    private func percentEncode(_ value: String) -> String {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "&+=?")
-        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
-    }
-
-    private func sanitizeClientId(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

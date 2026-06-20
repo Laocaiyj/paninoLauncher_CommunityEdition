@@ -1,5 +1,5 @@
 import Foundation
-import SwiftUI
+import Combine
 
 @MainActor
 final class LauncherSettings: ObservableObject {
@@ -150,163 +150,34 @@ final class LauncherSettings: ObservableObject {
     }
 
     func refreshCacheSummaries() {
-        cacheSummaries = CacheScope.allCases.map { scope in
-            let target = cacheTarget(for: scope)
-            return CacheScopeSummary(
-                scope: scope,
-                path: target.path,
-                exists: target.exists,
-                bytes: cacheSize(for: scope, target: target)
-            )
-        }
-        cacheStatus = cacheSummaries.isEmpty
-            ? "Cache not checked"
-            : "Estimated cache size \(Self.formatBytes(cacheSummaries.compactMap(\.bytes).reduce(0, +)))"
+        cacheSummaries = LauncherCacheService.summaries()
+        cacheStatus = LauncherCacheService.status(for: cacheSummaries)
     }
 
     func clearCacheScopes(_ scopes: Set<CacheScope>, taskCenterStore: TaskCenterStore?) {
-        let summariesBefore = Dictionary(uniqueKeysWithValues: cacheSummaries.map { ($0.scope, $0) })
-        let before = cacheSummaries.compactMap(\.bytes).reduce(0, +)
-        var cleared: [CacheScope] = []
-        var failures: [String] = []
-
-        for scope in scopes {
-            do {
-                try clearCacheScope(scope)
-                cleared.append(scope)
-            } catch {
-                failures.append("\(scope.title): \(error.localizedDescription)")
-            }
-        }
-
-        refreshCacheSummaries()
-        let after = cacheSummaries.compactMap(\.bytes).reduce(0, +)
-        let deleted = max(before - after, 0)
-        let deletedDetails = cleared.map { scope in
-            let summary = summariesBefore[scope]
-            let size = Self.formatBytes(summary?.bytes ?? 0)
-            return "\(scope.title): \(summary?.path ?? "-") (\(size))"
-        }
-        if failures.isEmpty {
-            cacheStatus = cleared.isEmpty
-                ? "No cache scope selected"
-                : "Cleared \(cleared.map(\.title).joined(separator: ", ")); freed about \(Self.formatBytes(deleted))"
+        let result = LauncherCacheService.clear(scopes: scopes, previousSummaries: cacheSummaries)
+        cacheSummaries = result.summariesAfter
+        cacheStatus = result.status
+        if result.failures.isEmpty {
             taskCenterStore?.upsertLocal(
                 kind: "cache-cleanup",
                 name: "Cache cleanup",
                 state: .succeeded,
                 progress: 1,
-                currentFile: deletedDetails.joined(separator: "\n"),
-                message: "\(cacheStatus)\n\(deletedDetails.joined(separator: "\n"))"
+                currentFile: result.clearedDetails.joined(separator: "\n"),
+                message: result.successMessage
             )
         } else {
-            cacheStatus = "Cache cleanup failed: \(failures.joined(separator: "; "))"
             taskCenterStore?.upsertLocal(
                 kind: "cache-cleanup",
                 name: "Cache cleanup",
                 state: .failed,
                 progress: 1,
                 errorCode: "cache_cleanup_failed",
-                errorDetail: failures.joined(separator: "\n"),
-                message: cacheStatus
+                errorDetail: result.failures.joined(separator: "\n"),
+                message: result.status
             )
         }
-    }
-
-    private func clearCacheScope(_ scope: CacheScope) throws {
-        switch scope {
-        case .urlCache:
-            URLCache.shared.removeAllCachedResponses()
-        case .downloadStaging, .metadataHttp:
-            let target = cacheTarget(for: scope)
-            if FileManager.default.fileExists(atPath: target.path) {
-                try FileManager.default.removeItem(atPath: target.path)
-            }
-            try FileManager.default.createDirectory(
-                at: URL(fileURLWithPath: target.path, isDirectory: true),
-                withIntermediateDirectories: true
-            )
-        case .verificationIndex:
-            let target = cacheTarget(for: scope)
-            if FileManager.default.fileExists(atPath: target.path) {
-                try FileManager.default.removeItem(atPath: target.path)
-            }
-            try FileManager.default.createDirectory(
-                at: URL(fileURLWithPath: target.path).deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-        }
-    }
-
-    private func cacheTarget(for scope: CacheScope) -> (path: String, exists: Bool) {
-        do {
-            let appSupport = try LauncherPaths.appSupportDirectory()
-            let url: URL
-            switch scope {
-            case .downloadStaging:
-                url = appSupport.appendingPathComponent("DownloadCache", isDirectory: true)
-            case .metadataHttp:
-                url = appSupport.appendingPathComponent("cache/http", isDirectory: true)
-            case .verificationIndex:
-                url = appSupport.appendingPathComponent("cache/verification-index.json", isDirectory: false)
-            case .urlCache:
-                url = URL(fileURLWithPath: "URLCache.shared", isDirectory: false)
-            }
-            let exists = scope == .urlCache || FileManager.default.fileExists(atPath: url.path)
-            return (url.path, exists)
-        } catch {
-            return ("-", false)
-        }
-    }
-
-    private func cacheSize(for scope: CacheScope, target: (path: String, exists: Bool)) -> Int64? {
-        switch scope {
-        case .urlCache:
-            return Int64(URLCache.shared.currentDiskUsage + URLCache.shared.currentMemoryUsage)
-        case .downloadStaging, .metadataHttp, .verificationIndex:
-            guard target.exists else { return 0 }
-            return Self.fileSize(at: URL(fileURLWithPath: target.path))
-        }
-    }
-
-    static var defaultMinecraftDirectory: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/minecraft", isDirectory: true)
-            .path
-    }
-
-    private static func fileSize(at url: URL) -> Int64 {
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            return 0
-        }
-        if !isDirectory.boolValue {
-            return fileByteCount(url)
-        }
-
-        guard let enumerator = FileManager.default.enumerator(
-            at: url,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return 0
-        }
-
-        var total: Int64 = 0
-        for case let fileURL as URL in enumerator {
-            total += fileByteCount(fileURL)
-        }
-        return total
-    }
-
-    private static func fileByteCount(_ url: URL) -> Int64 {
-        let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-        guard values?.isRegularFile == true else { return 0 }
-        return Int64(values?.fileSize ?? 0)
-    }
-
-    private static func formatBytes(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
 }

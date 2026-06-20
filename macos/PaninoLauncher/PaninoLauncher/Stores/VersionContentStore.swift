@@ -62,44 +62,19 @@ final class VersionContentStore: ObservableObject {
         versionStatus = "Refreshing Minecraft manifest via Core"
         versionRefreshTask = Task {
             do {
-                let remoteVersions = try await coreBackend.minecraftVersions()
-                let gameDirectories = VersionContentInfoFactory.candidateGameDirectories(instances: instances, settings: settings)
-                let statuses: [CoreMinecraftInstallStatus]
-                do {
-                    statuses = try await coreBackend.minecraftInstallStatus(
-                        remoteVersions.map(\.id),
-                        gameDirectories.map(\.path)
-                    )
-                } catch {
-                    statuses = []
-                }
-                let installedInstances: [CoreInstalledMinecraftInstance]
-                do {
-                    installedInstances = try await coreBackend.installedMinecraftInstances(
-                        remoteVersions.map(\.id),
-                        gameDirectories.map(\.path)
-                    )
-                } catch {
-                    installedInstances = VersionContentInfoFactory.installedInstances(from: statuses)
-                }
-                let statusByVersion = Dictionary(uniqueKeysWithValues: statuses.map { ($0.versionId, $0) })
-                let nextVersions = remoteVersions.map {
-                    VersionContentInfoFactory.versionInfo(
-                        remoteVersion: $0,
-                        instances: instances,
-                        settings: settings,
-                        package: nil,
-                        installStatus: statusByVersion[$0.id]
-                    )
-                }
+                let result = try await VersionContentRefreshService.loadMinecraftVersions(
+                    coreBackend: coreBackend,
+                    instances: instances,
+                    settings: settings
+                )
                 guard !Task.isCancelled else { return }
-                latestReleaseID = remoteVersions.first(where: { $0.type == "release" })?.id
-                latestSnapshotID = remoteVersions.first(where: { $0.type == "snapshot" })?.id
-                self.installedInstances = installedInstances
-                versions = nextVersions
+                latestReleaseID = result.latestReleaseID
+                latestSnapshotID = result.latestSnapshotID
+                self.installedInstances = result.installedInstances
+                versions = result.versions
                 hasRemoteVersions = true
-                selectedVersionID = selectedVersionID ?? nextVersions.first(where: { $0.kind == .release })?.id
-                versionStatus = "Loaded \(nextVersions.count) Minecraft versions"
+                selectedVersionID = selectedVersionID ?? result.versions.first(where: { $0.kind == .release })?.id
+                versionStatus = "Loaded \(result.versions.count) Minecraft versions"
             } catch {
                 guard !Task.isCancelled else { return }
                 hasRemoteVersions = false
@@ -119,29 +94,18 @@ final class VersionContentStore: ObservableObject {
         versionStatus = "Loading details for \(version.id) via Core"
         detailTask = Task {
             do {
-                let remoteVersion = MinecraftRemoteVersion(
-                    id: version.id,
-                    type: version.kind.manifestType,
-                    url: manifestURL,
-                    releasedAt: VersionContentInfoFactory.parseDate(version.releasedAt)
+                let result = try await VersionContentRefreshService.loadDetails(
+                    coreBackend: coreBackend,
+                    version: version,
+                    manifestURL: manifestURL,
+                    instances: instances,
+                    settings: settings
                 )
-                let gameDirectories = VersionContentInfoFactory.candidateGameDirectories(instances: instances, settings: settings)
-                let installStatus = try await coreBackend.minecraftInstallStatus(
-                    [version.id],
-                    gameDirectories.map(\.path)
-                ).first
-                let package = try await coreBackend.minecraftPackage(remoteVersion)
                 guard !Task.isCancelled else { return }
-                if let index = versions.firstIndex(where: { $0.id == version.id }) {
-                    versions[index] = VersionContentInfoFactory.versionInfo(
-                        remoteVersion: remoteVersion,
-                        instances: instances,
-                        settings: settings,
-                        package: package,
-                        installStatus: installStatus
-                    )
+                if let index = versions.firstIndex(where: { $0.id == result.versionID }) {
+                    versions[index] = result.versionInfo
                 }
-                versionStatus = "Loaded details for \(version.id)"
+                versionStatus = "Loaded details for \(result.versionID)"
             } catch {
                 guard !Task.isCancelled else { return }
                 versionStatus = "Version detail failed: \(error.localizedDescription)"
@@ -171,10 +135,14 @@ final class VersionContentStore: ObservableObject {
         fileStatus = "Scanning \(selectedKind.title) via Core"
         assetRefreshTask = Task {
             do {
-                let assets = try await coreBackend.localResources(gameDirectory, selectedKind, selectedLoader)
-                    .map { ManagedAsset.fromCoreAsset($0, links: assetLinks) }
-                    .sorted { ManagedAsset.sort($0, $1, by: selectedSort) }
-
+                let assets = try await VersionContentRefreshService.loadAssets(
+                    coreBackend: coreBackend,
+                    gameDirectory: gameDirectory,
+                    kind: selectedKind,
+                    loader: selectedLoader,
+                    sort: selectedSort,
+                    links: assetLinks
+                )
                 guard !Task.isCancelled else { return }
                 managedAssets = assets
                 fileStatus = "Scanned \(selectedKind.folderName) via Core"

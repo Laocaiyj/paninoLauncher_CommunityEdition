@@ -8,57 +8,36 @@ struct InstanceVersionConfigurationPage: View {
     let openDiscover: () -> Void
     let onBack: () -> Void
 
-    @EnvironmentObject private var versionStore: VersionContentStore
-    @EnvironmentObject private var instanceStore: InstanceStore
-    @EnvironmentObject private var launcherSettings: LauncherSettings
-    @EnvironmentObject private var theme: ThemeSettings
-    @State private var confirmApplyVersion = false
-    @State private var pendingStorageAction: VersionStorageConfirmation?
+    @EnvironmentObject var versionStore: VersionContentStore
+    @EnvironmentObject var instanceStore: InstanceStore
+    @EnvironmentObject var launcherSettings: LauncherSettings
+    @EnvironmentObject var theme: ThemeSettings
+    @State var confirmApplyVersion = false
+    @State var pendingStorageAction: VersionStorageConfirmation?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             GlassPanel {
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 12) {
-                        GlassButton(
-                            systemImage: "chevron.left",
-                            title: localizedString(theme.language, english: "Back", chinese: "返回", italian: "Indietro", french: "Retour", spanish: "Atrás"),
-                            action: onBack
-                        )
-                        PanelHeader(
-                            title: localizedString(theme.language, english: "Version Runtime", chinese: "版本运行设置", italian: "Runtime versione", french: "Runtime version", spanish: "Runtime de versión"),
-                            systemImage: "slider.horizontal.3"
-                        )
-                        StatusBadge(title: versionStateTitle, style: versionBadgeStyle)
-                        Spacer()
-                        if canApplyVersion {
-                            GlassButton(
-                                systemImage: "checkmark.circle",
-                                title: localizedString(theme.language, english: "Apply to Configuration", chinese: "应用到配置", italian: "Applica", french: "Appliquer", spanish: "Aplicar"),
-                                prominent: true
-                            ) {
-                                confirmApplyVersion = true
-                            }
-                        }
-                        GlassButton(systemImage: "checkmark.seal", title: localizedString(theme.language, english: "Repair Files", chinese: "修复文件", italian: "Ripara file", french: "Réparer fichiers", spanish: "Reparar archivos"), prominent: true) {
-                            repairFocusedVersion()
-                        }
-                        .disabled(version?.isInstalled != true)
-                        GlassButton(
-                            systemImage: "arrow.down.app",
-                            title: localizedString(theme.language, english: "Get Versions", chinese: "获取版本", italian: "Ottieni versioni", french: "Obtenir versions", spanish: "Obtener versiones"),
-                            action: openDiscover
-                        )
-                    }
+                    InstanceVersionRuntimeHeader(
+                        versionStateTitle: versionStateTitle,
+                        versionBadgeStyle: versionBadgeStyle,
+                        canApplyVersion: canApplyVersion,
+                        canRepairVersion: version?.isInstalled == true,
+                        onBack: onBack,
+                        onApply: { confirmApplyVersion = true },
+                        onRepair: repairFocusedVersion,
+                        onDiscover: openDiscover
+                    )
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
-                        versionMetric(AppText.java.localized(theme.language), version?.javaRequirement ?? "--", "cup.and.saucer")
-                        versionMetric(AppText.loader.localized(theme.language), instance.loader?.title ?? "Vanilla", "puzzlepiece.extension")
-                        versionMetric(AppText.download.localized(theme.language), version?.downloadState.localizedVersionState(theme.language) ?? "--", "arrow.down.circle")
-                        versionMetric(AppText.verify.localized(theme.language), version?.verificationState.localizedVersionState(theme.language) ?? "--", "checkmark.seal")
-                    }
+                    VersionRuntimeMetricsGrid(version: version, instance: instance)
 
-                    versionStorageControls
+                    VersionStorageControls(
+                        version: version,
+                        canArchive: canArchive,
+                        canDelete: canDelete,
+                        selectAction: { pendingStorageAction = $0 }
+                    )
 
                     SettingsRow(
                         title: localizedString(theme.language, english: "Use Global Runtime", chinese: "使用全局运行环境", italian: "Usa runtime globale", french: "Utiliser runtime global", spanish: "Usar runtime global"),
@@ -156,186 +135,5 @@ struct InstanceVersionConfigurationPage: View {
                 viewModel.scanJavaRuntimes()
             }
         }
-    }
-
-    private var storageDialogPresented: Binding<Bool> {
-        Binding(
-            get: { pendingStorageAction != nil },
-            set: { isPresented in
-                if !isPresented {
-                    pendingStorageAction = nil
-                }
-            }
-        )
-    }
-
-    @ViewBuilder
-    private var versionStorageControls: some View {
-        if let version {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    storageButtons(version)
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    storageButtons(version)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func storageButtons(_ version: MinecraftVersionInfo) -> some View {
-        GlassButton(
-            systemImage: "archivebox",
-            title: localizedString(theme.language, english: "Archive", chinese: "归档", italian: "Archivia", french: "Archiver", spanish: "Archivar")
-        ) {
-            pendingStorageAction = .archive
-        }
-        .disabled(!canArchive(version))
-
-        GlassButton(
-            systemImage: "arrow.up.bin",
-            title: localizedString(theme.language, english: "Restore", chinese: "移出归档", italian: "Ripristina", french: "Restaurer", spanish: "Restaurar")
-        ) {
-            pendingStorageAction = .restore
-        }
-        .disabled(!version.isArchived || version.isInstalled)
-
-        GlassButton(
-            systemImage: "trash",
-            title: AppText.delete.localized(theme.language)
-        ) {
-            pendingStorageAction = .delete
-        }
-        .disabled(!canDelete(version))
-    }
-
-    private var usesGlobalRuntime: Binding<Bool> {
-        Binding(
-            get: { instance.javaPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty },
-            set: { useGlobal in
-                if useGlobal {
-                    instance.javaPath = ""
-                    instance.memoryMb = SettingsStore.memoryMb
-                    instance.memoryPolicy = .auto
-                    instance.jvmProfile = .auto
-                } else {
-                    instance.javaPath = "java"
-                }
-            }
-        )
-    }
-
-    private var compatibleLoaders: [LoaderKind] {
-        guard let version else { return LoaderKind.allCases }
-        return version.kind == .oldAlpha || version.kind == .oldBeta ? [] : LoaderKind.allCases
-    }
-
-    private var canApplyVersion: Bool {
-        guard let version else { return false }
-        return version.id != instance.minecraftVersion && version.isInstalled
-    }
-
-    private var versionChangeSummary: String {
-        guard let version else { return "" }
-        return localizedString(
-            theme.language,
-            english: "\(instance.name) will change from Minecraft \(instance.minecraftVersion) to Minecraft \(version.id). Loader and local content may need review.",
-            chinese: "\(instance.name) 将从 Minecraft \(instance.minecraftVersion) 更改为 Minecraft \(version.id)。Loader 和本地内容可能需要重新检查。",
-            italian: "\(instance.name) passerà da Minecraft \(instance.minecraftVersion) a Minecraft \(version.id).",
-            french: "\(instance.name) passera de Minecraft \(instance.minecraftVersion) à Minecraft \(version.id).",
-            spanish: "\(instance.name) cambiará de Minecraft \(instance.minecraftVersion) a Minecraft \(version.id)."
-        )
-    }
-
-    private var versionStateTitle: String {
-        guard let version else {
-            return localizedString(theme.language, english: "Loading", chinese: "加载中", italian: "Caricamento", french: "Chargement", spanish: "Cargando")
-        }
-        if version.isInstalled {
-            return localizedString(theme.language, english: "Installed", chinese: "已安装", italian: "Installata", french: "Installée", spanish: "Instalada")
-        }
-        if version.isArchived {
-            return localizedString(theme.language, english: "Archived", chinese: "已归档", italian: "Archiviata", french: "Archivée", spanish: "Archivada")
-        }
-        return localizedString(theme.language, english: "Needs Install", chinese: "需要安装", italian: "Da installare", french: "À installer", spanish: "Por instalar")
-    }
-
-    private var versionBadgeStyle: StatusBadge.Style {
-        guard let version else { return .running }
-        if version.isArchived { return .neutral }
-        return version.isInstalled ? .success : .warning
-    }
-
-    private func versionMetric(_ title: String, _ value: String, _ systemImage: String) -> some View {
-        HStack(spacing: 9) {
-            Image(systemName: systemImage)
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func restoreAutomaticTuning() {
-        instance.restoreAutomaticJvmTuning(defaultMemoryMb: SettingsStore.memoryMb)
-    }
-
-    private func restoreLastKnownGoodTuning(_ snapshot: JvmTuningSnapshot) {
-        instance.applyJvmTuningSnapshot(snapshot)
-    }
-
-    private func applyInstanceRuntime() {
-        viewModel.version = instance.minecraftVersion
-        viewModel.memoryMb = usesGlobalRuntime.wrappedValue ? SettingsStore.memoryMb : instance.memoryMb
-        viewModel.javaPath = instance.javaPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? SettingsStore.javaPath : instance.javaPath
-        if let loader = instance.loader {
-            versionStore.selectedLoader = loader
-        }
-    }
-
-    private func repairFocusedVersion() {
-        viewModel.version = version?.id ?? instance.minecraftVersion
-        viewModel.memoryMb = usesGlobalRuntime.wrappedValue ? SettingsStore.memoryMb : instance.memoryMb
-        viewModel.javaPath = instance.javaPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? SettingsStore.javaPath : instance.javaPath
-        viewModel.install(gameDir: instance.gameDirectory)
-    }
-
-    private func applyVersionChange() {
-        guard let version else { return }
-        instance.minecraftVersion = version.id
-        if !compatibleLoaders.contains(where: { Optional($0) == instance.loader }) {
-            instance.loader = nil
-        }
-        applyInstanceRuntime()
-        versionStore.refreshAssets(for: instance)
-    }
-
-    private func canArchive(_ version: MinecraftVersionInfo) -> Bool {
-        version.isInstalled && !version.isUsedByInstance
-    }
-
-    private func canDelete(_ version: MinecraftVersionInfo) -> Bool {
-        (version.isInstalled || version.isArchived) && !version.isUsedByInstance
-    }
-
-    private func mutateVersionStorage(_ action: VersionStorageConfirmation) {
-        guard let version else { return }
-        versionStore.mutateVersionStorage(
-            version,
-            action: action.coreAction,
-            instances: instanceStore.instances,
-            settings: launcherSettings
-        )
     }
 }

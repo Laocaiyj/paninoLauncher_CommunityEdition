@@ -1,15 +1,6 @@
 import Foundation
 
 @MainActor
-struct OnlineContentCoreBackend {
-    let search: (OnlineSearchQuery, ContentSourceID, String?) async throws -> OnlineSearchPage
-    let project: (String, ContentSourceID, OnlineSearchQuery, String?) async throws -> CoreContentProjectResponse
-    let minecraftVersions: () async throws -> [MinecraftRemoteVersion]
-    let minecraftPackage: (MinecraftRemoteVersion) async throws -> MinecraftVersionPackage
-    let loaderMetadata: (String) async throws -> [LoaderMetadata]
-}
-
-@MainActor
 final class OnlineContentStore: ObservableObject {
     @Published private(set) var searchResults: [ContentSourceID: OnlineSearchPage] = [:]
     @Published private(set) var selectedProject: OnlineProject?
@@ -129,7 +120,7 @@ final class OnlineContentStore: ObservableObject {
                 do {
                     pages[source] = try await backend.search(query, source, apiKey(for: source))
                 } catch {
-                    let message = Self.displayMessage(for: error)
+                    let message = OnlineContentErrorFormatter.displayMessage(for: error)
                     failuresBySource[source] = message
                     failureSnapshotsBySource[source] = query.diagnosticSummary(source: source)
                     failures.append("\(source.displayName): \(message)")
@@ -182,7 +173,7 @@ final class OnlineContentStore: ObservableObject {
                 statusMessage = "Loaded \(response.project.title)"
             } catch {
                 guard !Task.isCancelled, generation == projectGeneration else { return }
-                let message = Self.displayMessage(for: error)
+                let message = OnlineContentErrorFormatter.displayMessage(for: error)
                 projectFailure = message
                 statusMessage = "Project load failed: \(message)"
             }
@@ -204,7 +195,7 @@ final class OnlineContentStore: ObservableObject {
                 minecraftVersions = try await backend.minecraftVersions()
                 statusMessage = "Loaded \(minecraftVersions.count) Minecraft versions"
             } catch {
-                statusMessage = "Minecraft version refresh failed: \(Self.displayMessage(for: error))"
+                statusMessage = "Minecraft version refresh failed: \(OnlineContentErrorFormatter.displayMessage(for: error))"
             }
         }
     }
@@ -222,7 +213,7 @@ final class OnlineContentStore: ObservableObject {
                 selectedMinecraftPackage = try await backend.minecraftPackage(version)
                 statusMessage = "Loaded metadata for \(version.id)"
             } catch {
-                statusMessage = "Minecraft metadata load failed: \(Self.displayMessage(for: error))"
+                statusMessage = "Minecraft metadata load failed: \(OnlineContentErrorFormatter.displayMessage(for: error))"
             }
         }
     }
@@ -241,7 +232,7 @@ final class OnlineContentStore: ObservableObject {
                 statusMessage = "Loaded loader metadata for \(minecraftVersion)"
             } catch {
                 loaderMetadata = [:]
-                statusMessage = "Loader metadata refresh failed: \(Self.displayMessage(for: error))"
+                statusMessage = "Loader metadata refresh failed: \(OnlineContentErrorFormatter.displayMessage(for: error))"
             }
         }
     }
@@ -270,25 +261,5 @@ final class OnlineContentStore: ObservableObject {
         UserDefaults.standard.set(configured, forKey: Self.curseForgeAPIKeyConfiguredKey)
     }
 
-    private static func displayMessage(for error: Error) -> String {
-        if case LauncherApiError.unexpectedStatus(_, let body) = error,
-           let data = body.data(using: .utf8),
-           let payload = try? JSONDecoder().decode(CoreErrorPayload.self, from: data) {
-            if let details = payload.details, !details.isEmpty {
-                return details
-            }
-            if let message = payload.message, !message.isEmpty {
-                return message
-            }
-        }
-        return error.localizedDescription
-    }
-
     private static let curseForgeAPIKeyConfiguredKey = "OnlineContent.CurseForgeAPIKeyConfigured"
-}
-
-private struct CoreErrorPayload: Decodable {
-    let error: String?
-    let message: String?
-    let details: String?
 }

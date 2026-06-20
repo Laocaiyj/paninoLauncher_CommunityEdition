@@ -28,6 +28,12 @@ enum LauncherSettingsKey {
 }
 
 extension LauncherSettings {
+    static var defaultMinecraftDirectory: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/minecraft", isDirectory: true)
+            .path
+    }
+
     static func storedDownloadConcurrency() -> Int {
         integer(
             forKey: LauncherSettingsKey.downloadConcurrency,
