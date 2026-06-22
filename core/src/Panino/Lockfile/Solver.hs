@@ -19,7 +19,6 @@ import Control.Exception
   , displayException
   , try
   )
-import qualified Crypto.Hash.SHA1 as SHA1
 import Data.Aeson
   ( Result(..)
   , Value(Object, String)
@@ -29,13 +28,10 @@ import Data.Aeson
   )
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
 import Data.List
   ( find
   , foldl'
   , groupBy
-  , sort
   , sortOn
   )
 import Data.Map.Strict (Map)
@@ -50,9 +46,7 @@ import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Text.Read (readMaybe)
-import Data.Word (Word8)
 import Network.HTTP.Client (Manager)
-import Numeric (showHex)
 import Panino.Content.Online.CurseForge
   ( curseForgeProject
   )
@@ -87,9 +81,15 @@ import Panino.CoreLogic.Determinism
   , stableSortPackages
   , stableTextSet
   )
+import Panino.CoreLogic.Hashing (sha1File)
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
 import Panino.Diagnostics.Types (Diagnostic)
 import qualified Panino.Install.Plan.Types as Plan
+import Panino.Lockfile.Changeset
+  ( buildChangeset
+  , diffLockfiles
+  , sortChangeset
+  )
 import Panino.Lockfile.Explain
   ( constraintExplainEntry
   , packageExplainEntry
@@ -108,7 +108,6 @@ import Panino.Lockfile.Types
   , LockfileExplainEntry(..)
   , LockfileFile(..)
   , LockfileSolveRequest(..)
-  , LockfileVerifyIssue(..)
   , LockfileVerifyResponse(..)
   , PackageConstraint(..)
   , PackageCoordinate(..)
@@ -116,9 +115,12 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , SolverConflict(..)
   , SolverResult(..)
-  , emptyChangeset
   , lockfileFileKey
   , resolvedPackageKey
+  )
+import Panino.Lockfile.Verify
+  ( verifyIssueBlockedReason
+  , verifyLockfile
   )
 import Panino.Minecraft.InstallPreflight
   ( LoaderInstallPreflightRequest(..)
@@ -137,9 +139,7 @@ import Panino.Runtime.Java.Types
   , JavaRuntimeResolveResponse(..)
   )
 import System.Directory
-  ( doesDirectoryExist
-  , doesFileExist
-  , listDirectory
+  ( doesFileExist
   )
 import System.FilePath
   ( isRelative
@@ -1107,22 +1107,6 @@ firstJust [] = Nothing
 firstJust (Nothing:rest) = firstJust rest
 firstJust (Just value:_) = Just value
 
-diffLockfiles :: PaninoLockfile -> PaninoLockfile -> LockfileChangeset
-diffLockfiles base target =
-  changesetForPackages
-    (Map.fromList [(resolvedPackageId package, package) | package <- basePackages])
-    (stableSortPackages resolvedPackageKey (lockfilePackages target))
-    []
-    removeChanges
-  where
-    basePackages = stableSortPackages resolvedPackageKey (lockfilePackages base)
-    targetIds = stableTextSet (map resolvedPackageId (lockfilePackages target))
-    removeChanges =
-      [ packageChange "remove" package Nothing "Package is not present in the target lockfile."
-      | package <- basePackages
-      , resolvedPackageId package `notElem` targetIds
-      ]
-
 lockfileApplyReadyLockfile :: LockfileApplyRequest -> Either Text PaninoLockfile
 lockfileApplyReadyLockfile request =
   case solverResultLockfile (applyRequestResult request) of
@@ -1194,96 +1178,6 @@ roomLockRepairPlan gameDir localLockfile roomLockfile =
       stableSortPackages resolvedPackageKey $
         mapMaybe (`Map.lookup` targetMap) targetChangeIds
           <> mapMaybe (`Map.lookup` localMap) removeChangeIds
-
-verifyLockfile :: FilePath -> PaninoLockfile -> IO LockfileVerifyResponse
-verifyLockfile gameDir lockfile = do
-  fileIssues <- traverse verifyFile (stableSortPackages lockfileFileKey (lockfileFiles lockfile))
-  extraIssues <- extraFileIssues gameDir lockfile
-  let missingIssues = stableSortPackages verifyIssueKey [issue | Left issue <- fileIssues, verifyIssueKind issue == "missingFile"]
-      mismatchIssues = stableSortPackages verifyIssueKey [issue | Left issue <- fileIssues, verifyIssueKind issue == "hashMismatch"]
-      manualIssues = manualFileIssues lockfile
-      driftIssues =
-        stableSortPackages verifyIssueKey $
-        [ LockfileVerifyIssue
-            { verifyIssueKind = "lockfileDrift"
-            , verifyIssuePackageId = Nothing
-            , verifyIssueTargetPath = Nothing
-            , verifyIssueExpectedSha1 = Nothing
-            , verifyIssueActualSha1 = Nothing
-            , verifyIssueMessage = "Instance files do not match panino-lock.json."
-            }
-        | not (null missingIssues) || not (null mismatchIssues) || not (null extraIssues)
-        ]
-      repairPackages = packagesForIssues lockfile (missingIssues <> mismatchIssues)
-      repairChangeset =
-        emptyChangeset
-          { changesetRepair =
-              [ packageChange "repair" package Nothing "Repair missing or mismatched file from lockfile."
-              | package <- repairPackages
-              ]
-          }
-      repairPlan =
-        if null repairPackages
-          then Nothing
-          else
-            Just $
-              buildLockfileTypedPlan
-                gameDir
-                repairPackages
-                (lockfileConstraints lockfile)
-                repairChangeset
-                []
-                []
-                []
-      status =
-        if null missingIssues && null mismatchIssues && null extraIssues && null driftIssues
-          then "locked"
-          else "drifted"
-  pure
-    LockfileVerifyResponse
-      { verifyResponseStatus = status
-      , verifyResponseFingerprint = Just (lockfileFingerprint lockfile)
-      , verifyResponseMissingFiles = missingIssues
-      , verifyResponseHashMismatches = mismatchIssues
-      , verifyResponseExtraFiles = extraIssues
-      , verifyResponseManualFiles = manualIssues
-      , verifyResponseJavaMismatch = []
-      , verifyResponseLoaderMismatch = []
-      , verifyResponseLockfileDrift = driftIssues
-      , verifyResponseRepairPlan = repairPlan
-      }
-  where
-    verifyFile file = do
-      let target = gameDir </> lockfileFileTargetPath file
-          expectedSha1 = Map.lookup "sha1" (lockfileFileHashes file)
-      exists <- doesFileExist target
-      if not exists
-        then
-          pure $
-            Left $
-              LockfileVerifyIssue
-                { verifyIssueKind = "missingFile"
-                , verifyIssuePackageId = Just (lockfileFilePackageId file)
-                , verifyIssueTargetPath = Just (lockfileFileTargetPath file)
-                , verifyIssueExpectedSha1 = expectedSha1
-                , verifyIssueActualSha1 = Nothing
-                , verifyIssueMessage = "Lockfile-managed file is missing."
-                }
-        else do
-          actualSha1 <- sha1File target
-          if maybe False (/= actualSha1) expectedSha1
-            then
-              pure $
-                Left $
-                  LockfileVerifyIssue
-                    { verifyIssueKind = "hashMismatch"
-                    , verifyIssuePackageId = Just (lockfileFilePackageId file)
-                    , verifyIssueTargetPath = Just (lockfileFileTargetPath file)
-                    , verifyIssueExpectedSha1 = expectedSha1
-                    , verifyIssueActualSha1 = Just actualSha1
-                    , verifyIssueMessage = "Lockfile-managed file hash does not match."
-                    }
-            else pure (Right ())
 
 data ResolveState = ResolveState
   { resolveSelected :: Map Text ResolvedPackage
@@ -1717,64 +1611,6 @@ conflictBlockedReason :: SolverConflict -> Text
 conflictBlockedReason conflict =
   solverConflictCode conflict <> ":" <> solverConflictId conflict
 
-buildChangeset :: LockfileSolveRequest -> [ResolvedPackage] -> [Text] -> LockfileChangeset
-buildChangeset request packages blockedReasons =
-  changesetForPackages existingMap packages blockedReasons removeChanges
-  where
-    existingPackages = maybe [] lockfilePackages (solveRequestExistingLockfile request)
-    existingMap = Map.fromList [(resolvedPackageId package, package) | package <- existingPackages]
-    selectedIds = map resolvedPackageId packages
-    removeChanges =
-      [ packageChange "remove" package Nothing "Package is no longer selected by relock."
-      | solveRequestUpdatePolicy request == "relock"
-      , package <- existingPackages
-      , resolvedPackageId package `notElem` selectedIds
-      ]
-
-changesetForPackages :: Map Text ResolvedPackage -> [ResolvedPackage] -> [Text] -> [LockfileChange] -> LockfileChangeset
-changesetForPackages existingMap packages blockedReasons removeChanges =
-  sortChangeset $
-    foldl'
-      insertChange
-      emptyChangeset { changesetRemove = stableSortPackages lockfileChangeKey removeChanges }
-      (stableSortPackages resolvedPackageKey packages)
-  where
-    insertChange changeset package
-      | any (Text.isSuffixOf (resolvedPackageId package)) blockedReasons =
-          changeset { changesetBlocked = packageChange "blocked" package Nothing "Solver blocked this package." : changesetBlocked changeset }
-      | packageSource package `elem` ["manual", "local"] =
-          changeset { changesetManual = packageChange "manual" package Nothing "Manual or local file is tracked without automatic download." : changesetManual changeset }
-      | otherwise =
-          case Map.lookup (resolvedPackageId package) existingMap of
-            Nothing ->
-              changeset { changesetAdd = packageChange "add" package Nothing "Package is newly selected." : changesetAdd changeset }
-            Just existing
-              | packageChangesetFingerprint existing == packageChangesetFingerprint package ->
-                  changeset { changesetKeep = packageChange "keep" package (Just existing) "Existing lockfile package is kept." : changesetKeep changeset }
-              | otherwise ->
-                  changeset { changesetReplace = packageChange "replace" package (Just existing) "Selected package differs from existing lockfile." : changesetReplace changeset }
-
-packageChangesetFingerprint :: ResolvedPackage -> Text
-packageChangesetFingerprint package =
-  stableFingerprint
-    package
-      { resolvedPackageSelectedBecause = []
-      , resolvedPackageLocked = False
-      , resolvedPackagePinReason = Nothing
-      }
-
-packageChange :: Text -> ResolvedPackage -> Maybe ResolvedPackage -> Text -> LockfileChange
-packageChange action package existing reason =
-  LockfileChange
-    { lockfileChangeAction = action
-    , lockfileChangePackageId = resolvedPackageId package
-    , lockfileChangeDisplayName = resolvedPackageDisplayName package
-    , lockfileChangeFromVersionId = existing >>= coordinateVersionId . resolvedPackageCoordinate
-    , lockfileChangeToVersionId = coordinateVersionId (resolvedPackageCoordinate package)
-    , lockfileChangeTargetPath = resolvedPackageTargetPath package
-    , lockfileChangeReason = reason
-    }
-
 buildLockfile :: LockfileSolveRequest -> [ResolvedPackage] -> [PackageConstraint] -> [Text] -> PaninoLockfile
 buildLockfile request packages constraints warnings =
   PaninoLockfile
@@ -1815,32 +1651,6 @@ packageSourceSnapshotValue :: ResolvedPackage -> Maybe Value
 packageSourceSnapshotValue package =
   String <$> resolvedPackageSourceSnapshot package
 
-sortChangeset :: LockfileChangeset -> LockfileChangeset
-sortChangeset changeset =
-  changeset
-    { changesetKeep = sortChanges (changesetKeep changeset)
-    , changesetAdd = sortChanges (changesetAdd changeset)
-    , changesetReplace = sortChanges (changesetReplace changeset)
-    , changesetRemove = sortChanges (changesetRemove changeset)
-    , changesetRepair = sortChanges (changesetRepair changeset)
-    , changesetManual = sortChanges (changesetManual changeset)
-    , changesetBlocked = sortChanges (changesetBlocked changeset)
-    }
-  where
-    sortChanges = stableSortPackages lockfileChangeKey
-
-lockfileChangeKey :: LockfileChange -> Text
-lockfileChangeKey change =
-  Text.intercalate
-    "|"
-    [ lockfileChangeAction change
-    , lockfileChangePackageId change
-    , lockfileChangeDisplayName change
-    , fromMaybe "" (lockfileChangeFromVersionId change)
-    , fromMaybe "" (lockfileChangeToVersionId change)
-    , Text.pack (fromMaybe "" (lockfileChangeTargetPath change))
-    ]
-
 jsonValueKey :: Value -> Text
 jsonValueKey =
   stableFingerprint
@@ -1856,99 +1666,12 @@ explainEntryKey entry =
     , explainEntryReason entry
     ]
 
-verifyIssueKey :: LockfileVerifyIssue -> Text
-verifyIssueKey issue =
-  Text.intercalate
-    "|"
-    [ verifyIssueKind issue
-    , fromMaybe "" (verifyIssuePackageId issue)
-    , Text.pack (fromMaybe "" (verifyIssueTargetPath issue))
-    , fromMaybe "" (verifyIssueExpectedSha1 issue)
-    , fromMaybe "" (verifyIssueActualSha1 issue)
-    , verifyIssueMessage issue
-    ]
-
 optifineWarnings :: LockfileSolveRequest -> [ResolvedPackage] -> [Text]
 optifineWarnings request packages =
   [ "optifine_modern_loader_risk"
   | solveRequestShaderLoader request == Just "optifine"
       || any ((== "optifine") . Text.toLower . resolvedPackageDisplayName) packages
   ]
-
-manualFileIssues :: PaninoLockfile -> [LockfileVerifyIssue]
-manualFileIssues lockfile =
-  stableSortPackages verifyIssueKey $
-  [ LockfileVerifyIssue
-      { verifyIssueKind = "manualFile"
-      , verifyIssuePackageId = Just (resolvedPackageId package)
-      , verifyIssueTargetPath = resolvedPackageTargetPath package
-      , verifyIssueExpectedSha1 = Map.lookup "sha1" (resolvedPackageHashes package)
-      , verifyIssueActualSha1 = Nothing
-      , verifyIssueMessage = "Manual or local file is tracked by the lockfile."
-      }
-  | package <- stableSortPackages resolvedPackageKey (lockfilePackages lockfile)
-  , packageSource package `elem` ["manual", "local"]
-  ]
-
-extraFileIssues :: FilePath -> PaninoLockfile -> IO [LockfileVerifyIssue]
-extraFileIssues gameDir lockfile = do
-  let managedTargets = map lockfileFileTargetPath (lockfileFiles lockfile)
-      dirs = stableTextSet (map (Text.pack . takeDirectory) managedTargets)
-  found <- concat <$> traverse (listFilesUnder gameDir . Text.unpack) dirs
-  pure $
-    stableSortPackages verifyIssueKey $
-    [ LockfileVerifyIssue
-        { verifyIssueKind = "extraFile"
-        , verifyIssuePackageId = Nothing
-        , verifyIssueTargetPath = Just relativePath
-        , verifyIssueExpectedSha1 = Nothing
-        , verifyIssueActualSha1 = Nothing
-        , verifyIssueMessage = "File exists beside lockfile-managed content but is not in the lockfile."
-        }
-    | relativePath <- found
-    , relativePath `notElem` managedTargets
-    ]
-
-listFilesUnder :: FilePath -> FilePath -> IO [FilePath]
-listFilesUnder gameDir relativeDir
-  | null relativeDir || relativeDir == "." = pure []
-  | otherwise = do
-      let absoluteDir = gameDir </> relativeDir
-      exists <- doesDirectoryExist absoluteDir
-      if not exists
-        then pure []
-        else map (relativeDir </>) <$> listFilesRecursive absoluteDir
-
-listFilesRecursive :: FilePath -> IO [FilePath]
-listFilesRecursive dir = do
-  entries <- sort <$> listDirectory dir
-  fmap concat $
-    traverse
-      ( \entry -> do
-          let path = dir </> entry
-          isDir <- doesDirectoryExist path
-          isFile <- doesFileExist path
-          if isDir
-            then map (entry </>) <$> listFilesRecursive path
-            else pure [entry | isFile]
-      )
-      entries
-
-packagesForIssues :: PaninoLockfile -> [LockfileVerifyIssue] -> [ResolvedPackage]
-packagesForIssues lockfile issues =
-  stableSortPackages resolvedPackageKey $
-    [ package
-    | package <- stableSortPackages resolvedPackageKey (lockfilePackages lockfile)
-    , resolvedPackageId package `elem` issuePackageIds
-    ]
-  where
-    issuePackageIds = mapMaybe verifyIssuePackageId issues
-
-verifyIssueBlockedReason :: Text -> LockfileVerifyIssue -> Text
-verifyIssueBlockedReason prefix issue =
-  Text.intercalate
-    ":"
-    (prefix : filter (not . Text.null) [fromMaybe "" (verifyIssuePackageId issue), maybe "" Text.pack (verifyIssueTargetPath issue)])
 
 packageRequiredForRoom :: ResolvedPackage -> Bool
 packageRequiredForRoom package =
@@ -1970,20 +1693,6 @@ constraintRequiredForRoom :: PackageConstraint -> Bool
 constraintRequiredForRoom constraint =
   constraintRequired constraint
     || constraintRelation constraint `elem` ["requires", "pins", "incompatible", "conflicts"]
-
-sha1File :: FilePath -> IO Text
-sha1File path =
-  hashLazy <$> BL.readFile path
-
-hashLazy :: BL.ByteString -> Text
-hashLazy =
-  Text.pack . concatMap hexByte . BS.unpack . SHA1.hash . BL.toStrict
-
-hexByte :: Word8 -> String
-hexByte byte =
-  let value = fromEnum byte
-      rendered = showHex value ""
-   in if value < 16 then '0' : rendered else rendered
 
 packageSource :: ResolvedPackage -> Text
 packageSource =

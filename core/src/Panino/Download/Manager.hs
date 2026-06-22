@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -37,8 +36,7 @@ import Control.Concurrent.MVar
   , readMVar
   )
 import Control.Exception
-  ( Exception
-  , IOException
+  ( IOException
   , SomeException
   , SomeAsyncException
   , bracket_
@@ -53,19 +51,15 @@ import Control.Monad
   , unless
   , when
   )
-import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Data.Int (Int64)
-import Data.List (isInfixOf, sortOn)
+import Data.List (isInfixOf)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
-import Data.Ord (Down(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Typeable (Typeable)
-import Data.Word (Word8)
 import Data.Time.Clock
   ( UTCTime
   , diffUTCTime
@@ -87,7 +81,32 @@ import Network.HTTP.Types
   ( HeaderName
   , statusCode
   )
-import Numeric (showHex)
+import Panino.Download.Hash
+  ( FileDigest(..)
+  , HashState
+  , appendHashChunk
+  , emptyHashState
+  , finalizeHashState
+  , hashFileState
+  , sha1HexFile
+  )
+import Panino.Download.HostGate
+  ( HostGate
+  , buildHostGates
+  , recordHostGateOutcome
+  , snapshotHostTelemetry
+  , withHostGate
+  )
+import Panino.Download.Types
+  ( DownloadException(..)
+  , DownloadHostTelemetry(..)
+  , DownloadJob(..)
+  , DownloadMultipartTelemetry(..)
+  , DownloadOptions(..)
+  , DownloadProgress(..)
+  , DownloadResult(..)
+  , DownloadSummary(..)
+  )
 import Panino.Net.Http
   ( RequestTimeoutClass(..)
   , applyRequestTimeout
@@ -113,9 +132,7 @@ import Panino.Download.Multipart
   , multipartMinBytes
   )
 import Panino.Download.Scheduler
-  ( DownloadLane(..)
-  , SchedulerJob(..)
-  , hostConcurrencyLimit
+  ( SchedulerJob(..)
   , laneForJob
   , plannedWorkerCount
   , renderLane
@@ -126,6 +143,7 @@ import Panino.Download.VerificationIndex
   , lookupVerifiedFile
   , recordVerifiedFile
   )
+import Panino.Download.WorkerLimit (fileDescriptorWorkerLimit)
 import System.Directory
   ( createDirectoryIfMissing
   , doesFileExist
@@ -139,33 +157,9 @@ import System.FilePath
   )
 import System.IO
   ( IOMode(..)
-  , Handle
   , hFlush
   , withBinaryFile
   )
-import System.Exit (ExitCode(..))
-import System.Process
-  ( proc
-  , readCreateProcessWithExitCode
-  )
-
-data DownloadJob = DownloadJob
-  { jobLabel :: String
-  , jobUrl :: String
-  , jobTargetPath :: FilePath
-  , jobSha1 :: Maybe Text
-  , jobSize :: Maybe Int64
-  } deriving (Eq, Show)
-
-data DownloadResult
-  = Downloaded DownloadJob
-  | Skipped DownloadJob
-  deriving (Eq, Show)
-
-data DownloadOptions = DownloadOptions
-  { downloadOptionConcurrency :: Int
-  , downloadOptionRetryCount :: Int
-  } deriving (Eq, Show)
 
 data DownloadOutcome = DownloadOutcome
   { outcomeResult :: DownloadResult
@@ -182,96 +176,12 @@ data HostDownloadStats = HostDownloadStats
   , hostStatsResumed :: Int
   } deriving (Eq, Show)
 
-data HostGate = HostGate
-  { hostGateHost :: Text
-  , hostGateState :: MVar HostGateState
-  }
-
-data HostGateState = HostGateState
-  { gateLane :: DownloadLane
-  , gateActive :: Int
-  , gateLimit :: Int
-  , gateMaxLimit :: Int
-  , gateCompletedBytes :: Int64
-  , gateCompletedJobs :: Int
-  , gateRetryCount :: Int
-  , gateLastBytesPerSecond :: Int64
-  } deriving (Eq, Show)
-
-data DownloadSummary = DownloadSummary
-  { downloadedCount :: Int
-  , skippedCount :: Int
-  , totalCount :: Int
-  } deriving (Eq, Show)
-
-data DownloadHostTelemetry = DownloadHostTelemetry
-  { hostTelemetryHost :: Text
-  , hostTelemetryLane :: Text
-  , hostTelemetryActiveConnections :: Int
-  , hostTelemetryGate :: Int
-  , hostTelemetryMaxGate :: Int
-  , hostTelemetryBytesPerSecond :: Int64
-  , hostTelemetryCompletedBytes :: Int64
-  , hostTelemetryCompletedJobs :: Int
-  , hostTelemetryRetryCount :: Int
-  } deriving (Eq, Show)
-
-data DownloadMultipartTelemetry = DownloadMultipartTelemetry
-  { multipartTelemetryLabel :: Text
-  , multipartTelemetryCompletedSegments :: Int
-  , multipartTelemetryTotalSegments :: Int
-  , multipartTelemetryActiveSegments :: Int
-  , multipartTelemetrySegmentBytes :: Int64
-  , multipartTelemetryTotalBytes :: Int64
-  , multipartTelemetryCurrentSegment :: Maybe Int
-  } deriving (Eq, Show)
-
-data DownloadProgress = DownloadProgress
-  { progressCompletedJobs :: Int
-  , progressTotalJobs :: Int
-  , progressCompletedBytes :: Int64
-  , progressTotalBytes :: Int64
-  , progressSpeedBytesPerSecond :: Int64
-  , progressMovingAverageSpeedBytesPerSecond :: Int64
-  , progressEtaSeconds :: Maybe Int64
-  , progressPercent :: Maybe Double
-  , progressLabel :: String
-  , progressHost :: Maybe Text
-  , progressLane :: Maybe Text
-  , progressActiveWorkers :: Int
-  , progressRetryCount :: Int
-  , progressSource :: Maybe Text
-  , progressHostTelemetry :: [DownloadHostTelemetry]
-  , progressThrottleReason :: Maybe Text
-  , progressMultipartTelemetry :: Maybe DownloadMultipartTelemetry
-  } deriving (Eq, Show)
-
-data DownloadException
-  = DownloadHttpStatus Int (Maybe Int) String
-  | DownloadCancelled
-  deriving (Eq, Show, Typeable)
-
-instance Exception DownloadException
-
-data FileDigest = FileDigest
-  { fileDigestSize :: Integer
-  , fileDigestSha1 :: Text
-  } deriving (Eq, Show)
-
-data HashState = HashState
-  { hashStateSize :: Integer
-  , hashStateContext :: SHA1.Ctx
-  }
-
 defaultDownloadOptions :: DownloadOptions
 defaultDownloadOptions =
   DownloadOptions
     { downloadOptionConcurrency = 32
     , downloadOptionRetryCount = 3
     }
-
-maxProgressHostTelemetry :: Int
-maxProgressHostTelemetry = 12
 
 incompleteProgressPercentCap :: Double
 incompleteProgressPercentCap = 99.0
@@ -471,7 +381,14 @@ runDownloadJobsWithOptionsAndProgressAndCancel manager options isCancelled jobs 
                 finishedJob <- getCurrentTime
                 pure (outcome, max 1 (elapsedMillis startedJob finishedJob))
           throwIfCancelled isCancelled
-          throttleReason <- recordHostGateOutcome hostGates job outcome elapsedMs
+          throttleReason <-
+            recordHostGateOutcome
+              hostGates
+              job
+              (outcomeHost outcome)
+              (outcomeBytes outcome)
+              (outcomeRetries outcome)
+              elapsedMs
           recordHostOutcome hostStats outcome
           let result = outcomeResult outcome
           done <- modifyMVar counter (\count -> let next = count + 1 in pure (next, next))
@@ -675,187 +592,6 @@ popDownloadJob queue =
     case jobs of
       [] -> pure ([], Nothing)
       next:rest -> pure (rest, Just next)
-
-fileDescriptorWorkerLimit :: IO Int
-fileDescriptorWorkerLimit = do
-  result <- try (readCreateProcessWithExitCode (proc "/bin/zsh" ["-lc", "ulimit -n"]) "") :: IO (Either SomeException (ExitCode, String, String))
-  pure $ case result of
-    Right (ExitSuccess, stdoutText, _) ->
-      safeLimit (parseInt stdoutText)
-    _ -> 32
-  where
-    safeLimit Nothing = 32
-    safeLimit (Just value) =
-      max 1 (min 64 ((value - 64) `div` 4))
-
-parseInt :: String -> Maybe Int
-parseInt value =
-  case reads value of
-    (parsed, _) : _ -> Just parsed
-    [] -> Nothing
-
-buildHostGates :: Int -> [SchedulerJob] -> IO (Map Text HostGate)
-buildHostGates requested jobs =
-  Map.traverseWithKey (newHostGate requestedLimit) gatePlans
-  where
-    requestedLimit = clampDownloadConcurrency requested
-    gatePlans =
-      Map.fromListWith
-        preferGatePlan
-        [ let lane = laneForJob job
-           in (schedulerJobHost job, (min requestedLimit (hostConcurrencyLimit lane), lane))
-        | job <- jobs
-        ]
-    preferGatePlan lhs@(lhsLimit, _) rhs@(rhsLimit, _)
-      | lhsLimit >= rhsLimit = lhs
-      | otherwise = rhs
-
-newHostGate :: Int -> Text -> (Int, DownloadLane) -> IO HostGate
-newHostGate requested host (initial, lane) = do
-  state <-
-    newMVar
-      HostGateState
-        { gateLane = lane
-        , gateActive = 0
-        , gateLimit = initialLimit
-        , gateMaxLimit = max initialLimit (min requested (hostGateCeiling lane))
-        , gateCompletedBytes = 0
-        , gateCompletedJobs = 0
-        , gateRetryCount = 0
-        , gateLastBytesPerSecond = 0
-        }
-  pure HostGate
-    { hostGateHost = host
-    , hostGateState = state
-    }
-  where
-    initialLimit = max 1 initial
-
-withHostGate :: Map Text HostGate -> DownloadJob -> IO value -> IO value
-withHostGate hostGates job action =
-  case Map.lookup (schedulerJobHost (schedulerJob job)) hostGates of
-    Nothing -> action
-    Just gate -> bracket_ (acquireHostGate gate) (releaseHostGate gate) action
-
-snapshotHostTelemetry :: Map Text HostGate -> IO [DownloadHostTelemetry]
-snapshotHostTelemetry hostGates = do
-  telemetry <- traverse hostTelemetryFor (Map.elems hostGates)
-  pure (take maxProgressHostTelemetry (sortOn hostTelemetryRank telemetry))
-  where
-    hostTelemetryRank host =
-      ( Down (hostTelemetryActiveConnections host)
-      , Down (hostTelemetryBytesPerSecond host)
-      , Down (hostTelemetryCompletedBytes host)
-      , hostTelemetryHost host
-      )
-    hostTelemetryFor gate = do
-      state <- readMVar (hostGateState gate)
-      pure DownloadHostTelemetry
-        { hostTelemetryHost = hostGateHost gate
-        , hostTelemetryLane = renderLane (gateLane state)
-        , hostTelemetryActiveConnections = gateActive state
-        , hostTelemetryGate = gateLimit state
-        , hostTelemetryMaxGate = gateMaxLimit state
-        , hostTelemetryBytesPerSecond = gateLastBytesPerSecond state
-        , hostTelemetryCompletedBytes = gateCompletedBytes state
-        , hostTelemetryCompletedJobs = gateCompletedJobs state
-        , hostTelemetryRetryCount = gateRetryCount state
-        }
-
-acquireHostGate :: HostGate -> IO ()
-acquireHostGate gate = do
-  acquired <-
-    modifyMVar (hostGateState gate) $ \state ->
-      if gateActive state < gateLimit state
-        then
-          let next = state { gateActive = gateActive state + 1 }
-           in pure (next, True)
-        else pure (state, False)
-  unless acquired $ do
-    threadDelay 10000
-    acquireHostGate gate
-
-releaseHostGate :: HostGate -> IO ()
-releaseHostGate gate =
-  modifyMVar (hostGateState gate) $ \state ->
-    pure (state { gateActive = max 0 (gateActive state - 1) }, ())
-
-recordHostGateOutcome :: Map Text HostGate -> DownloadJob -> DownloadOutcome -> Int -> IO (Maybe Text)
-recordHostGateOutcome hostGates job outcome elapsedMs =
-  case Map.lookup host hostGates of
-    Nothing -> pure Nothing
-    Just gate -> do
-      (line, reasonText) <- modifyMVar (hostGateState gate) $ \state ->
-        let sampleBps = rateBytesPerSecond (outcomeBytes outcome) elapsedMs
-            previousBps = gateLastBytesPerSecond state
-            smoothedBps =
-              if sampleBps <= 0
-                then previousBps
-                else if previousBps <= 0
-                  then sampleBps
-                  else (previousBps * 3 + sampleBps) `div` 4
-            floorLimit = hostGateFloor (gateLane state)
-            currentLimit = gateLimit state
-            (nextLimit, reason) =
-              nextHostGateLimit floorLimit (gateMaxLimit state) currentLimit previousBps sampleBps (outcomeRetries outcome)
-            next =
-              state
-                { gateLimit = nextLimit
-                , gateCompletedBytes = gateCompletedBytes state + outcomeBytes outcome
-                , gateCompletedJobs = gateCompletedJobs state + 1
-                , gateRetryCount = gateRetryCount state + outcomeRetries outcome
-                , gateLastBytesPerSecond = smoothedBps
-                }
-            logLine =
-              "download_scheduler_host"
-                <> " host="
-                <> Text.unpack (hostGateHost gate)
-                <> " lane="
-                <> Text.unpack (renderLane (gateLane state))
-                <> " gate="
-                <> show currentLimit
-                <> "->"
-                <> show nextLimit
-                <> " active="
-                <> show (gateActive state)
-                <> " bps="
-                <> show sampleBps
-                <> " retries="
-                <> show (outcomeRetries outcome)
-                <> " reason="
-                <> reason
-         in pure (next, (logLine, Text.pack reason))
-      putStrLn line
-      pure (Just reasonText)
-  where
-    host = fromMaybe (schedulerJobHost (schedulerJob job)) (outcomeHost outcome)
-
-nextHostGateLimit :: Int -> Int -> Int -> Int64 -> Int64 -> Int -> (Int, String)
-nextHostGateLimit floorLimit maxLimit current previousBps sampleBps retries
-  | retries > 0 =
-      (max floorLimit (current `div` 2), "retry")
-  | sampleBps <= 0 =
-      (current, "no_transfer")
-  | previousBps <= 0 =
-      (min maxLimit (current + 1), "warmup")
-  | sampleBps * 100 >= previousBps * 105 =
-      (min maxLimit (current + 1), "throughput_up")
-  | sampleBps * 100 < previousBps * 70 =
-      (max floorLimit (current - 1), "throughput_down")
-  | otherwise =
-      (current, "stable")
-
-hostGateFloor :: DownloadLane -> Int
-hostGateFloor SmallObjectLane = 1
-hostGateFloor LargeObjectLane = 1
-
-hostGateCeiling :: DownloadLane -> Int
-hostGateCeiling SmallObjectLane = 48
-hostGateCeiling LargeObjectLane = 16
-
-rateBytesPerSecond :: Int64 -> Int -> Int64
-rateBytesPerSecond bytes elapsedMs =
-  round (fromIntegral bytes * 1000 / max 1 (fromIntegral elapsedMs :: Double))
 
 elapsedMillis :: UTCTime -> UTCTime -> Int
 elapsedMillis start end =
@@ -1183,12 +919,7 @@ streamResponseBody isCancelled mode initialState onChunk reader target =
                 if nextPending >= reportThreshold
                   then onChunk nextPending >> throwIfCancelled isCancelled >> pure 0
                   else pure nextPending
-              loop
-                HashState
-                  { hashStateSize = hashStateSize state + fromIntegral (BS.length chunk)
-                  , hashStateContext = SHA1.update (hashStateContext state) chunk
-                }
-                reportedPending
+              loop (appendHashChunk state chunk) reportedPending
      in loop initialState 0
 
 existingFileIsValid :: DownloadJob -> IO Bool
@@ -1233,42 +964,6 @@ verifyFile job path = do
         else pure ()
       pure valid
 
-sha1HexFile :: FilePath -> IO Text
-sha1HexFile path =
-  fileDigestSha1 . finalizeHashState <$> hashFileState path
-
-hashFileState :: FilePath -> IO HashState
-hashFileState path =
-  withBinaryFile path ReadMode $ \handle ->
-    hashLoop handle emptyHashState
-
-hashLoop :: Handle -> HashState -> IO HashState
-hashLoop handle context = do
-  chunk <- BS.hGetSome handle 262144
-  if BS.null chunk
-    then pure context
-    else
-      hashLoop
-        handle
-        HashState
-          { hashStateSize = hashStateSize context + fromIntegral (BS.length chunk)
-          , hashStateContext = SHA1.update (hashStateContext context) chunk
-          }
-
-emptyHashState :: HashState
-emptyHashState =
-  HashState
-    { hashStateSize = 0
-    , hashStateContext = SHA1.init
-    }
-
-finalizeHashState :: HashState -> FileDigest
-finalizeHashState state =
-  FileDigest
-    { fileDigestSize = hashStateSize state
-    , fileDigestSha1 = Text.pack (concatMap byteToHex (BS.unpack (SHA1.finalize (hashStateContext state))))
-    }
-
 parseRetryAfter :: Response body -> Maybe Int
 parseRetryAfter response =
   lookup hRetryAfter (responseHeaders response) >>= readMaybeBytes
@@ -1281,12 +976,6 @@ readMaybeBytes value =
   case reads (BS8.unpack value) of
     (seconds, _) : _ -> Just seconds
     [] -> Nothing
-
-byteToHex :: Word8 -> String
-byteToHex byte =
-  case showHex byte "" of
-    [single] -> ['0', single]
-    pair -> pair
 
 partPath :: DownloadJob -> FilePath
 partPath job = jobTargetPath job <.> "part"

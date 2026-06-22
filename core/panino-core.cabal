@@ -40,6 +40,7 @@ library
     Panino.Api.Routes.Content.UpdatePlan
     Panino.Api.Routes.Health
     Panino.Api.Routes.Diagnostics
+    Panino.Api.Routes.Diagnostics.Probes
     Panino.Api.Routes.GraphicsTuning
     Panino.Api.Routes.InstallPlan
     Panino.Api.Routes.LaunchTuning
@@ -61,6 +62,7 @@ library
     Panino.Api.Server.State
     Panino.Api.Types
     Panino.Content.Configuration.Preflight
+    Panino.Content.Configuration.Modpack
     Panino.Content.Configuration.Types
     Panino.Content.Local
     Panino.Content.Local.Conflict
@@ -85,10 +87,15 @@ library
     Panino.Compatibility.Types
     Panino.Core
     Panino.CoreLogic.Determinism
+    Panino.CoreLogic.Hashing
+    Panino.Download.Hash
+    Panino.Download.HostGate
     Panino.Download.Manager
     Panino.Download.Multipart
     Panino.Download.Scheduler
+    Panino.Download.Types
     Panino.Download.VerificationIndex
+    Panino.Download.WorkerLimit
     Panino.Diagnostics.Classify
     Panino.Diagnostics.Types
     Panino.Events.Bus
@@ -97,12 +104,14 @@ library
     Panino.Graphics.Tuning.Types
     Panino.Install.Plan.Executor
     Panino.Install.Plan.Types
+    Panino.Lockfile.Changeset
     Panino.Lockfile.Explain
     Panino.Lockfile.Apply
     Panino.Lockfile.Plan
     Panino.Lockfile.Solver
     Panino.Lockfile.Store
     Panino.Lockfile.Types
+    Panino.Lockfile.Verify
     Panino.Launch.Arguments
     Panino.Launch.Java
     Panino.Launch.Tuning.Recommend
@@ -111,9 +120,11 @@ library
     Panino.Minecraft.InstallPreflight
     Panino.Minecraft.InstallPlanGraph
     Panino.Minecraft.InstanceMetadata
+    Panino.Minecraft.LauncherProfiles
     Panino.Minecraft.Layout
     Panino.Minecraft.LoaderInstall
     Panino.Minecraft.Manifest
+    Panino.Minecraft.Modrinth
     Panino.Minecraft.ModPreflight
     Panino.Minecraft.Types
     Panino.Multiplayer.Taowa.ConfigStore
