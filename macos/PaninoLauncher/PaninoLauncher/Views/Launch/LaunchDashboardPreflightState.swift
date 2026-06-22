@@ -7,9 +7,7 @@ extension LaunchDashboard {
                 id: "core",
                 title: localizedString(theme.language, english: "Core service", chinese: "Core 服务", italian: "Servizio Core", french: "Service Core", spanish: "Servicio Core"),
                 detail: viewModel.coreState.detail,
-                state: .ready,
-                actionTitle: nil,
-                action: nil
+                state: .ready
             )
         }
         return LaunchPreflightItem(
@@ -23,80 +21,6 @@ extension LaunchDashboard {
         }
     }
 
-    var javaPreflightItem: LaunchPreflightItem {
-        if let resolution = javaResolution(for: selectedInstance) {
-            if resolution.isReady {
-                return LaunchPreflightItem(
-                    id: "java",
-                    title: AppText.java.localized(theme.language),
-                    detail: resolution.conciseStatus,
-                    state: .ready,
-                    actionTitle: nil,
-                    action: nil
-                )
-            }
-            if resolution.isDownloadable {
-                return LaunchPreflightItem(
-                    id: "java",
-                    title: AppText.java.localized(theme.language),
-                    detail: resolution.conciseStatus,
-                    state: .needsFix,
-                    actionTitle: localizedString(theme.language, english: "Download Java \(resolution.requiredMajorVersion)", chinese: "下载 Java \(resolution.requiredMajorVersion)", italian: "Scarica Java \(resolution.requiredMajorVersion)", french: "Télécharger Java \(resolution.requiredMajorVersion)", spanish: "Descargar Java \(resolution.requiredMajorVersion)")
-                ) {
-                    viewModel.installManagedJavaRuntime(featureVersion: resolution.requiredMajorVersion)
-                }
-            }
-            return LaunchPreflightItem(
-                id: "java",
-                title: AppText.java.localized(theme.language),
-                detail: resolution.conciseStatus,
-                state: .needsFix,
-                actionTitle: localizedString(theme.language, english: "Settings", chinese: "设置", italian: "Impostazioni", french: "Réglages", spanish: "Ajustes"),
-                action: openSettings
-            )
-        }
-
-        guard let javaStatus = viewModel.javaStatus else {
-            return LaunchPreflightItem(
-                id: "java",
-                title: AppText.java.localized(theme.language),
-                detail: viewModel.javaRuntimeStatus,
-                state: .optional,
-                actionTitle: localizedString(theme.language, english: "Resolve", chinese: "解析", italian: "Risolvi", french: "Résoudre", spanish: "Resolver"),
-                action: refreshSelectedJavaRuntime
-            )
-        }
-        if !javaStatus.isAvailable {
-            return LaunchPreflightItem(
-                id: "java",
-                title: AppText.java.localized(theme.language),
-                detail: javaStatus.displayText,
-                state: .needsFix,
-                actionTitle: localizedString(theme.language, english: "Check", chinese: "检查", italian: "Controlla", french: "Vérifier", spanish: "Comprobar"),
-                action: viewModel.checkJavaRuntime
-            )
-        }
-        if let requiredJavaMajor, let current = javaMajorVersion(from: javaStatus.versionSummary), current < requiredJavaMajor {
-            return LaunchPreflightItem(
-                id: "java",
-                title: AppText.java.localized(theme.language),
-                detail: localizedString(theme.language, english: "Requires Java \(requiredJavaMajor), current runtime looks like Java \(current).", chinese: "需要 Java \(requiredJavaMajor)，当前运行时看起来是 Java \(current)。", italian: "Richiede Java \(requiredJavaMajor), runtime attuale Java \(current).", french: "Nécessite Java \(requiredJavaMajor), runtime actuel Java \(current).", spanish: "Requiere Java \(requiredJavaMajor), runtime actual Java \(current)."),
-                state: .needsFix,
-                actionTitle: localizedString(theme.language, english: "Change Java", chinese: "更换 Java", italian: "Cambia Java", french: "Changer Java", spanish: "Cambiar Java"),
-                action: openSettings
-            )
-        }
-        return LaunchPreflightItem(
-            id: "java",
-            title: AppText.java.localized(theme.language),
-            detail: requiredJavaMajor.map { localizedString(theme.language, english: "Java runtime is available. Required: Java \($0).", chinese: "Java 可用。需要：Java \($0)。", italian: "Runtime Java disponibile. Richiesto: Java \($0).", french: "Runtime Java disponible. Requis : Java \($0).", spanish: "Runtime Java disponible. Requerido: Java \($0).") } ?? javaStatus.displayText,
-            state: .ready,
-            actionTitle: nil,
-            action: nil
-        )
-    }
-
-
     var versionPreflightItem: LaunchPreflightItem {
         switch versionInstallState {
         case .installed:
@@ -104,9 +28,7 @@ extension LaunchDashboard {
                 id: "version",
                 title: localizedString(theme.language, english: "Minecraft files", chinese: "Minecraft 文件", italian: "File Minecraft", french: "Fichiers Minecraft", spanish: "Archivos Minecraft"),
                 detail: localizedString(theme.language, english: "\(selectedInstance.minecraftVersion) is installed and verified.", chinese: "\(selectedInstance.minecraftVersion) 已安装并通过校验。", italian: "\(selectedInstance.minecraftVersion) installato e verificato.", french: "\(selectedInstance.minecraftVersion) installé et vérifié.", spanish: "\(selectedInstance.minecraftVersion) instalado y verificado."),
-                state: .ready,
-                actionTitle: nil,
-                action: nil
+                state: .ready
             )
         case .available:
             return LaunchPreflightItem(
@@ -122,53 +44,9 @@ extension LaunchDashboard {
                 id: "version",
                 title: localizedString(theme.language, english: "Minecraft files", chinese: "Minecraft 文件", italian: "File Minecraft", french: "Fichiers Minecraft", spanish: "Archivos Minecraft"),
                 detail: localizedString(theme.language, english: "Version status is still loading from Core.", chinese: "版本状态仍在从 Core 加载。", italian: "Stato versione in caricamento da Core.", french: "État de version encore chargé depuis Core.", spanish: "Estado de versión cargando desde Core."),
-                state: .optional,
-                actionTitle: nil,
-                action: nil
+                state: .optional
             )
         }
-    }
-
-    var accountPreflightItem: LaunchPreflightItem {
-        if let account = viewModel.accountState.account, !account.isExpired {
-            return LaunchPreflightItem(
-                id: "account",
-                title: AppText.account.localized(theme.language),
-                detail: localizedString(theme.language, english: "Signed in as \(account.name).", chinese: "已登录为 \(account.name)。", italian: "Accesso come \(account.name).", french: "Connecté en tant que \(account.name).", spanish: "Sesión iniciada como \(account.name)."),
-                state: .ready,
-                actionTitle: nil,
-                action: nil
-            )
-        }
-        if let profile = accountStore.defaultAccount, profile.loginStatus == .expired {
-            return LaunchPreflightItem(
-                id: "account",
-                title: AppText.account.localized(theme.language),
-                detail: localizedString(theme.language, english: "\(profile.name)'s Microsoft session needs refresh.", chinese: "\(profile.name) 的 Microsoft 会话需要刷新。", italian: "La sessione Microsoft di \(profile.name) va aggiornata.", french: "La session Microsoft de \(profile.name) doit être actualisée.", spanish: "La sesión Microsoft de \(profile.name) debe actualizarse."),
-                state: .needsFix,
-                actionTitle: localizedString(theme.language, english: "Refresh", chinese: "刷新", italian: "Aggiorna", french: "Actualiser", spanish: "Actualizar")
-            ) {
-                Task { await viewModel.restoreAccountIfPossible(accountID: profile.id) }
-            }
-        }
-        if let profile = accountStore.defaultAccount, profile.loginStatus == .signedIn {
-            return LaunchPreflightItem(
-                id: "account",
-                title: AppText.account.localized(theme.language),
-                detail: localizedString(theme.language, english: "\(profile.name) is ready for launch.", chinese: "\(profile.name) 可用于启动。", italian: "\(profile.name) pronto per l'avvio.", french: "\(profile.name) prêt pour le lancement.", spanish: "\(profile.name) listo para iniciar."),
-                state: .ready,
-                actionTitle: nil,
-                action: nil
-            )
-        }
-        return LaunchPreflightItem(
-            id: "account",
-            title: AppText.account.localized(theme.language),
-            detail: localizedString(theme.language, english: "No online account is selected; launch will use offline fallback where allowed.", chinese: "未选择在线账号；允许时会使用离线回退启动。", italian: "Nessun account online selezionato; verrà usato il fallback offline se consentito.", french: "Aucun compte en ligne sélectionné ; le mode hors ligne sera utilisé si possible.", spanish: "No hay cuenta online seleccionada; se usará modo offline si se permite."),
-            state: .optional,
-            actionTitle: localizedString(theme.language, english: "Account", chinese: "账号", italian: "Account", french: "Compte", spanish: "Cuenta"),
-            action: openAccount
-        )
     }
 
     var diskPreflightItem: LaunchPreflightItem {
@@ -177,9 +55,7 @@ extension LaunchDashboard {
                 id: "disk",
                 title: localizedString(theme.language, english: "Game directory", chinese: "游戏目录", italian: "Cartella gioco", french: "Dossier du jeu", spanish: "Directorio del juego"),
                 detail: selectedInstance.gameDirectory,
-                state: .ready,
-                actionTitle: nil,
-                action: nil
+                state: .ready
             )
         }
         return LaunchPreflightItem(

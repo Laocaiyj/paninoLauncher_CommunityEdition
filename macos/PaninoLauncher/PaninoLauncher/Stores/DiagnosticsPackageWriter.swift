@@ -77,84 +77,12 @@ enum DiagnosticsPackageWriter {
     }
 
     static func copyPerformanceEvidence(tasks: [TaskRecord], fileManager: FileManager, destination: URL, warnings: inout [String]) throws {
-        let taskDirs = tasks
-            .compactMap(\.gameDir)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let gameDirs = Array(NSOrderedSet(array: taskDirs + [LauncherSettings.defaultMinecraftDirectory])) as? [String] ?? []
-        var copied = false
-        for gameDir in gameDirs {
-            let root = URL(fileURLWithPath: gameDir, isDirectory: true)
-                .appendingPathComponent(".panino", isDirectory: true)
-                .appendingPathComponent("performance", isDirectory: true)
-            guard fileManager.fileExists(atPath: root.path) else { continue }
-            try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
-            for relativePath in [
-                "profiles/applied.json",
-                "profiles/user-override.json",
-                "experiments/cooldowns"
-            ] {
-                let source = diagnosticURL(basePath: root.path, relativePath: relativePath)
-                guard fileManager.fileExists(atPath: source.path) else { continue }
-                let target = destination.appendingPathComponent(relativePath.replacingOccurrences(of: "/", with: "-"))
-                var isDirectory: ObjCBool = false
-                fileManager.fileExists(atPath: source.path, isDirectory: &isDirectory)
-                if isDirectory.boolValue {
-                    try copyDirectoryContents(fileManager: fileManager, source: source, destination: target, warnings: &warnings)
-                } else {
-                    try copyRedactedDiagnosticArtifact(fileManager: fileManager, source: source, destination: target, warnings: &warnings)
-                }
-                copied = true
-            }
-            let profilesRoot = root.appendingPathComponent("profiles", isDirectory: true)
-            if fileManager.fileExists(atPath: profilesRoot.path) {
-                try copyDirectoryContents(
-                    fileManager: fileManager,
-                    source: profilesRoot,
-                    destination: destination.appendingPathComponent("profiles", isDirectory: true),
-                    warnings: &warnings
-                )
-                copied = true
-            }
-            if let profileFiles = try? fileManager.contentsOfDirectory(at: profilesRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-                for profileFile in profileFiles where profileFile.lastPathComponent.hasPrefix("candidate-") {
-                    let target = destination.appendingPathComponent("profiles-\(profileFile.lastPathComponent)")
-                    try copyRedactedDiagnosticArtifact(fileManager: fileManager, source: profileFile, destination: target, warnings: &warnings)
-                    copied = true
-                }
-            }
-            let sessionsRoot = root.appendingPathComponent("sessions", isDirectory: true)
-            if fileManager.fileExists(atPath: sessionsRoot.path) {
-                try copyDirectoryContents(
-                    fileManager: fileManager,
-                    source: sessionsRoot,
-                    destination: destination.appendingPathComponent("sessions", isDirectory: true),
-                    warnings: &warnings
-                )
-                copied = true
-            }
-            if let sessionDirs = try? fileManager.contentsOfDirectory(at: sessionsRoot, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) {
-                for sessionDir in sessionDirs.sorted(by: { lhs, rhs in
-                    let left = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                    let right = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                    return left > right
-                }).prefix(3) {
-                    for fileName in ["performance-session.json", "gc.log"] {
-                        let source = sessionDir.appendingPathComponent(fileName)
-                        guard fileManager.fileExists(atPath: source.path) else { continue }
-                        let target = destination.appendingPathComponent("\(sessionDir.lastPathComponent)-\(fileName)")
-                        try copyRedactedDiagnosticArtifact(fileManager: fileManager, source: source, destination: target, warnings: &warnings)
-                        copied = true
-                    }
-                }
-            }
-        }
-        if copied {
-            try writeRedactedText(
-                "Performance evidence copied from .panino/performance, including sessions, GC logs, applied/user profiles, candidates, and cooldowns.",
-                to: destination.appendingPathComponent("README.txt")
-            )
-        }
+        try DiagnosticsPerformanceEvidenceWriter.copy(
+            tasks: tasks,
+            fileManager: fileManager,
+            destination: destination,
+            warnings: &warnings
+        )
     }
 
     static func writeRedactedJSON<T: Encodable>(_ value: T, to destination: URL) throws {

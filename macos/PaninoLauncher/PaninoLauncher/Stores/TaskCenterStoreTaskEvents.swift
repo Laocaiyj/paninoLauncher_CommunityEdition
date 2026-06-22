@@ -83,52 +83,6 @@ extension TaskCenterStore {
         )
     }
 
-    func applyTaowa(event: CoreEvent?) {
-        guard let event,
-              event.eventType.hasPrefix("taowa.session."),
-              let session = event.payload?.session
-        else { return }
-
-        let primaryDiagnostic = event.payload?.diagnostic ?? session.diagnostics.first
-        let allDiagnostics: [CoreDiagnostic]? = {
-            if let diagnostics = event.payload?.diagnostics, !diagnostics.isEmpty {
-                return diagnostics
-            }
-            if !session.diagnostics.isEmpty {
-                return session.diagnostics
-            }
-            return primaryDiagnostic.map { [$0] }
-        }()
-        let state = TaskCenterRecordNormalizer.taowaRecordState(eventType: event.eventType, sessionStatus: session.status)
-        let message: String
-        switch state {
-        case .running:
-            message = "Taowa tunnel running at \(session.remoteAddress)."
-        case .succeeded:
-            message = "Taowa tunnel stopped for \(session.remoteAddress)."
-        case .failed, .interrupted:
-            message = primaryDiagnostic?.userSummary ?? event.message
-        case .queued, .cancelled:
-            message = event.message
-        }
-
-        upsertLocal(
-            id: "taowa:\(session.sessionId)",
-            kind: "taowa-tunnel",
-            name: "Taowa Tunnel",
-            version: session.remoteAddress,
-            gameDir: session.gameDir,
-            state: state,
-            progress: state.isActive ? 0.66 : 1,
-            currentFile: "frpc \(session.localPort) -> \(session.remoteAddress)",
-            errorCode: state.needsAttention ? primaryDiagnostic?.code : nil,
-            errorDetail: primaryDiagnostic?.developerDetail,
-            diagnostic: primaryDiagnostic,
-            diagnostics: allDiagnostics,
-            message: message
-        )
-    }
-
     func mergeCoreHistory(_ snapshots: [TaskSnapshot]) {
         guard !snapshots.isEmpty else { return }
         var next = records

@@ -4,173 +4,148 @@ import Combine
 
 @MainActor
 final class ThemeSettings: ObservableObject {
-    private enum Key {
-        static let language = "App.Language"
-        static let currentPreset = "Theme.CurrentPreset"
-        static let appearance = "Theme.Appearance"
-        static let accent = "Theme.Accent"
-        static let materialStrength = "Theme.MaterialStrength"
-        static let backgroundMode = "Theme.BackgroundMode"
-        static let fontDensity = "Theme.FontDensity"
-        static let customImagePath = "Theme.CustomImagePath"
-        static let customImageBookmark = "Theme.CustomImageBookmark"
-        static let softBackgroundEnabled = "Theme.SoftBackgroundEnabled"
-        static let quietModeEnabled = "Theme.QuietModeEnabled"
-        static let glassStyle = "Theme.GlassStyle"
-        static let chromeStyle = "Theme.ChromeStyle"
-        static let depthStyle = "Theme.DepthStyle"
-        static let controlShape = "Theme.ControlShape"
-        static let motionStyle = "Theme.MotionStyle"
-        static let customAccentHex = "Theme.CustomAccentHex"
-        static let glassFrosting = "Theme.GlassFrosting"
-        static let backgroundBlur = "Theme.BackgroundBlur"
-        static let backgroundDim = "Theme.BackgroundDim"
-        static let surfaceContrast = "Theme.SurfaceContrast"
-        static let visualNoiseReductionEnabled = "Theme.VisualNoiseReductionEnabled"
-    }
-
     @Published var language: AppLanguage = ThemeSettings.loadEnum(
-        key: Key.language,
+        key: ThemeSettingsKey.language,
         defaultValue: .english
     ) {
-        didSet { SettingsStore.set(language.rawValue, forKey: Key.language) }
+        didSet { SettingsStore.set(language.rawValue, forKey: ThemeSettingsKey.language) }
     }
 
     @Published var currentPreset: ThemePreset = ThemeSettings.loadEnum(
-        key: Key.currentPreset,
+        key: ThemeSettingsKey.currentPreset,
         defaultValue: .vanilla
     ) {
-        didSet { SettingsStore.set(currentPreset.rawValue, forKey: Key.currentPreset) }
+        didSet { SettingsStore.set(currentPreset.rawValue, forKey: ThemeSettingsKey.currentPreset) }
     }
 
     @Published var appearance: ThemeAppearanceMode = ThemeSettings.loadEnum(
-        key: Key.appearance,
+        key: ThemeSettingsKey.appearance,
         defaultValue: .system
     ) {
         didSet {
-            SettingsStore.set(appearance.rawValue, forKey: Key.appearance)
+            SettingsStore.set(appearance.rawValue, forKey: ThemeSettingsKey.appearance)
             applyAppAppearance()
         }
     }
 
     @Published var accent: ThemeAccentColor = ThemeSettings.loadEnum(
-        key: Key.accent,
+        key: ThemeSettingsKey.accent,
         defaultValue: .system
     ) {
-        didSet { SettingsStore.set(accent.rawValue, forKey: Key.accent) }
+        didSet { SettingsStore.set(accent.rawValue, forKey: ThemeSettingsKey.accent) }
     }
 
     @Published var materialStrength: MaterialStrength = ThemeSettings.loadEnum(
-        key: Key.materialStrength,
+        key: ThemeSettingsKey.materialStrength,
         defaultValue: .medium
     ) {
-        didSet { SettingsStore.set(materialStrength.rawValue, forKey: Key.materialStrength) }
+        didSet { SettingsStore.set(materialStrength.rawValue, forKey: ThemeSettingsKey.materialStrength) }
     }
 
     @Published var backgroundMode: ThemeBackgroundMode = ThemeSettings.loadEnum(
-        key: Key.backgroundMode,
+        key: ThemeSettingsKey.backgroundMode,
         defaultValue: .default
     ) {
-        didSet { SettingsStore.set(backgroundMode.rawValue, forKey: Key.backgroundMode) }
+        didSet { SettingsStore.set(backgroundMode.rawValue, forKey: ThemeSettingsKey.backgroundMode) }
     }
 
     @Published var fontDensity: FontDensity = ThemeSettings.loadEnum(
-        key: Key.fontDensity,
+        key: ThemeSettingsKey.fontDensity,
         defaultValue: .standard
     ) {
-        didSet { SettingsStore.set(fontDensity.rawValue, forKey: Key.fontDensity) }
+        didSet { SettingsStore.set(fontDensity.rawValue, forKey: ThemeSettingsKey.fontDensity) }
     }
 
     @Published var glassStyle: ThemeGlassStyle = ThemeSettings.loadEnum(
-        key: Key.glassStyle,
+        key: ThemeSettingsKey.glassStyle,
         defaultValue: .automatic
     ) {
-        didSet { SettingsStore.set(glassStyle.rawValue, forKey: Key.glassStyle) }
+        didSet { SettingsStore.set(glassStyle.rawValue, forKey: ThemeSettingsKey.glassStyle) }
     }
 
     @Published var chromeStyle: ThemeChromeStyle = ThemeSettings.loadEnum(
-        key: Key.chromeStyle,
+        key: ThemeSettingsKey.chromeStyle,
         defaultValue: .floatingToolbar
     ) {
-        didSet { SettingsStore.set(chromeStyle.rawValue, forKey: Key.chromeStyle) }
+        didSet { SettingsStore.set(chromeStyle.rawValue, forKey: ThemeSettingsKey.chromeStyle) }
     }
 
     @Published var depthStyle: ThemeDepthStyle = ThemeSettings.loadEnum(
-        key: Key.depthStyle,
+        key: ThemeSettingsKey.depthStyle,
         defaultValue: .soft
     ) {
-        didSet { SettingsStore.set(depthStyle.rawValue, forKey: Key.depthStyle) }
+        didSet { SettingsStore.set(depthStyle.rawValue, forKey: ThemeSettingsKey.depthStyle) }
     }
 
     @Published var controlShape: ThemeControlShape = ThemeSettings.loadEnum(
-        key: Key.controlShape,
+        key: ThemeSettingsKey.controlShape,
         defaultValue: .roundedRect
     ) {
-        didSet { SettingsStore.set(controlShape.rawValue, forKey: Key.controlShape) }
+        didSet { SettingsStore.set(controlShape.rawValue, forKey: ThemeSettingsKey.controlShape) }
     }
 
     @Published var motionStyle: ThemeMotionStyle = ThemeSettings.loadEnum(
-        key: Key.motionStyle,
+        key: ThemeSettingsKey.motionStyle,
         defaultValue: .system
     ) {
-        didSet { SettingsStore.set(motionStyle.rawValue, forKey: Key.motionStyle) }
+        didSet { SettingsStore.set(motionStyle.rawValue, forKey: ThemeSettingsKey.motionStyle) }
     }
 
     @Published var customAccentHex: String = SettingsStore.string(
-        forKey: Key.customAccentHex,
+        forKey: ThemeSettingsKey.customAccentHex,
         default: "#FF4F5E"
     ) {
         didSet {
-            SettingsStore.set(Self.normalizedCustomAccentHex(customAccentHex), forKey: Key.customAccentHex)
+            SettingsStore.set(Self.normalizedCustomAccentHex(customAccentHex), forKey: ThemeSettingsKey.customAccentHex)
         }
     }
 
     @Published var glassFrosting: Double = SettingsStore.double(
-        forKey: Key.glassFrosting,
+        forKey: ThemeSettingsKey.glassFrosting,
         default: 0.58
     ) {
         didSet {
-            SettingsStore.set(Self.clampedUnit(glassFrosting), forKey: Key.glassFrosting)
+            SettingsStore.set(Self.clampedUnit(glassFrosting), forKey: ThemeSettingsKey.glassFrosting)
         }
     }
 
     @Published var backgroundBlur: Double = SettingsStore.double(
-        forKey: Key.backgroundBlur,
+        forKey: ThemeSettingsKey.backgroundBlur,
         default: 0.46
     ) {
         didSet {
-            SettingsStore.set(Self.clampedUnit(backgroundBlur), forKey: Key.backgroundBlur)
+            SettingsStore.set(Self.clampedUnit(backgroundBlur), forKey: ThemeSettingsKey.backgroundBlur)
         }
     }
 
     @Published var backgroundDim: Double = SettingsStore.double(
-        forKey: Key.backgroundDim,
+        forKey: ThemeSettingsKey.backgroundDim,
         default: 0.54
     ) {
         didSet {
-            SettingsStore.set(Self.clampedUnit(backgroundDim), forKey: Key.backgroundDim)
+            SettingsStore.set(Self.clampedUnit(backgroundDim), forKey: ThemeSettingsKey.backgroundDim)
         }
     }
 
     @Published var surfaceContrast: Double = SettingsStore.double(
-        forKey: Key.surfaceContrast,
+        forKey: ThemeSettingsKey.surfaceContrast,
         default: 0.46
     ) {
         didSet {
-            SettingsStore.set(Self.clampedUnit(surfaceContrast), forKey: Key.surfaceContrast)
+            SettingsStore.set(Self.clampedUnit(surfaceContrast), forKey: ThemeSettingsKey.surfaceContrast)
         }
     }
 
-    @Published var customImagePath: String = SettingsStore.string(forKey: Key.customImagePath, default: "") {
+    @Published var customImagePath: String = SettingsStore.string(forKey: ThemeSettingsKey.customImagePath, default: "") {
         didSet {
-            SettingsStore.set(customImagePath, forKey: Key.customImagePath)
+            SettingsStore.set(customImagePath, forKey: ThemeSettingsKey.customImagePath)
             loadCustomBackgroundImage()
         }
     }
 
-    @Published var customImageBookmark: Data? = SettingsStore.data(forKey: Key.customImageBookmark) {
+    @Published var customImageBookmark: Data? = SettingsStore.data(forKey: ThemeSettingsKey.customImageBookmark) {
         didSet {
-            SettingsStore.set(customImageBookmark, forKey: Key.customImageBookmark)
+            SettingsStore.set(customImageBookmark, forKey: ThemeSettingsKey.customImageBookmark)
             loadCustomBackgroundImage()
         }
     }
@@ -183,24 +158,24 @@ final class ThemeSettings: ObservableObject {
     }
 
     @Published var softBackgroundEnabled: Bool = SettingsStore.bool(
-        forKey: Key.softBackgroundEnabled,
+        forKey: ThemeSettingsKey.softBackgroundEnabled,
         default: true
     ) {
-        didSet { SettingsStore.set(softBackgroundEnabled, forKey: Key.softBackgroundEnabled) }
+        didSet { SettingsStore.set(softBackgroundEnabled, forKey: ThemeSettingsKey.softBackgroundEnabled) }
     }
 
     @Published var quietModeEnabled: Bool = SettingsStore.bool(
-        forKey: Key.quietModeEnabled,
+        forKey: ThemeSettingsKey.quietModeEnabled,
         default: false
     ) {
-        didSet { SettingsStore.set(quietModeEnabled, forKey: Key.quietModeEnabled) }
+        didSet { SettingsStore.set(quietModeEnabled, forKey: ThemeSettingsKey.quietModeEnabled) }
     }
 
     @Published var visualNoiseReductionEnabled: Bool = SettingsStore.bool(
-        forKey: Key.visualNoiseReductionEnabled,
+        forKey: ThemeSettingsKey.visualNoiseReductionEnabled,
         default: false
     ) {
-        didSet { SettingsStore.set(visualNoiseReductionEnabled, forKey: Key.visualNoiseReductionEnabled) }
+        didSet { SettingsStore.set(visualNoiseReductionEnabled, forKey: ThemeSettingsKey.visualNoiseReductionEnabled) }
     }
 
     func loadCustomBackgroundImage() {
@@ -210,19 +185,4 @@ final class ThemeSettings: ObservableObject {
         )
     }
 
-    private static func loadEnum<Value: RawRepresentable>(
-        key: String,
-        defaultValue: Value
-    ) -> Value where Value.RawValue == String {
-        let rawValue = SettingsStore.string(forKey: key, default: defaultValue.rawValue)
-        return Value(rawValue: rawValue) ?? defaultValue
-    }
-
-    private static func clampedUnit(_ value: Double) -> Double {
-        min(max(value, 0), 1)
-    }
-
-    private func applyAppAppearance() {
-        NSApplication.shared.appearance = appearance.nsAppearance
-    }
 }

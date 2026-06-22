@@ -1,0 +1,26 @@
+import Foundation
+
+enum ThemeSettingsKey {
+    static let language = "App.Language"
+    static let currentPreset = "Theme.CurrentPreset"
+    static let appearance = "Theme.Appearance"
+    static let accent = "Theme.Accent"
+    static let materialStrength = "Theme.MaterialStrength"
+    static let backgroundMode = "Theme.BackgroundMode"
+    static let fontDensity = "Theme.FontDensity"
+    static let customImagePath = "Theme.CustomImagePath"
+    static let customImageBookmark = "Theme.CustomImageBookmark"
+    static let softBackgroundEnabled = "Theme.SoftBackgroundEnabled"
+    static let quietModeEnabled = "Theme.QuietModeEnabled"
+    static let glassStyle = "Theme.GlassStyle"
+    static let chromeStyle = "Theme.ChromeStyle"
+    static let depthStyle = "Theme.DepthStyle"
+    static let controlShape = "Theme.ControlShape"
+    static let motionStyle = "Theme.MotionStyle"
+    static let customAccentHex = "Theme.CustomAccentHex"
+    static let glassFrosting = "Theme.GlassFrosting"
+    static let backgroundBlur = "Theme.BackgroundBlur"
+    static let backgroundDim = "Theme.BackgroundDim"
+    static let surfaceContrast = "Theme.SurfaceContrast"
+    static let visualNoiseReductionEnabled = "Theme.VisualNoiseReductionEnabled"
+}

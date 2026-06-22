@@ -2,18 +2,13 @@ import Foundation
 
 @MainActor
 final class OnlineContentStore: ObservableObject {
-    @Published private(set) var searchResults: [ContentSourceID: OnlineSearchPage] = [:]
-    @Published private(set) var selectedProject: OnlineProject?
-    @Published private(set) var selectedReleases: [OnlineRelease] = []
+    @Published private var searchState = OnlineContentStoreSearchState()
+    @Published private var projectState = OnlineContentStoreProjectState()
     @Published private(set) var minecraftVersions: [MinecraftRemoteVersion] = []
     @Published private(set) var selectedMinecraftPackage: MinecraftVersionPackage?
     @Published private(set) var loaderMetadata: [ContentSourceID: [LoaderMetadata]] = [:]
-    @Published private(set) var searchFailures: [ContentSourceID: String] = [:]
-    @Published private(set) var searchFailureSnapshots: [ContentSourceID: String] = [:]
-    @Published private(set) var projectFailure: String?
     @Published private(set) var statusMessage = "Online content not loaded"
     @Published private(set) var isLoading = false
-    @Published private(set) var lastSearchUpdatedAt: Date?
     @Published private(set) var curseForgeAPIKeyConfigured: Bool
 
     private let credentials = OnlineContentCredentialStore()
@@ -26,6 +21,34 @@ final class OnlineContentStore: ObservableObject {
 
     init() {
         curseForgeAPIKeyConfigured = credentials.curseForgeAPIKeyConfigured
+    }
+
+    var searchResults: [ContentSourceID: OnlineSearchPage] {
+        searchState.results
+    }
+
+    var selectedProject: OnlineProject? {
+        projectState.selectedProject
+    }
+
+    var selectedReleases: [OnlineRelease] {
+        projectState.releases
+    }
+
+    var searchFailures: [ContentSourceID: String] {
+        searchState.failures
+    }
+
+    var searchFailureSnapshots: [ContentSourceID: String] {
+        searchState.failureSnapshots
+    }
+
+    var projectFailure: String? {
+        projectState.failure
+    }
+
+    var lastSearchUpdatedAt: Date? {
+        searchState.lastUpdatedAt
     }
 
     func configure(coreBackend: OnlineContentCoreBackend) {
@@ -50,31 +73,20 @@ final class OnlineContentStore: ObservableObject {
     func requireConfiguration(for source: ContentSourceID) {
         searchTask?.cancel()
         isLoading = false
-        searchResults.removeValue(forKey: source)
-        searchFailures.removeValue(forKey: source)
-        searchFailureSnapshots.removeValue(forKey: source)
-        if selectedProject?.source == source {
-            selectedProject = nil
-            selectedReleases = []
-            projectFailure = nil
-        }
+        searchState.clear(source: source)
+        projectState.clear(for: source)
         statusMessage = "\(source.displayName) requires API credentials before browsing."
     }
 
     func selectProjectPreview(_ project: OnlineProject) {
         projectTask?.cancel()
-        selectedProject = project
-        selectedReleases = []
-        projectFailure = nil
+        projectState.preview(project)
         statusMessage = "Loading \(project.title)"
     }
 
     func clearSelection(for source: ContentSourceID? = nil) {
         projectTask?.cancel()
-        guard source == nil || selectedProject?.source == source else { return }
-        selectedProject = nil
-        selectedReleases = []
-        projectFailure = nil
+        projectState.clear(for: source)
     }
 
     func search(
@@ -83,8 +95,7 @@ final class OnlineContentStore: ObservableObject {
         clearExisting: Bool = false,
         completion: ((Bool) -> Void)? = nil
     ) {
-        guard let backend else {
-            statusMessage = "Core backend is not ready for online content."
+        guard let backend = requireBackend("Core backend is not ready for online content.") else {
             completion?(false)
             return
         }
@@ -94,74 +105,48 @@ final class OnlineContentStore: ObservableObject {
         let generation = searchGeneration
         isLoading = true
         statusMessage = "Searching online content via Core"
-        for source in requestedSources {
-            searchFailures.removeValue(forKey: source)
-            searchFailureSnapshots.removeValue(forKey: source)
-        }
+        searchState.clearFailures(for: requestedSources)
         if clearExisting {
             clearSelection()
         }
-        projectFailure = nil
+        projectState.beginLoad()
 
         searchTask = Task {
-            var batch = OnlineContentSearchBatchResult()
-
-            for source in requestedSources {
-                guard !Task.isCancelled else { return }
-                do {
-                    let page = try await backend.search(query, source, apiKey(for: source))
-                    batch.addPage(page, for: source)
-                } catch {
-                    batch.addFailure(error, source: source, query: query)
-                }
-            }
+            let batch = await OnlineContentSearchRequestRunner.run(
+                query: query,
+                sources: requestedSources,
+                backend: backend,
+                apiKey: { apiKey(for: $0) }
+            )
 
             guard !Task.isCancelled, generation == searchGeneration else { return }
-            for source in requestedSources {
-                if let page = batch.pages[source] {
-                    searchResults[source] = page
-                }
-                if let failure = batch.failuresBySource[source] {
-                    searchFailures[source] = failure
-                    searchFailureSnapshots[source] = batch.failureSnapshotsBySource[source]
-                } else {
-                    searchFailures.removeValue(forKey: source)
-                    searchFailureSnapshots.removeValue(forKey: source)
-                }
-            }
+            searchState.apply(batch, for: requestedSources, updatedAt: Date())
             isLoading = false
-            if !batch.pages.isEmpty {
-                lastSearchUpdatedAt = Date()
-            }
             statusMessage = batch.statusMessage
             completion?(batch.succeeded)
         }
     }
 
     func loadProject(_ projectID: String, sourceID: ContentSourceID, query: OnlineSearchQuery = OnlineSearchQuery()) {
-        guard let backend else {
-            statusMessage = "Core backend is not ready for project details."
-            return
-        }
+        guard let backend = requireBackend("Core backend is not ready for project details.") else { return }
 
         projectTask?.cancel()
         projectGeneration += 1
         let generation = projectGeneration
         isLoading = true
         statusMessage = "Loading project details via Core"
-        projectFailure = nil
+        projectState.beginLoad()
 
         projectTask = Task {
             do {
                 let response = try await backend.project(projectID, sourceID, query, apiKey(for: sourceID))
                 guard !Task.isCancelled, generation == projectGeneration else { return }
-                selectedProject = response.project
-                selectedReleases = response.releases
+                projectState.apply(response)
                 statusMessage = "Loaded \(response.project.title)"
             } catch {
                 guard !Task.isCancelled, generation == projectGeneration else { return }
                 let message = OnlineContentErrorFormatter.displayMessage(for: error)
-                projectFailure = message
+                projectState.fail(with: message)
                 statusMessage = "Project load failed: \(message)"
             }
             guard !Task.isCancelled, generation == projectGeneration else { return }
@@ -170,10 +155,7 @@ final class OnlineContentStore: ObservableObject {
     }
 
     func refreshMinecraftVersions() {
-        guard let backend else {
-            statusMessage = "Core backend is not ready for Minecraft versions."
-            return
-        }
+        guard let backend = requireBackend("Core backend is not ready for Minecraft versions.") else { return }
 
         versionTask?.cancel()
         statusMessage = "Refreshing Minecraft versions via Core"
@@ -188,10 +170,7 @@ final class OnlineContentStore: ObservableObject {
     }
 
     func loadMinecraftPackage(for version: MinecraftRemoteVersion) {
-        guard let backend else {
-            statusMessage = "Core backend is not ready for Minecraft metadata."
-            return
-        }
+        guard let backend = requireBackend("Core backend is not ready for Minecraft metadata.") else { return }
 
         versionTask?.cancel()
         statusMessage = "Loading Minecraft version metadata via Core"
@@ -206,10 +185,7 @@ final class OnlineContentStore: ObservableObject {
     }
 
     func refreshLoaderMetadata(for minecraftVersion: String) {
-        guard let backend else {
-            statusMessage = "Core backend is not ready for loader metadata."
-            return
-        }
+        guard let backend = requireBackend("Core backend is not ready for loader metadata.") else { return }
 
         statusMessage = "Refreshing loader metadata via Core"
         Task {
@@ -239,5 +215,13 @@ final class OnlineContentStore: ObservableObject {
             curseForgeAPIKeyConfigured = result.isConfigured
         }
         return result.value
+    }
+
+    private func requireBackend(_ unavailableMessage: String) -> OnlineContentCoreBackend? {
+        guard let backend else {
+            statusMessage = unavailableMessage
+            return nil
+        }
+        return backend
     }
 }

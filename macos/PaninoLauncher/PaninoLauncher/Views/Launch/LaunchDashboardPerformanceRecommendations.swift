@@ -6,7 +6,7 @@ extension LaunchDashboard {
         let state: LaunchPreflightState = summary.status == "needsAction" ? .needsFix : .ready
         return LaunchPreflightItem(
             id: "performance-summary",
-            title: localizedString(theme.language, english: "Performance recommendation", chinese: "性能推荐", italian: "Consiglio prestazioni", french: "Recommandation performance", spanish: "Recomendación de rendimiento"),
+            title: performanceRecommendationTitle,
             detail: performanceSummaryDetail(summary),
             state: state,
             actionTitle: summary.primaryAction.title,
@@ -15,33 +15,47 @@ extension LaunchDashboard {
     }
 
     var localPerformancePreflightItem: LaunchPreflightItem {
-        if jvmTuningPreflightItem.state == .needsFix {
-            return LaunchPreflightItem(
-                id: "performance-summary",
-                title: localizedString(theme.language, english: "Performance recommendation", chinese: "性能推荐", italian: "Consiglio prestazioni", french: "Recommandation performance", spanish: "Recomendación de rendimiento"),
-                detail: jvmTuningPreflightItem.detail,
+        let tuningItem = jvmTuningPreflightItem
+        if tuningItem.state == .needsFix {
+            return performanceRecommendationPreflightItem(
+                detail: tuningItem.detail,
                 state: .needsFix,
-                actionTitle: jvmTuningPreflightItem.actionTitle,
-                action: jvmTuningPreflightItem.action
+                actionTitle: tuningItem.actionTitle,
+                action: tuningItem.action
             )
         }
-        if graphicsPreflightItem.state == .needsFix {
-            return LaunchPreflightItem(
-                id: "performance-summary",
-                title: localizedString(theme.language, english: "Performance recommendation", chinese: "性能推荐", italian: "Consiglio prestazioni", french: "Recommandation performance", spanish: "Recomendación de rendimiento"),
-                detail: graphicsPreflightItem.detail,
+        let graphicsItem = graphicsPreflightItem
+        if graphicsItem.state == .needsFix {
+            return performanceRecommendationPreflightItem(
+                detail: graphicsItem.detail,
                 state: .needsFix,
-                actionTitle: graphicsPreflightItem.actionTitle,
-                action: graphicsPreflightItem.action
+                actionTitle: graphicsItem.actionTitle,
+                action: graphicsItem.action
             )
         }
-        return LaunchPreflightItem(
-            id: "performance-summary",
-            title: localizedString(theme.language, english: "Performance recommendation", chinese: "性能推荐", italian: "Consiglio prestazioni", french: "Recommandation performance", spanish: "Recomendación de rendimiento"),
+        return performanceRecommendationPreflightItem(
             detail: localizedString(theme.language, english: "Panino will use an estimated memory and graphics baseline until this instance has local launch metrics.", chinese: "在这个实例产生本机启动指标前，Panino 只使用估算的内存和画面 baseline。", italian: "Panino usa una baseline stimata finché non ci sono metriche locali.", french: "Panino utilise une baseline estimée jusqu'aux métriques locales.", spanish: "Panino usa una base estimada hasta tener métricas locales."),
-            state: .ready,
-            actionTitle: nil,
-            action: nil
+            state: .ready
+        )
+    }
+
+    private var performanceRecommendationTitle: String {
+        localizedString(theme.language, english: "Performance recommendation", chinese: "性能推荐", italian: "Consiglio prestazioni", french: "Recommandation performance", spanish: "Recomendación de rendimiento")
+    }
+
+    private func performanceRecommendationPreflightItem(
+        detail: String,
+        state: LaunchPreflightState,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> LaunchPreflightItem {
+        LaunchPreflightItem(
+            id: "performance-summary",
+            title: performanceRecommendationTitle,
+            detail: detail,
+            state: state,
+            actionTitle: actionTitle,
+            action: action
         )
     }
 

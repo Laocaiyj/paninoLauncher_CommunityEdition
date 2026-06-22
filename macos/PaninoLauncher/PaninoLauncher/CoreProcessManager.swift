@@ -1,28 +1,4 @@
-import Darwin
 import Foundation
-
-enum CoreProcessManagerError: LocalizedError, Equatable {
-    case coreExecutableNotFound([String])
-    case coreExitedEarly(Int32)
-    case healthTimedOut
-    case socketFailed(String)
-    case tokenFileFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .coreExecutableNotFound(let searchedPaths):
-            return "Core executable was not found. Searched: \(searchedPaths.joined(separator: ", "))"
-        case .coreExitedEarly(let status):
-            return "Core exited before becoming ready with status \(status)."
-        case .healthTimedOut:
-            return "Core did not become ready before the health check timeout."
-        case .socketFailed(let message):
-            return "Failed to allocate a local port: \(message)"
-        case .tokenFileFailed(let message):
-            return "Failed to prepare Core session token: \(message)"
-        }
-    }
-}
 
 @MainActor
 final class CoreProcessManager {
@@ -44,7 +20,7 @@ final class CoreProcessManager {
     ) async throws -> CoreEndpoint {
         if let endpoint, isRunning {
             if shouldRestartForUpdatedExecutable(), let process {
-                await stopRunningProcess(process, apiClient: LauncherApiClient(endpoint: endpoint))
+                await CoreProcessStopper.stop(process, apiClient: LauncherApiClient(endpoint: endpoint))
                 cleanupRunningProcessState()
                 Self.removeManagedCoreRecord()
             } else {
@@ -54,21 +30,93 @@ final class CoreProcessManager {
 
         Self.emergencyStopRecordedCore()
 
+        lastTerminationStatus = nil
+        let launchContext = try makeLaunchContext()
+        let process = Process()
+        let outputPipe = Pipe()
+        configure(
+            process,
+            outputPipe: outputPipe,
+            launchContext: launchContext,
+            onOutput: onOutput,
+            onTermination: onTermination
+        )
+
+        do {
+            try process.run()
+        } catch {
+            Self.removeSessionTokenFile(launchContext.tokenFileURL)
+            throw error
+        }
+
+        let startedAt = Date()
+        do {
+            try Self.recordManagedCoreProcess(
+                launchContext.managedRecord(pid: process.processIdentifier, startedAt: startedAt)
+            )
+        } catch {
+            Self.removeSessionTokenFile(launchContext.tokenFileURL)
+            await CoreProcessStopper.stop(process, apiClient: nil)
+            throw error
+        }
+
+        track(process, outputPipe: outputPipe, launchContext: launchContext, startedAt: startedAt)
+
+        do {
+            try await waitForCore(endpoint: launchContext.endpoint)
+            Self.removeSessionTokenFile(launchContext.tokenFileURL)
+            return launchContext.endpoint
+        } catch {
+            Self.removeSessionTokenFile(launchContext.tokenFileURL)
+            await CoreProcessStopper.stop(process, apiClient: nil)
+            Self.removeManagedCoreRecord()
+            throw error
+        }
+    }
+
+    func stop(using apiClient: LauncherApiClient?) async {
+        guard let process else {
+            Self.emergencyStopRecordedCore()
+            return
+        }
+        await CoreProcessStopper.stop(process, apiClient: apiClient)
+
+        cleanupRunningProcessState()
+        Self.removeManagedCoreRecord()
+    }
+
+    func shouldRestartForUpdatedExecutable() -> Bool {
+        guard isRunning,
+              let managedExecutableURL,
+              let managedStartedAt,
+              let modifiedAt = try? managedExecutableURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
+            return false
+        }
+        return modifiedAt > managedStartedAt.addingTimeInterval(0.25)
+    }
+
+    private func makeLaunchContext() throws -> CoreProcessLaunchContext {
         let executableURL = try findCoreExecutable()
         let port = try allocateLoopbackPort()
         let token = makeSessionToken()
-        lastTerminationStatus = nil
-        let endpoint = CoreEndpoint(
-            baseURL: URL(string: "http://127.0.0.1:\(port)")!,
-            sessionToken: token
-        )
-
-        let process = Process()
-        let outputPipe = Pipe()
         let tokenFileURL = try Self.createSessionTokenFile(token: token)
+        return CoreProcessLaunchContext(
+            executableURL: executableURL,
+            port: port,
+            sessionToken: token,
+            tokenFileURL: tokenFileURL
+        )
+    }
 
-        process.executableURL = executableURL
-        process.arguments = Self.coreServeArguments(port: port, sessionTokenFileURL: tokenFileURL)
+    private func configure(
+        _ process: Process,
+        outputPipe: Pipe,
+        launchContext: CoreProcessLaunchContext,
+        onOutput: @escaping @MainActor (String) -> Void,
+        onTermination: @escaping @MainActor (Int32) -> Void
+    ) {
+        process.executableURL = launchContext.executableURL
+        process.arguments = launchContext.serveArguments
         process.environment = Self.coreEnvironment()
         process.standardOutput = outputPipe
         process.standardError = outputPipe
@@ -90,67 +138,19 @@ final class CoreProcessManager {
                 self?.consumeProcessOutput(text, onOutput: onOutput)
             }
         }
+    }
 
-        do {
-            try process.run()
-        } catch {
-            Self.removeSessionTokenFile(tokenFileURL)
-            throw error
-        }
-        let startedAt = Date()
-        do {
-            try Self.recordManagedCoreProcess(
-                ManagedCoreRecord(
-                    schemaVersion: 2,
-                    pid: process.processIdentifier,
-                    port: port,
-                    executablePath: executableURL.standardizedFileURL.path,
-                    startedAt: startedAt
-                )
-            )
-        } catch {
-            Self.removeSessionTokenFile(tokenFileURL)
-            await stopRunningProcess(process, apiClient: nil)
-            throw error
-        }
-
+    private func track(
+        _ process: Process,
+        outputPipe: Pipe,
+        launchContext: CoreProcessLaunchContext,
+        startedAt: Date
+    ) {
         self.process = process
         self.outputPipe = outputPipe
-        self.endpoint = endpoint
-        self.managedExecutableURL = executableURL.standardizedFileURL
+        self.endpoint = launchContext.endpoint
+        self.managedExecutableURL = launchContext.standardizedExecutableURL
         self.managedStartedAt = startedAt
-
-        do {
-            try await waitForCore(endpoint: endpoint)
-            Self.removeSessionTokenFile(tokenFileURL)
-            return endpoint
-        } catch {
-            Self.removeSessionTokenFile(tokenFileURL)
-            await stopRunningProcess(process, apiClient: nil)
-            Self.removeManagedCoreRecord()
-            throw error
-        }
-    }
-
-    func stop(using apiClient: LauncherApiClient?) async {
-        guard let process else {
-            Self.emergencyStopRecordedCore()
-            return
-        }
-        await stopRunningProcess(process, apiClient: apiClient)
-
-        cleanupRunningProcessState()
-        Self.removeManagedCoreRecord()
-    }
-
-    func shouldRestartForUpdatedExecutable() -> Bool {
-        guard isRunning,
-              let managedExecutableURL,
-              let managedStartedAt,
-              let modifiedAt = try? managedExecutableURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
-            return false
-        }
-        return modifiedAt > managedStartedAt.addingTimeInterval(0.25)
     }
 
     private func consumeProcessOutput(_ text: String, onOutput: @MainActor (String) -> Void) {
@@ -179,56 +179,14 @@ final class CoreProcessManager {
     }
 
     private func waitForCore(endpoint: CoreEndpoint) async throws {
-        let apiClient = LauncherApiClient(endpoint: endpoint)
-
-        for _ in 0..<60 {
+        try await CoreProcessReadinessWaiter.wait(endpoint: endpoint) {
             if let lastTerminationStatus {
-                throw CoreProcessManagerError.coreExitedEarly(lastTerminationStatus)
+                return lastTerminationStatus
             }
-
             if let process, !process.isRunning {
-                throw CoreProcessManagerError.coreExitedEarly(process.terminationStatus)
+                return process.terminationStatus
             }
-
-            do {
-                let response = try await apiClient.health()
-                if response.status == "ok" {
-                    return
-                }
-            } catch {
-                try await Task.sleep(nanoseconds: 100_000_000)
-            }
+            return nil
         }
-
-        throw CoreProcessManagerError.healthTimedOut
-    }
-
-    private func stopRunningProcess(_ process: Process, apiClient: LauncherApiClient?) async {
-        if process.isRunning, let apiClient {
-            try? await apiClient.shutdown()
-            if await waitForExit(process, timeoutNanoseconds: 1_500_000_000) {
-                return
-            }
-        }
-
-        if process.isRunning {
-            process.terminate()
-            if await waitForExit(process, timeoutNanoseconds: 1_000_000_000) {
-                return
-            }
-        }
-
-        if process.isRunning {
-            kill(process.processIdentifier, SIGKILL)
-            _ = await waitForExit(process, timeoutNanoseconds: 800_000_000)
-        }
-    }
-
-    private func waitForExit(_ process: Process, timeoutNanoseconds: UInt64) async -> Bool {
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
-        while process.isRunning && DispatchTime.now().uptimeNanoseconds < deadline {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-        return !process.isRunning
     }
 }

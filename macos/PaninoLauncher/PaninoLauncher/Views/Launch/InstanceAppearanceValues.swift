@@ -20,6 +20,41 @@ struct InstanceAppearanceValues: Equatable {
         coverDim = instance.coverDim
         iconBackdropStyle = instance.iconBackdropStyle
     }
+
+    init(
+        iconName: String,
+        coverPath: String,
+        coverColorHex: String,
+        coverFocusX: Double,
+        coverFocusY: Double,
+        coverBlur: Double,
+        coverDim: Double,
+        iconBackdropStyle: InstanceIconBackdropStyle
+    ) {
+        self.iconName = iconName
+        self.coverPath = coverPath
+        self.coverColorHex = coverColorHex
+        self.coverFocusX = coverFocusX
+        self.coverFocusY = coverFocusY
+        self.coverBlur = coverBlur
+        self.coverDim = coverDim
+        self.iconBackdropStyle = iconBackdropStyle
+    }
+
+    var normalized: InstanceAppearanceValues {
+        let trimmedIconName = iconName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedCoverColor = coverColorHex.normalizedHex
+        return InstanceAppearanceValues(
+            iconName: trimmedIconName.isEmpty ? "cube.fill" : trimmedIconName,
+            coverPath: coverPath.trimmingCharacters(in: .whitespacesAndNewlines),
+            coverColorHex: normalizedCoverColor.isEmpty ? GameInstance.defaultCoverColorHex : normalizedCoverColor,
+            coverFocusX: GameInstance.clampedUnit(coverFocusX),
+            coverFocusY: GameInstance.clampedUnit(coverFocusY),
+            coverBlur: GameInstance.clampedUnit(coverBlur),
+            coverDim: GameInstance.clampedUnit(coverDim),
+            iconBackdropStyle: iconBackdropStyle
+        )
+    }
 }
 
 extension GameInstance {

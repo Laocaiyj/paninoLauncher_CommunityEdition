@@ -1,45 +1,5 @@
 import SwiftUI
 
-struct InstanceBasicsPanel: View {
-    @EnvironmentObject private var theme: ThemeSettings
-
-    @Binding var instance: GameInstance
-    let openFolder: () -> Void
-    let delete: () -> Void
-
-    var body: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    PanelHeader(
-                        title: localizedString(theme.language, english: "Configuration Basics", chinese: "游戏配置基础", italian: "Base configurazione", french: "Base de configuration", spanish: "Base de configuración"),
-                        systemImage: "info.circle"
-                    )
-                    Spacer()
-                    GlassButton(systemImage: "folder", title: AppText.openFolder.localized(theme.language), action: openFolder)
-                    GlassButton(systemImage: "trash", title: AppText.delete.localized(theme.language), action: delete)
-                }
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
-                    SettingsRow(title: "Name", systemImage: "text.cursor") {
-                        PaninoTextInput(localizedString(theme.language, english: "Configuration name", chinese: "游戏配置名称", italian: "Nome configurazione", french: "Nom de configuration", spanish: "Nombre de configuración"), text: $instance.name)
-                    }
-                    SettingsRow(title: "Group", systemImage: "folder.badge.gearshape") {
-                        PaninoTextInput("Group", text: $instance.group)
-                    }
-                    SettingsRow(title: "Game Dir", systemImage: "folder") {
-                        PaninoTextInput("Game directory", text: $instance.gameDirectory)
-                    }
-                    SettingsRow(title: "Favorite", systemImage: "star") {
-                        Toggle("Pinned", isOn: $instance.isFavorite)
-                            .toggleStyle(.switch)
-                    }
-                }
-            }
-        }
-    }
-}
-
 struct InstanceJavaRuntimeScanPanel: View {
     @EnvironmentObject private var theme: ThemeSettings
 
@@ -99,57 +59,7 @@ struct InstanceJavaRuntimeScanPanel: View {
     }
 }
 
-struct InstanceGlobalDefaultsPanel: View {
-    @EnvironmentObject private var theme: ThemeSettings
-
-    @ObservedObject var viewModel: LauncherViewModel
-    @Binding var memoryPolicy: InstanceMemoryPolicy
-    @Binding var jvmProfile: InstanceJvmProfile
-    let customMemoryMb: Binding<Int?>
-    let customJvmArguments: String
-    let restoreAutomaticTuning: () -> Void
-
-    var body: some View {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                PanelHeader(
-                    title: localizedString(theme.language, english: "Global Defaults", chinese: "全局默认", italian: "Predefiniti globali", french: "Valeurs globales", spanish: "Valores globales"),
-                    systemImage: "gearshape"
-                )
-
-                SettingsRow(title: AppText.java.localized(theme.language), systemImage: "cup.and.saucer") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        JavaRuntimePolicySelector(
-                            javaPath: $viewModel.javaPath,
-                            managedRuntimes: viewModel.managedJavaRuntimes,
-                            localRuntimes: viewModel.discoveredJavaRuntimes
-                        )
-                        GlassButton(systemImage: "checkmark.circle", title: localizedString(theme.language, english: "Check", chinese: "检查", italian: "Controlla", french: "Vérifier", spanish: "Comprobar"), action: viewModel.checkJavaRuntime)
-                    }
-                }
-
-                if let javaStatus = viewModel.javaStatus {
-                    Text(javaStatus.displayText)
-                        .font(.caption)
-                        .foregroundStyle(javaStatus.isAvailable ? .secondary : Color.orange)
-                }
-
-                SettingsRow(title: localizedString(theme.language, english: "Performance", chinese: "性能配置", italian: "Prestazioni", french: "Performance", spanish: "Rendimiento"), systemImage: "speedometer") {
-                    JvmTuningControl(
-                        memoryPolicy: $memoryPolicy,
-                        jvmProfile: $jvmProfile,
-                        customMemoryMb: customMemoryMb,
-                        currentMemoryMb: viewModel.memoryMb,
-                        customJvmArguments: customJvmArguments,
-                        onRestoreAutomatic: restoreAutomaticTuning
-                    )
-                }
-            }
-        }
-    }
-}
-
-struct JavaRuntimeCandidateCard: View {
+private struct JavaRuntimeCandidateCard: View {
     @EnvironmentObject private var theme: ThemeSettings
 
     let runtime: JavaRuntimeCandidate

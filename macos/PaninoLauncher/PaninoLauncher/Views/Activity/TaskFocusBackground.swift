@@ -16,39 +16,26 @@ struct TaskFocusBackground: View {
                 TaskFocusDarkTexture(statusColor: statusColor)
                     .opacity(record?.state.isActive == true ? 0.98 : 1)
 
-                TaskFocusDarkBands(statusColor: statusColor)
-                    .opacity(record?.state.isActive == true ? 0.90 : 0.84)
-
                 Circle()
-                    .fill(statusColor.opacity(0.13))
+                    .fill(statusColor.opacity(0.18))
                     .frame(width: proxy.size.width * 0.44, height: proxy.size.width * 0.44)
                     .blur(radius: 44)
                     .offset(x: proxy.size.width * 0.28, y: -proxy.size.height * 0.30)
 
                 Circle()
-                    .strokeBorder(Color.black.opacity(0.13), lineWidth: 1.5)
+                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 1.5)
                     .frame(width: proxy.size.width * 0.58, height: proxy.size.width * 0.58)
                     .offset(x: proxy.size.width * 0.26, y: -proxy.size.height * 0.24)
 
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(0..<5, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(Color.black.opacity(0.082 - Double(index) * 0.006))
+                            .fill(Color.black.opacity(0.060 - Double(index) * 0.004))
                             .frame(width: proxy.size.width * CGFloat(0.88 - Double(index) * 0.10), height: 5)
                     }
                 }
                 .rotationEffect(.degrees(-10))
                 .offset(x: -proxy.size.width * 0.16, y: proxy.size.height * 0.10)
-
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.10),
-                        Color.clear,
-                        Color.black.opacity(0.18)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -66,57 +53,7 @@ struct TaskFocusBackground: View {
         if record?.state.isActive == true {
             return [base.opacity(0.58), theme.semanticSelectionColor.opacity(0.36), Color(nsColor: .windowBackgroundColor).opacity(0.70)]
         }
-        return [theme.semanticSelectionColor.opacity(0.38), Color(nsColor: .controlBackgroundColor).opacity(0.44), Color(nsColor: .windowBackgroundColor).opacity(0.72)]
-    }
-}
-
-private struct TaskFocusDarkBands: View {
-    let statusColor: Color
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottomLeading) {
-                ForEach(0..<8, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.black.opacity(0.105 - Double(index) * 0.006),
-                                    statusColor.opacity(0.012),
-                                    Color.black.opacity(0.050 - Double(index) * 0.003)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(
-                            width: proxy.size.width * CGFloat(0.76 - Double(index) * 0.040),
-                            height: 11
-                        )
-                        .offset(
-                            x: proxy.size.width * CGFloat(-0.18 + Double(index) * 0.036),
-                            y: -proxy.size.height * CGFloat(0.10 + Double(index) * 0.060)
-                        )
-                }
-                .rotationEffect(.degrees(-9))
-
-                ForEach(0..<5, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.black.opacity(0.085 - Double(index) * 0.008))
-                        .frame(
-                            width: proxy.size.width * CGFloat(0.50 - Double(index) * 0.045),
-                            height: 2
-                        )
-                        .offset(
-                            x: proxy.size.width * CGFloat(0.38 - Double(index) * 0.038),
-                            y: -proxy.size.height * CGFloat(0.72 - Double(index) * 0.060)
-                        )
-                }
-                .rotationEffect(.degrees(-10))
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .allowsHitTesting(false)
+        return [theme.semanticSelectionColor.opacity(0.40), Color(nsColor: .controlBackgroundColor).opacity(0.44), Color(nsColor: .windowBackgroundColor).opacity(0.76)]
     }
 }
 
@@ -128,9 +65,9 @@ private struct TaskFocusDarkTexture: View {
             ZStack {
                 LinearGradient(
                     colors: [
-                        Color.black.opacity(0.28),
-                        statusColor.opacity(0.018),
-                        Color.black.opacity(0.54)
+                        Color.black.opacity(0.24),
+                        statusColor.opacity(0.024),
+                        Color.black.opacity(0.48)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -138,9 +75,9 @@ private struct TaskFocusDarkTexture: View {
 
                 LinearGradient(
                     colors: [
-                        Color.black.opacity(0.08),
-                        Color.black.opacity(0.34),
-                        Color.black.opacity(0.62)
+                        Color.black.opacity(0.06),
+                        Color.black.opacity(0.30),
+                        Color.black.opacity(0.58)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -158,7 +95,7 @@ private struct TaskFocusDarkTexture: View {
 
                 ForEach(0..<6, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.black.opacity(0.080 - Double(index) * 0.005))
+                        .fill(Color.black.opacity(0.058 - Double(index) * 0.004))
                         .frame(
                             width: proxy.size.width * CGFloat(0.72 - Double(index) * 0.050),
                             height: 18
@@ -172,7 +109,7 @@ private struct TaskFocusDarkTexture: View {
 
                 ForEach(0..<7, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.black.opacity(0.060 - Double(index) * 0.004))
+                        .fill(Color.black.opacity(0.040 - Double(index) * 0.003))
                         .frame(
                             width: proxy.size.width * CGFloat(0.76 - Double(index) * 0.055),
                             height: 3
@@ -185,12 +122,12 @@ private struct TaskFocusDarkTexture: View {
                 .rotationEffect(.degrees(-9))
 
                 Circle()
-                    .strokeBorder(Color.black.opacity(0.12), lineWidth: 1.1)
+                    .strokeBorder(Color.black.opacity(0.07), lineWidth: 1.1)
                     .frame(width: proxy.size.width * 0.46, height: proxy.size.width * 0.46)
                     .offset(x: proxy.size.width * 0.18, y: -proxy.size.height * 0.34)
 
                 Circle()
-                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+                    .strokeBorder(Color.black.opacity(0.045), lineWidth: 1)
                     .frame(width: proxy.size.width * 0.66, height: proxy.size.width * 0.66)
                     .offset(x: proxy.size.width * 0.22, y: -proxy.size.height * 0.28)
             }

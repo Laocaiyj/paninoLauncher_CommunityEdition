@@ -85,7 +85,24 @@ struct LaunchInstanceDetailPage: View {
             HStack(alignment: .top, spacing: 16) {
                 LaunchInstanceDetailSidebar(selectedTab: $selectedTab)
                     .frame(width: 210, alignment: .topLeading)
-                tabContent
+                LaunchInstanceDetailTabContent(
+                    selectedTab: $selectedTab,
+                    instance: instance,
+                    summary: summary,
+                    statusTitle: statusTitle,
+                    primaryTitle: primaryTitle,
+                    primarySystemImage: primarySystemImage,
+                    primaryDisabled: primaryDisabled,
+                    lockfileStatusPanel: lockfileStatusPanel,
+                    lockfileUpdatePanel: lockfileUpdatePanel,
+                    launch: launch,
+                    openContent: openContent,
+                    openDiscover: openDiscover,
+                    openSettings: openSettings,
+                    openVersionManagement: openVersionManagement,
+                    backupSaves: backupSaves,
+                    exportInstance: exportInstance
+                )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
@@ -109,79 +126,6 @@ struct LaunchInstanceDetailPage: View {
         .task(id: instance.gameDirectory) {
             await refreshLockfileState()
         }
-    }
-
-    @ViewBuilder
-    private var tabContent: some View {
-        switch selectedTab {
-        case .overview:
-            overviewContent
-        case .content:
-            contentContent
-        case .version:
-            versionContent
-        case .saves:
-            savesContent
-        case .settings:
-            settingsContent
-        case .backup:
-            backupContent
-        }
-    }
-
-    private var overviewContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            LaunchInstanceSummaryPanel(instance: instance, statusTitle: statusTitle)
-            lockfileStatusPanel
-            LaunchInstanceManagementPanel(
-                instance: instance,
-                summary: summary,
-                showContent: { selectedTab = .content },
-                showVersion: { selectedTab = .version },
-                showSaves: { selectedTab = .saves },
-                showSettings: { selectedTab = .settings }
-            )
-        }
-    }
-
-    private var contentContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            LaunchInstanceContentPanel(
-                instance: instance,
-                summary: summary,
-                openContent: openContent,
-                openDiscover: openDiscover
-            )
-            lockfileUpdatePanel
-        }
-    }
-
-    private var versionContent: some View {
-        LaunchInstanceVersionPanel(
-            instance: instance,
-            summary: summary,
-            primaryTitle: primaryTitle,
-            primarySystemImage: primarySystemImage,
-            primaryDisabled: primaryDisabled,
-            launch: launch,
-            openVersionManagement: openVersionManagement
-        )
-    }
-
-    private var savesContent: some View {
-        LaunchInstanceSavesPanel(
-            instance: instance,
-            summary: summary,
-            showBackup: { selectedTab = .backup }
-        )
-    }
-
-    private var settingsContent: some View {
-        LaunchInstanceSettingsPanel(instance: instance, openSettings: openSettings)
-    }
-
-    private var backupContent: some View {
-        LaunchInstanceBackupPanel(backupSaves: backupSaves, exportInstance: exportInstance)
     }
 
 }

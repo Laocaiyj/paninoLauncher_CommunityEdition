@@ -96,64 +96,19 @@ final class InstanceStore: ObservableObject {
     }
 
     func reconcileInstalledInstances(_ installedInstances: [CoreInstalledMinecraftInstance], settings: LauncherSettings) {
-        let isolatedLocal = installedInstances.filter { !$0.archived && InstanceLocalCatalog.isIsolatedGameDirectory($0.gameDir) }
-        let legacyMigratable = installedInstances.compactMap { installed -> CoreInstalledMinecraftInstance? in
-            guard installed.versionJson,
-                  installed.clientJar,
-                  !installed.archived,
-                  !InstanceLocalCatalog.isIsolatedGameDirectory(installed.gameDir),
-                  let isolatedDirectory = InstanceLocalCatalog.isolatedGameDirectory(forVersion: installed.versionId)
-            else {
-                return nil
-            }
-            return CoreInstalledMinecraftInstance(
-                versionId: installed.versionId,
-                minecraftVersion: installed.minecraftVersion,
-                loader: installed.loader,
-                loaderVersion: installed.loaderVersion,
-                name: installed.name,
-                gameDir: isolatedDirectory,
-                versionJson: false,
-                clientJar: false,
-                diskUsageBytes: installed.diskUsageBytes,
-                archived: false,
-                archivePath: nil
-            )
-        }
-        let localCandidates = isolatedLocal + legacyMigratable
-        let legacySharedCount = installedInstances.filter { $0.versionJson && $0.clientJar && !$0.archived && !InstanceLocalCatalog.isIsolatedGameDirectory($0.gameDir) }.count
-        let installedKeys = Set(localCandidates.map { InstanceLocalCatalog.key(version: $0.versionId, gameDirectory: $0.gameDir) })
-        var next = instances.filter { instance in
-            installedKeys.contains(InstanceLocalCatalog.key(version: instance.minecraftVersion, gameDirectory: InstanceLocalCatalog.effectiveGameDirectory(for: instance)))
-        }
-
-        for installed in localCandidates {
-            let key = InstanceLocalCatalog.key(version: installed.versionId, gameDirectory: installed.gameDir)
-            if let index = next.firstIndex(where: { InstanceLocalCatalog.key(version: $0.minecraftVersion, gameDirectory: InstanceLocalCatalog.effectiveGameDirectory(for: $0)) == key }) {
-                if let loader = installed.loader.flatMap(LoaderKind.init(rawValue:)) {
-                    next[index].loader = loader
-                }
-                if let loaderVersion = installed.loaderVersion?.trimmingCharacters(in: .whitespacesAndNewlines), !loaderVersion.isEmpty {
-                    next[index].loaderVersion = loaderVersion
-                }
-                if let minecraftVersion = installed.minecraftVersion?.trimmingCharacters(in: .whitespacesAndNewlines), !minecraftVersion.isEmpty {
-                    next[index].baseMinecraftVersion = minecraftVersion
-                }
-                next[index].status = installed.versionJson && installed.clientJar ? .ready : .notInstalled
-                continue
-            }
-            next.append(InstanceLocalCatalog.gameInstance(from: installed, settings: settings, existingNames: Set(next.map(\.name))))
-        }
-
-        next = InstanceLocalCatalog.normalizeDuplicateNames(next)
-        if next != instances {
-            instances = next.sorted(by: InstanceLocalCatalog.sort)
+        let reconciliation = InstanceStoreInstalledInstanceReconciler.reconcile(
+            installedInstances,
+            currentInstances: instances,
+            settings: settings
+        )
+        if reconciliation.instances != instances {
+            instances = reconciliation.instances
         }
         if selectedInstanceID == nil || !instances.contains(where: { $0.id == selectedInstanceID }) {
             selectedInstanceID = instances.first?.id
         }
-        storageStatus = legacySharedCount > 0
-            ? "Synced \(instances.count) local game instances; \(legacySharedCount) legacy installs require isolation"
+        storageStatus = reconciliation.legacySharedCount > 0
+            ? "Synced \(instances.count) local game instances; \(reconciliation.legacySharedCount) legacy installs require isolation"
             : "Synced \(instances.count) isolated local game instances"
     }
 

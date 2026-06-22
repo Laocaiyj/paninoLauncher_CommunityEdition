@@ -56,23 +56,16 @@ struct LaunchImmersiveContextShelf: View {
                         EmptyStateInline(title: emptyTitle, message: emptyMessage, systemImage: emptySystemImage)
                             .frame(minHeight: 72)
                     } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(alignment: .top, spacing: 10) {
-                                ForEach(visibleInstances) { instance in
-                                    LaunchShelfTile(
-                                        instance: instance,
-                                        summary: summaryFor(instance),
-                                        selected: instance.id == selectedID,
-                                        select: { select(instance.id) },
-                                        openDetails: { openDetails(instance.id) },
-                                        toggleFavorite: { toggleFavorite(instance.id, !instance.isFavorite) },
-                                        hideRecent: mode == .recent ? { hideRecent(instance.id) } : nil
-                                    )
-                                    .frame(width: 236)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
+                        LaunchShelfInstanceRail(
+                            mode: mode,
+                            instances: visibleInstances,
+                            selectedID: selectedID,
+                            summaryFor: summaryFor,
+                            select: select,
+                            openDetails: openDetails,
+                            toggleFavorite: toggleFavorite,
+                            hideRecent: hideRecent
+                        )
                     }
                 }
                 .padding(14)
