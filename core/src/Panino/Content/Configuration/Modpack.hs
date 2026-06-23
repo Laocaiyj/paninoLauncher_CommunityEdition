@@ -5,6 +5,7 @@ module Panino.Content.Configuration.Modpack
   , modpackPreflight
   ) where
 
+import Control.Applicative ((<|>))
 import Control.Exception
   ( SomeException
   , try
@@ -17,34 +18,25 @@ import Control.Monad
   , when
   )
 import Data.Aeson
-  ( Object
-  , Value(..)
-  , encode
+  ( encode
   , eitherDecode
   , object
-  , withObject
-  , (.:)
-  , (.:?)
-  , (.!=)
   , (.=)
   )
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types
-  ( Parser
-  , parseMaybe
+  ( parseMaybe
   )
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Foldable (find)
-import Data.Int (Int64)
 import Data.List (sort)
 import Data.Maybe
   ( fromMaybe
-  , mapMaybe
+  , listToMaybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
+import Panino.Content.Configuration.Modpack.Manifest
 import Panino.Content.Configuration.Types
 import Panino.CoreLogic.Determinism
   ( stableFingerprint
@@ -84,7 +76,6 @@ import System.Process
   , StdStream(..)
   , createProcess
   , proc
-  , readCreateProcessWithExitCode
   , waitForProcess
   )
 
@@ -272,7 +263,7 @@ parseCurseForgePack path targetGameDir = do
       pure emptyModpackResponse { modpackPreflightBlockingReasons = ["curseforge_manifest_parse_failed:" <> Text.pack err] }
     Right value -> do
       let modLoaders = fromMaybe [] (parseMaybe curseModLoaders value)
-          primaryLoader = find snd modLoaders <|> listToMaybeCompat modLoaders
+          primaryLoader = find snd modLoaders <|> listToMaybe modLoaders
           files = stableSortPackages curseFileKey (fromMaybe [] (parseMaybe curseFiles value))
           overridesDir = fromMaybe "overrides" (parseMaybe curseOverrides value)
           overridePrefix = Text.pack overridesDir <> "/"
@@ -336,80 +327,6 @@ emptyModpackResponse =
     , modpackPreflightWarnings = []
     , modpackPreflightBlockingReasons = []
     , modpackPreflightTypedPlan = modpackPlanSkeleton "modpack" Nothing Nothing Nothing Nothing Nothing [] [] [] [] []
-    }
-
-data ModpackPlanFile = ModpackPlanFile
-  { mrpackFilePath :: Text
-  , mrpackFileSize :: Maybe Int64
-  , mrpackFileUrl :: Maybe Text
-  , mrpackFileSha1 :: Maybe Text
-  } deriving (Eq, Show)
-
-data CurseManifestFile = CurseManifestFile
-  { curseManifestProjectId :: Int
-  , curseManifestFileId :: Int
-  } deriving (Eq, Show)
-
-modpackFileKey :: ModpackPlanFile -> Text
-modpackFileKey file =
-  Text.intercalate
-    "|"
-    [ mrpackFilePath file
-    , fromMaybe "" (mrpackFileSha1 file)
-    , fromMaybe "" (mrpackFileUrl file)
-    , maybe "" (Text.pack . show) (mrpackFileSize file)
-    ]
-
-curseFileKey :: CurseManifestFile -> Text
-curseFileKey file =
-  Text.pack (show (curseManifestProjectId file))
-    <> "|"
-    <> Text.pack (show (curseManifestFileId file))
-
-fieldName :: Value -> Parser Text
-fieldName = withObject "NamedValue" $ \obj -> obj .:? "name" .!= "Imported Modpack"
-
-modrinthDependencies :: Value -> Parser [(Text, Text)]
-modrinthDependencies =
-  withObject "ModrinthIndex" $ \obj ->
-    obj .: "dependencies" >>= withObject "dependencies" (traverseKeyValues)
-
-modrinthFiles :: Value -> Parser [ModpackPlanFile]
-modrinthFiles =
-  withObject "ModrinthIndex" $ \obj ->
-    obj .:? "files" .!= [] >>= traverse parseFile
-  where
-    parseFile =
-      withObject "ModrinthFile" $ \obj ->
-        ModpackPlanFile
-          <$> obj .: "path"
-          <*> obj .:? "fileSize"
-          <*> (obj .:? "downloads" .!= [] >>= pure . listToMaybeCompat)
-          <*> (obj .:? "hashes" .!= Object mempty >>= withObject "hashes" (.:? "sha1"))
-
-curseFiles :: Value -> Parser [CurseManifestFile]
-curseFiles =
-  withObject "CurseManifest" $ \obj ->
-    obj .:? "files" .!= [] >>= traverse parseFile
-  where
-    parseFile =
-      withObject "CurseFile" $ \obj ->
-        CurseManifestFile
-          <$> obj .: "projectID"
-          <*> obj .: "fileID"
-
-curseFileToMrpackFile :: CurseManifestFile -> ModpackPlanFile
-curseFileToMrpackFile file =
-  ModpackPlanFile
-    { mrpackFilePath =
-        "mods/curseforge-"
-          <> Text.pack (show (curseManifestProjectId file))
-          <> "-"
-          <> Text.pack (show (curseManifestFileId file))
-          <> ".jar"
-    , mrpackFileSize = Nothing
-    , mrpackFileUrl = Nothing
-    , mrpackFileSha1 = Nothing
     }
 
 modpackPlanSkeleton :: Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe FilePath -> [ModpackPlanFile] -> [Text] -> [Text] -> [Text] -> [Text] -> Plan.TypedInstallPlan
@@ -721,7 +638,7 @@ runModpackDownloads manager stagingPath plan = do
 
 modpackDownloadJob :: FilePath -> Plan.InstallPlanNode -> IO DownloadJob
 modpackDownloadJob stagingPath node =
-  case (Plan.installNodeTargetPath node, listToMaybeCompat (Plan.installNodeSourceUrls node)) of
+  case (Plan.installNodeTargetPath node, listToMaybe (Plan.installNodeSourceUrls node)) of
     (Just relativePath, Just url)
       | safeRelativePath relativePath ->
           pure
@@ -798,7 +715,7 @@ modpackLockEntries plan =
         , modpackLockEntryKind = Plan.installNodeKind node
         , modpackLockEntrySha1 = Plan.installNodeSha1 node
         , modpackLockEntrySize = Plan.installNodeSize node
-        , modpackLockEntrySource = listToMaybeCompat (Plan.installNodeSourceUrls node)
+        , modpackLockEntrySource = listToMaybe (Plan.installNodeSourceUrls node)
         }
     | node <- Plan.typedPlanNodes plan
     , Plan.installNodeAction node `elem` ["download", "write", "replace"]
@@ -851,93 +768,3 @@ stableTextSetCompat =
     insertSorted value values
       | value `elem` values = values
       | otherwise = value : values
-
-curseMinecraftVersion :: Value -> Parser Text
-curseMinecraftVersion =
-  withObject "CurseManifest" $ \obj ->
-    obj .: "minecraft" >>= withObject "minecraft" (.: "version")
-
-curseModLoaders :: Value -> Parser [(Text, Bool)]
-curseModLoaders =
-  withObject "CurseManifest" $ \obj ->
-    obj .: "minecraft" >>= withObject "minecraft" (\minecraft -> minecraft .:? "modLoaders" .!= [] >>= traverse parseLoader)
-  where
-    parseLoader =
-      withObject "CurseLoader" $ \obj ->
-        (,)
-          <$> obj .: "id"
-          <*> obj .:? "primary" .!= False
-
-curseOverrides :: Value -> Parser FilePath
-curseOverrides =
-  withObject "CurseManifest" $ \obj -> obj .:? "overrides" .!= "overrides"
-
-traverseKeyValues :: Object -> Parser [(Text, Text)]
-traverseKeyValues objectValue =
-  pure
-    [ (key, value)
-    | (key, String value) <- objectToList objectValue
-    ]
-
-objectToList :: Object -> [(Text, Value)]
-objectToList =
-  stableSortOnText fst . map (\(key, value) -> (Key.toText key, value)) . KeyMap.toList
-
-lookupText :: Text -> [(Text, Text)] -> Maybe Text
-lookupText key values = lookup key values
-
-loaderFromDependencies :: [(Text, Text)] -> Maybe Text
-loaderFromDependencies values =
-  normalizeLoaderKey . fst <$> find ((`elem` ["fabric-loader", "forge", "quilt-loader", "neoforge"]) . fst) values
-
-loaderVersionFromDependencies :: [(Text, Text)] -> Maybe Text
-loaderVersionFromDependencies values =
-  snd <$> find ((`elem` ["fabric-loader", "forge", "quilt-loader", "neoforge"]) . fst) values
-
-normalizeLoaderKey :: Text -> Text
-normalizeLoaderKey "fabric-loader" = "fabric"
-normalizeLoaderKey "quilt-loader" = "quilt"
-normalizeLoaderKey "neoforge" = "neoForge"
-normalizeLoaderKey value = value
-
-loaderNameFromId :: Text -> Maybe Text
-loaderNameFromId value
-  | "fabric" `Text.isPrefixOf` value = Just "fabric"
-  | "forge" `Text.isPrefixOf` value = Just "forge"
-  | "quilt" `Text.isPrefixOf` value = Just "quilt"
-  | "neoforge" `Text.isPrefixOf` Text.toLower value = Just "neoForge"
-  | otherwise = Nothing
-
-loaderVersionFromId :: Text -> Maybe Text
-loaderVersionFromId value =
-  case Text.splitOn "-" value of
-    _loader : versionParts | not (null versionParts) -> Just (Text.intercalate "-" versionParts)
-    _ -> Nothing
-
-unzipText :: FilePath -> FilePath -> IO String
-unzipText archive entry = do
-  (exitCode, stdoutText, stderrText) <- readCreateProcessWithExitCode (proc "/usr/bin/unzip" ["-p", archive, entry]) ""
-  case exitCode of
-    ExitSuccess -> pure stdoutText
-    ExitFailure _ -> fail ("could not read " <> entry <> " from " <> archive <> ": " <> stderrText)
-
-unzipNames :: FilePath -> IO [FilePath]
-unzipNames archive = do
-  result <- try (readCreateProcessWithExitCode (proc "/usr/bin/unzip" ["-Z1", archive]) "") :: IO (Either IOError (ExitCode, String, String))
-  case result of
-    Right (ExitSuccess, stdoutText, _) -> pure (sort (lines stdoutText))
-    _ -> pure []
-
-sumMaybe :: [Maybe Int64] -> Maybe Int64
-sumMaybe values =
-  if any (== Nothing) values
-    then Nothing
-    else Just (sum (mapMaybe id values))
-
-listToMaybeCompat :: [a] -> Maybe a
-listToMaybeCompat [] = Nothing
-listToMaybeCompat (value : _) = Just value
-
-(<|>) :: Maybe a -> Maybe a -> Maybe a
-Just value <|> _ = Just value
-Nothing <|> fallback = fallback

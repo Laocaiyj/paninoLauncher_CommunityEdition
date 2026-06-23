@@ -41,6 +41,7 @@ library
     Panino.Api.Routes.Health
     Panino.Api.Routes.Diagnostics
     Panino.Api.Routes.Diagnostics.Probes
+    Panino.Api.Routes.Diagnostics.RuntimeFeedback
     Panino.Api.Routes.GraphicsTuning
     Panino.Api.Routes.InstallPlan
     Panino.Api.Routes.LaunchTuning
@@ -61,8 +62,15 @@ library
     Panino.Api.Server
     Panino.Api.Server.State
     Panino.Api.Types
+    Panino.Api.Types.Content
+    Panino.Api.Types.Download
+    Panino.Api.Types.Events
+    Panino.Api.Types.Health
+    Panino.Api.Types.Minecraft
+    Panino.Api.Types.Tasks
     Panino.Content.Configuration.Preflight
     Panino.Content.Configuration.Modpack
+    Panino.Content.Configuration.Modpack.Manifest
     Panino.Content.Configuration.Types
     Panino.Content.Local
     Panino.Content.Local.Conflict
@@ -93,6 +101,7 @@ library
     Panino.Download.Manager
     Panino.Download.Multipart
     Panino.Download.Scheduler
+    Panino.Download.Transfer
     Panino.Download.Types
     Panino.Download.VerificationIndex
     Panino.Download.WorkerLimit
@@ -107,8 +116,18 @@ library
     Panino.Lockfile.Changeset
     Panino.Lockfile.Explain
     Panino.Lockfile.Apply
+    Panino.Lockfile.Normalize
     Panino.Lockfile.Plan
+    Panino.Lockfile.Services
+    Panino.Lockfile.Services.Evidence
+    Panino.Lockfile.Services.Java
+    Panino.Lockfile.Services.Online
+    Panino.Lockfile.Services.Preflight
     Panino.Lockfile.Solver
+    Panino.Lockfile.Solver.Build
+    Panino.Lockfile.Solver.Conflicts
+    Panino.Lockfile.Solver.Resolve
+    Panino.Lockfile.Solver.Room
     Panino.Lockfile.Store
     Panino.Lockfile.Types
     Panino.Lockfile.Verify
@@ -123,6 +142,8 @@ library
     Panino.Minecraft.LauncherProfiles
     Panino.Minecraft.Layout
     Panino.Minecraft.LoaderInstall
+    Panino.Minecraft.LoaderInstall.Names
+    Panino.Minecraft.LoaderInstall.Shader
     Panino.Minecraft.Manifest
     Panino.Minecraft.Modrinth
     Panino.Minecraft.ModPreflight

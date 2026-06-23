@@ -11,6 +11,7 @@ if rg -n 'error "|undefined|TODO|fatal' core/src macos/PaninoLauncher/PaninoLaun
   exit 1
 fi
 
+./scripts/check-core-swift-contracts.sh
 ./scripts/test-core.sh
 ./scripts/build-core.sh
 ./scripts/build-swift.sh
