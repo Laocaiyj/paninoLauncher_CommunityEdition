@@ -1,0 +1,247 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+module Panino.Lockfile.Types.Package
+  ( LockfileFile(..)
+  , PackageConstraint(..)
+  , PackageCoordinate(..)
+  , ResolvedPackage(..)
+  , lockfileFileKey
+  , packageCoordinateKey
+  , resolvedPackageKey
+  ) where
+
+import Data.Aeson
+  ( FromJSON(..)
+  , ToJSON(..)
+  , object
+  , withObject
+  , (.:)
+  , (.:?)
+  , (.!=)
+  , (.=)
+  )
+import Data.Int (Int64)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import qualified Data.Text as Text
+
+data PackageCoordinate = PackageCoordinate
+  { coordinateSource :: Text
+  , coordinateProjectId :: Maybe Text
+  , coordinateVersionId :: Maybe Text
+  , coordinateFileId :: Maybe Text
+  , coordinateSlug :: Maybe Text
+  , coordinateName :: Maybe Text
+  , coordinateKind :: Text
+  } deriving (Eq, Show)
+
+instance ToJSON PackageCoordinate where
+  toJSON coordinate =
+    object
+      [ "source" .= coordinateSource coordinate
+      , "projectId" .= coordinateProjectId coordinate
+      , "versionId" .= coordinateVersionId coordinate
+      , "fileId" .= coordinateFileId coordinate
+      , "slug" .= coordinateSlug coordinate
+      , "name" .= coordinateName coordinate
+      , "kind" .= coordinateKind coordinate
+      ]
+
+instance FromJSON PackageCoordinate where
+  parseJSON =
+    withObject "PackageCoordinate" $ \obj ->
+      PackageCoordinate
+        <$> obj .:? "source" .!= "manual"
+        <*> obj .:? "projectId"
+        <*> (obj .:? "versionId" >>= maybe (obj .:? "versionID") (pure . Just))
+        <*> obj .:? "fileId"
+        <*> obj .:? "slug"
+        <*> obj .:? "name"
+        <*> obj .:? "kind" .!= "mod"
+
+data PackageConstraint = PackageConstraint
+  { constraintId :: Text
+  , constraintSourcePackage :: Maybe Text
+  , constraintTargetPackageId :: Maybe Text
+  , constraintTargetKind :: Text
+  , constraintRelation :: Text
+  , constraintMinecraftVersions :: [Text]
+  , constraintLoaders :: [Text]
+  , constraintJavaMajor :: Maybe Int
+  , constraintSide :: Maybe Text
+  , constraintRequired :: Bool
+  , constraintReason :: Text
+  } deriving (Eq, Show)
+
+instance ToJSON PackageConstraint where
+  toJSON constraint =
+    object
+      [ "constraintId" .= constraintId constraint
+      , "sourcePackage" .= constraintSourcePackage constraint
+      , "targetPackageId" .= constraintTargetPackageId constraint
+      , "targetKind" .= constraintTargetKind constraint
+      , "relation" .= constraintRelation constraint
+      , "minecraftVersions" .= constraintMinecraftVersions constraint
+      , "loaders" .= constraintLoaders constraint
+      , "javaMajor" .= constraintJavaMajor constraint
+      , "side" .= constraintSide constraint
+      , "required" .= constraintRequired constraint
+      , "reason" .= constraintReason constraint
+      ]
+
+instance FromJSON PackageConstraint where
+  parseJSON =
+    withObject "PackageConstraint" $ \obj ->
+      PackageConstraint
+        <$> obj .:? "constraintId" .!= ""
+        <*> obj .:? "sourcePackage"
+        <*> (obj .:? "targetPackageId" >>= maybe (obj .:? "targetPackage") (pure . Just))
+        <*> obj .:? "targetKind" .!= "mod"
+        <*> obj .:? "relation" .!= "requires"
+        <*> obj .:? "minecraftVersions" .!= []
+        <*> obj .:? "loaders" .!= []
+        <*> obj .:? "javaMajor"
+        <*> obj .:? "side"
+        <*> obj .:? "required" .!= True
+        <*> obj .:? "reason" .!= ""
+
+data ResolvedPackage = ResolvedPackage
+  { resolvedPackageId :: Text
+  , resolvedPackageCoordinate :: PackageCoordinate
+  , resolvedPackageDisplayName :: Text
+  , resolvedPackageVersionName :: Maybe Text
+  , resolvedPackageFileName :: Maybe Text
+  , resolvedPackageTargetPath :: Maybe FilePath
+  , resolvedPackageHashes :: Map Text Text
+  , resolvedPackageSize :: Maybe Int64
+  , resolvedPackageDownloadUrls :: [Text]
+  , resolvedPackageGameVersions :: [Text]
+  , resolvedPackageLoaders :: [Text]
+  , resolvedPackageJavaMajor :: Maybe Int
+  , resolvedPackageSide :: Maybe Text
+  , resolvedPackageSelectedBecause :: [Text]
+  , resolvedPackageLocked :: Bool
+  , resolvedPackagePinReason :: Maybe Text
+  , resolvedPackageDependencies :: [PackageConstraint]
+  , resolvedPackageConflicts :: [PackageConstraint]
+  , resolvedPackageSourceSnapshot :: Maybe Text
+  } deriving (Eq, Show)
+
+instance ToJSON ResolvedPackage where
+  toJSON package =
+    object
+      [ "packageId" .= resolvedPackageId package
+      , "coordinate" .= resolvedPackageCoordinate package
+      , "displayName" .= resolvedPackageDisplayName package
+      , "versionName" .= resolvedPackageVersionName package
+      , "fileName" .= resolvedPackageFileName package
+      , "targetPath" .= resolvedPackageTargetPath package
+      , "hashes" .= resolvedPackageHashes package
+      , "size" .= resolvedPackageSize package
+      , "downloadUrls" .= resolvedPackageDownloadUrls package
+      , "gameVersions" .= resolvedPackageGameVersions package
+      , "loaders" .= resolvedPackageLoaders package
+      , "javaMajor" .= resolvedPackageJavaMajor package
+      , "side" .= resolvedPackageSide package
+      , "selectedBecause" .= resolvedPackageSelectedBecause package
+      , "locked" .= resolvedPackageLocked package
+      , "pinReason" .= resolvedPackagePinReason package
+      , "dependencies" .= resolvedPackageDependencies package
+      , "conflicts" .= resolvedPackageConflicts package
+      , "sourceSnapshot" .= resolvedPackageSourceSnapshot package
+      ]
+
+instance FromJSON ResolvedPackage where
+  parseJSON =
+    withObject "ResolvedPackage" $ \obj -> do
+      coordinate <- obj .:? "coordinate" .!= PackageCoordinate "manual" Nothing Nothing Nothing Nothing Nothing "mod"
+      packageIdValue <-
+        obj .:? "packageId" .!= packageCoordinateKey coordinate
+      displayNameValue <-
+        obj .:? "displayName" .!= fromMaybe packageIdValue (coordinateName coordinate)
+      ResolvedPackage
+        <$> pure packageIdValue
+        <*> pure coordinate
+        <*> pure displayNameValue
+        <*> obj .:? "versionName"
+        <*> obj .:? "fileName"
+        <*> obj .:? "targetPath"
+        <*> obj .:? "hashes" .!= Map.empty
+        <*> obj .:? "size"
+        <*> obj .:? "downloadUrls" .!= []
+        <*> obj .:? "gameVersions" .!= []
+        <*> obj .:? "loaders" .!= []
+        <*> obj .:? "javaMajor"
+        <*> obj .:? "side"
+        <*> obj .:? "selectedBecause" .!= []
+        <*> obj .:? "locked" .!= False
+        <*> obj .:? "pinReason"
+        <*> obj .:? "dependencies" .!= []
+        <*> obj .:? "conflicts" .!= []
+        <*> obj .:? "sourceSnapshot"
+
+data LockfileFile = LockfileFile
+  { lockfileFilePackageId :: Text
+  , lockfileFileName :: Text
+  , lockfileFileTargetPath :: FilePath
+  , lockfileFileHashes :: Map Text Text
+  , lockfileFileSize :: Maybe Int64
+  , lockfileFileDownloadUrls :: [Text]
+  , lockfileFileKind :: Text
+  } deriving (Eq, Show)
+
+instance ToJSON LockfileFile where
+  toJSON file =
+    object
+      [ "packageId" .= lockfileFilePackageId file
+      , "fileName" .= lockfileFileName file
+      , "targetPath" .= lockfileFileTargetPath file
+      , "hashes" .= lockfileFileHashes file
+      , "size" .= lockfileFileSize file
+      , "downloadUrls" .= lockfileFileDownloadUrls file
+      , "kind" .= lockfileFileKind file
+      ]
+
+instance FromJSON LockfileFile where
+  parseJSON =
+    withObject "LockfileFile" $ \obj ->
+      LockfileFile
+        <$> obj .: "packageId"
+        <*> obj .:? "fileName" .!= ""
+        <*> obj .: "targetPath"
+        <*> obj .:? "hashes" .!= Map.empty
+        <*> obj .:? "size"
+        <*> obj .:? "downloadUrls" .!= []
+        <*> obj .:? "kind" .!= "mod"
+
+packageCoordinateKey :: PackageCoordinate -> Text
+packageCoordinateKey coordinate =
+  Text.intercalate
+    ":"
+    [ Text.toLower (coordinateSource coordinate)
+    , fromMaybe "" (coordinateProjectId coordinate)
+    , fromMaybe "" (coordinateVersionId coordinate)
+    , fromMaybe "" (coordinateFileId coordinate)
+    , Text.toLower (coordinateKind coordinate)
+    ]
+
+resolvedPackageKey :: ResolvedPackage -> Text
+resolvedPackageKey package =
+  Text.intercalate
+    "|"
+    [ resolvedPackageId package
+    , packageCoordinateKey (resolvedPackageCoordinate package)
+    , fromMaybe "" (resolvedPackageFileName package)
+    , maybe "" Text.pack (resolvedPackageTargetPath package)
+    ]
+
+lockfileFileKey :: LockfileFile -> Text
+lockfileFileKey file =
+  Text.intercalate
+    "|"
+    [ lockfileFilePackageId file
+    , Text.pack (lockfileFileTargetPath file)
+    , Map.findWithDefault "" "sha1" (lockfileFileHashes file)
+    ]

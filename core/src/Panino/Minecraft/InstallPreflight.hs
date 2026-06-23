@@ -16,21 +16,9 @@ import Control.Exception
   , displayException
   , try
   )
-import Control.Concurrent.MVar
-  ( MVar
-  , modifyMVar
-  , newMVar
-  )
 import Data.Aeson
-  ( FromJSON(..)
-  , ToJSON(..)
-  , Value(..)
+  ( Value(..)
   , encode
-  , object
-  , withObject
-  , (.:)
-  , (.:?)
-  , (.=)
   )
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -43,21 +31,7 @@ import Data.Maybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Time.Clock
-  ( NominalDiffTime
-  , UTCTime
-  , diffUTCTime
-  , getCurrentTime
-  )
-import Network.HTTP.Client
-  ( Manager
-  , Request(method)
-  , httpNoBody
-  , requestHeaders
-  , responseStatus
-  )
-import Network.HTTP.Types (statusCode)
-import Panino.Api.Types (InstallRequest(..))
+import Network.HTTP.Client (Manager)
 import Panino.Content.Online.Http
   ( coreRequest
   , fetchJson
@@ -85,139 +59,18 @@ import Panino.Minecraft.LoaderInstall
 import Panino.Minecraft.Layout
   ( MinecraftLayout(..)
   )
-import Panino.Net.Sources (resolveSourceUrl)
-import Panino.Runtime.Java.Types (JavaRuntimeResolveResponse)
+import Panino.Minecraft.InstallPreflight.Probe
+  ( probeHttpUrl
+  , probeStatusText
+  )
+import Panino.Minecraft.InstallPreflight.Types
+  ( LoaderInstallPreflightDiagnostics(..)
+  , LoaderInstallPreflightRequest(..)
+  , LoaderInstallPreflightResponse(..)
+  , preflightFromInstallRequest
+  )
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
-import System.IO.Unsafe (unsafePerformIO)
-
-data InstallerProbeCacheEntry = InstallerProbeCacheEntry
-  { installerProbeCachedAt :: UTCTime
-  , installerProbeCachedResult :: Either Text Text
-  } deriving (Eq, Show)
-
-{-# NOINLINE installerProbeCache #-}
--- Process-local probe cache. Keep the unsafePerformIO boundary isolated here
--- until this cache is moved into ServerState or an explicit preflight handle.
-installerProbeCache :: MVar (Map.Map Text InstallerProbeCacheEntry)
-installerProbeCache =
-  unsafePerformIO (newMVar Map.empty)
-
-data LoaderInstallPreflightRequest = LoaderInstallPreflightRequest
-  { preflightMinecraftVersion :: Text
-  , preflightLoader :: Maybe Text
-  , preflightLoaderVersion :: Maybe Text
-  , preflightShaderLoader :: Maybe Text
-  , preflightShaderVersion :: Maybe Text
-  , preflightGameDir :: Maybe FilePath
-  , preflightJavaExecutable :: Maybe FilePath
-  , preflightSourceProfile :: Maybe Text
-  } deriving (Eq, Show)
-
-instance FromJSON LoaderInstallPreflightRequest where
-  parseJSON =
-    withObject "LoaderInstallPreflightRequest" $ \obj ->
-      LoaderInstallPreflightRequest
-        <$> (obj .:? "minecraftVersion" >>= maybe (obj .: "version") pure)
-        <*> obj .:? "loader"
-        <*> obj .:? "loaderVersion"
-        <*> obj .:? "shaderLoader"
-        <*> obj .:? "shaderVersion"
-        <*> obj .:? "gameDir"
-        <*> obj .:? "javaExecutable"
-        <*> obj .:? "sourceProfile"
-
-instance ToJSON LoaderInstallPreflightRequest where
-  toJSON request =
-    object
-      [ "minecraftVersion" .= preflightMinecraftVersion request
-      , "loader" .= preflightLoader request
-      , "loaderVersion" .= preflightLoaderVersion request
-      , "shaderLoader" .= preflightShaderLoader request
-      , "shaderVersion" .= preflightShaderVersion request
-      , "gameDir" .= preflightGameDir request
-      , "javaExecutable" .= preflightJavaExecutable request
-      , "sourceProfile" .= preflightSourceProfile request
-      ]
-
-data LoaderInstallPreflightDiagnostics = LoaderInstallPreflightDiagnostics
-  { preflightDiagnosticsLoaderSources :: [LoaderMetadataSourceResult]
-  , preflightDiagnosticsLoaderProfileUrl :: Maybe Text
-  , preflightDiagnosticsInstallerUrl :: Maybe Text
-  , preflightDiagnosticsInstallerProbeStatus :: Maybe Text
-  , preflightDiagnosticsShaderProjects :: [Text]
-  } deriving (Eq, Show)
-
-instance ToJSON LoaderInstallPreflightDiagnostics where
-  toJSON diagnostics =
-    object
-      [ "loaderSources" .= preflightDiagnosticsLoaderSources diagnostics
-      , "loaderProfileUrl" .= preflightDiagnosticsLoaderProfileUrl diagnostics
-      , "installerUrl" .= preflightDiagnosticsInstallerUrl diagnostics
-      , "installerProbeStatus" .= preflightDiagnosticsInstallerProbeStatus diagnostics
-      , "shaderProjects" .= preflightDiagnosticsShaderProjects diagnostics
-      ]
-
-data LoaderInstallPreflightResponse = LoaderInstallPreflightResponse
-  { preflightStatus :: Text
-  , preflightResponseMinecraftVersion :: Text
-  , preflightResponseLoader :: Maybe Text
-  , preflightResponseLoaderVersion :: Maybe Text
-  , preflightResponseLoaderProfileId :: Maybe Text
-  , preflightResponseShaderLoader :: Maybe Text
-  , preflightResponseShaderVersion :: Maybe Text
-  , preflightResponseShaderResolvedLoader :: Maybe Text
-  , preflightResponseShaderFallbackFrom :: Maybe Text
-  , preflightResponseShaderFallbackTo :: Maybe Text
-  , preflightResponseInstallerProbeStatus :: Maybe Text
-  , preflightResponseShaderProjects :: [Text]
-  , preflightResponseRequiredDependencies :: [Text]
-  , preflightResponseJavaRuntime :: Maybe JavaRuntimeResolveResponse
-  , preflightResponseWarnings :: [Text]
-  , preflightResponseBlockedReasons :: [Text]
-  , preflightResponseTypedPlan :: Plan.TypedInstallPlan
-  , preflightResponseDiagnostics :: LoaderInstallPreflightDiagnostics
-  , preflightResponseDiagnostic :: Maybe Diagnostic
-  , preflightResponseStructuredDiagnostics :: [Diagnostic]
-  } deriving (Eq, Show)
-
-instance ToJSON LoaderInstallPreflightResponse where
-  toJSON response =
-    object
-      [ "status" .= preflightStatus response
-      , "minecraftVersion" .= preflightResponseMinecraftVersion response
-      , "loader" .= preflightResponseLoader response
-      , "loaderVersion" .= preflightResponseLoaderVersion response
-      , "loaderProfileId" .= preflightResponseLoaderProfileId response
-      , "shaderLoader" .= preflightResponseShaderLoader response
-      , "shaderVersion" .= preflightResponseShaderVersion response
-      , "shaderResolvedLoader" .= preflightResponseShaderResolvedLoader response
-      , "shaderFallbackFrom" .= preflightResponseShaderFallbackFrom response
-      , "shaderFallbackTo" .= preflightResponseShaderFallbackTo response
-      , "installerProbeStatus" .= preflightResponseInstallerProbeStatus response
-      , "shaderProjects" .= preflightResponseShaderProjects response
-      , "requiredDependencies" .= preflightResponseRequiredDependencies response
-      , "javaRuntime" .= preflightResponseJavaRuntime response
-      , "warnings" .= preflightResponseWarnings response
-      , "blockedReasons" .= preflightResponseBlockedReasons response
-      , "typedPlan" .= preflightResponseTypedPlan response
-      , "diagnostics" .= preflightResponseDiagnostics response
-      , "diagnostic" .= preflightResponseDiagnostic response
-      , "structuredDiagnostics" .= preflightResponseStructuredDiagnostics response
-      ]
-
-preflightFromInstallRequest :: InstallRequest -> Maybe FilePath -> LoaderInstallPreflightRequest
-preflightFromInstallRequest request javaExecutable =
-  LoaderInstallPreflightRequest
-    { preflightMinecraftVersion = installRequestVersion request
-    , preflightLoader = installRequestLoader request
-    , preflightLoaderVersion = installRequestLoaderVersion request
-    , preflightShaderLoader = installRequestShaderLoader request
-    , preflightShaderVersion = installRequestShaderVersion request
-    , preflightGameDir = installRequestGameDir request
-    , preflightJavaExecutable = javaExecutable
-    , preflightSourceProfile = Nothing
-    }
 
 loaderInstallPreflight :: Manager -> LoaderInstallPreflightRequest -> IO LoaderInstallPreflightResponse
 loaderInstallPreflight manager request = do
@@ -536,90 +389,6 @@ validateLoaderProfile (Object obj) = do
   Right profileId
 validateLoaderProfile _ =
   Left "profile_not_object"
-
-probeHttpUrl :: Manager -> Text -> IO (Either Text Text)
-probeHttpUrl manager url = do
-  resolvedUrl <- resolveSourceUrl (Text.unpack url)
-  cachedInstallerProbe (Text.pack resolvedUrl) $ do
-    baseRequest <- coreRequest resolvedUrl []
-    headProbe <- tryProbe manager "head" baseRequest { method = "HEAD" }
-    case headProbe of
-      Right status -> pure (Right status)
-      Left headErr
-        | isRateLimitedProbe headErr ->
-            pure (Left ("head:" <> headErr <> ";cooldown:rate_limited"))
-        | otherwise -> do
-            getProbe <-
-              tryProbe
-                manager
-                "range-get"
-                baseRequest
-                  { method = "GET"
-                  , requestHeaders = ("Range", "bytes=0-0") : requestHeaders baseRequest
-                  }
-            pure $ case getProbe of
-              Right status -> Right (status <> ":head_failed:" <> headErr)
-              Left getErr -> Left ("head:" <> headErr <> ";range-get:" <> getErr)
-
-cachedInstallerProbe :: Text -> IO (Either Text Text) -> IO (Either Text Text)
-cachedInstallerProbe cacheKey action = do
-  now <- getCurrentTime
-  cached <-
-    modifyMVar installerProbeCache $ \entries ->
-      case Map.lookup cacheKey entries of
-        Just entry
-          | diffUTCTime now (installerProbeCachedAt entry) <= installerProbeTtl (installerProbeCachedResult entry) ->
-              pure (entries, Just (installerProbeCachedResult entry))
-        _ ->
-          pure (entries, Nothing)
-  case cached of
-    Just result -> pure (markCachedProbe result)
-    Nothing -> do
-      result <- action
-      finished <- getCurrentTime
-      modifyMVar installerProbeCache $ \entries ->
-        pure
-          ( Map.insert
-              cacheKey
-              InstallerProbeCacheEntry
-                { installerProbeCachedAt = finished
-                , installerProbeCachedResult = result
-                }
-              entries
-          , ()
-          )
-      pure result
-
-installerProbeTtl :: Either Text Text -> NominalDiffTime
-installerProbeTtl result
-  | either isRateLimitedProbe isRateLimitedProbe result = 900
-  | either (const False) (const True) result = 900
-  | otherwise = 60
-
-markCachedProbe :: Either Text Text -> Either Text Text
-markCachedProbe (Right value) = Right ("cached:" <> value)
-markCachedProbe (Left value) = Left ("cached:" <> value)
-
-isRateLimitedProbe :: Text -> Bool
-isRateLimitedProbe value =
-  let lowered = Text.toLower value
-   in "429" `Text.isInfixOf` lowered || "too many requests" `Text.isInfixOf` lowered || "rate_limited" `Text.isInfixOf` lowered
-
-tryProbe :: Manager -> Text -> Request -> IO (Either Text Text)
-tryProbe manager label request = do
-  outcome <- try $ do
-    response <- httpNoBody request manager
-    let code = statusCode (responseStatus response)
-    if code >= 200 && code < 400
-      then pure ()
-      else fail ("HTTP " <> show code)
-  pure $ case outcome of
-    Right () -> Right (label <> ":ok")
-    Left (err :: SomeException) -> Left (Text.pack (displayException err))
-
-probeStatusText :: Either Text Text -> Text
-probeStatusText (Right value) = value
-probeStatusText (Left value) = "failed:" <> value
 
 writeInstallPreflightDiagnostics :: MinecraftLayout -> LoaderInstallPreflightResponse -> IO ()
 writeInstallPreflightDiagnostics layout response = do

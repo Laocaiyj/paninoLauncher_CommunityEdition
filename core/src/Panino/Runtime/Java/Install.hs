@@ -18,38 +18,14 @@ import Control.Monad
   , void
   , when
   )
-import Data.Aeson
-  ( FromJSON(..)
-  , Value(..)
-  , withObject
-  , (.:)
-  , (.:?)
-  , (.!=)
-  )
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Aeson.Types (Parser)
 import Data.Char
-  ( isAlphaNum
-  , isHexDigit
-  , toLower
+  ( toLower
   )
-import Data.Int (Int64)
-import Data.List
-  ( isInfixOf
-  , isPrefixOf
-  , isSuffixOf
-  , sortOn
-  )
-import Data.Maybe
-  ( fromMaybe
-  , listToMaybe
-  , mapMaybe
-  )
+import Data.List (isInfixOf)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
-import Panino.Api.Types (DownloadRuntimeOptions(..))
 import Panino.Content.Local.Java (checkJavaRuntime)
 import Panino.Content.Local.Path (removePathIfExists)
 import Panino.Content.Local.Types
@@ -58,21 +34,45 @@ import Panino.Content.Local.Types
   )
 import Panino.Download.Manager
   ( DownloadJob(..)
-  , DownloadOptions
   , DownloadProgress
-  , downloadOptionsWithOverrides
   , runDownloadJobsWithOptionsAndProgressAndCancel
   )
 import Panino.Net.Http
   ( RequestTimeoutClass(..)
   , coreRequestWithTimeout
   , fetchJson
-  , fetchText
   )
 import Panino.Runtime.Java.Catalog
   ( defaultRuntimeArch
   , defaultRuntimeOs
   , runtimeDownloadSpecForProvider
+  )
+import Panino.Runtime.Java.Install.Archive
+  ( archiveExtension
+  , copyOrExtractImportSource
+  , ensureSafeRuntimePath
+  , extractArchive
+  , findJavaExecutable
+  , runProcessChecked
+  , sanitizeRuntimeId
+  , takeSafeSourceName
+  , validateExtractedTree
+  )
+import Panino.Runtime.Java.Install.Checksum
+  ( fetchRuntimeSha256
+  , verifySha256
+  )
+import Panino.Runtime.Java.Install.Mojang
+  ( MojangRuntimeFile(..)
+  , MojangRuntimeManifest(..)
+  , chmodMojangExecutable
+  , mojangDownloadJobs
+  )
+import Panino.Runtime.Java.Install.Options
+  ( downloadOptionsFromRuntime
+  , javaMajorCompatible
+  , normalizeProvider
+  , runtimeArchCompatible
   )
 import Panino.Runtime.Java.Store
   ( managedJavaRoot
@@ -89,29 +89,12 @@ import Panino.Runtime.Java.Types
   )
 import System.Directory
   ( createDirectoryIfMissing
-  , doesDirectoryExist
-  , doesFileExist
-  , listDirectory
   , renameDirectory
   )
-import System.Exit (ExitCode(..))
 import System.FilePath
-  ( isAbsolute
-  , makeRelative
-  , normalise
-  , splitDirectories
+  ( makeRelative
   , takeDirectory
-  , takeFileName
   , (</>)
-  )
-import System.Posix.Files
-  ( getSymbolicLinkStatus
-  , isSymbolicLink
-  , readSymbolicLink
-  )
-import System.Process
-  ( proc
-  , readCreateProcessWithExitCode
   )
 import Data.Time.Clock (getCurrentTime)
 
@@ -380,336 +363,3 @@ finalizeStagedRuntime appRoot provider vendor maybeFeatureVersion runtimeOs runt
     , managedRuntimeDiskUsageBytes = Nothing
     , managedRuntimeUsedByInstanceCount = 0
     }
-
-copyOrExtractImportSource :: FilePath -> FilePath -> IO ()
-copyOrExtractImportSource sourcePath staging = do
-  sourceIsDirectory <- doesDirectoryExist sourcePath
-  sourceIsFile <- doesFileExist sourcePath
-  if sourceIsDirectory
-    then runProcessChecked "/bin/cp" ["-R", sourcePath, staging] "java_runtime_extract_failed"
-    else
-      if sourceIsFile
-        then extractArchive sourcePath staging
-        else fail "java_runtime_missing: import source does not exist"
-
-extractArchive :: FilePath -> FilePath -> IO ()
-extractArchive archivePath staging
-  | ".zip" `isSuffixOf` map toLower archivePath = do
-      validateZipNames archivePath
-      runProcessChecked "/usr/bin/unzip" ["-q", archivePath, "-d", staging] "java_runtime_extract_failed"
-  | otherwise = do
-      validateTarNames archivePath
-      runProcessChecked "/usr/bin/tar" ["-xzf", archivePath, "-C", staging] "java_runtime_extract_failed"
-
-archiveExtension :: Text -> Text
-archiveExtension url
-  | ".zip" `Text.isSuffixOf` lowered = ".zip"
-  | otherwise = ".tar.gz"
-  where
-    lowered = Text.toLower url
-
-ensureSafeRuntimePath :: FilePath -> IO ()
-ensureSafeRuntimePath path =
-  when (unsafeTarEntry path) $
-    fail "java_runtime_extract_failed: runtime manifest contains unsafe paths"
-
-mojangDownloadJobs :: FilePath -> [(FilePath, MojangRuntimeFile)] -> [DownloadJob]
-mojangDownloadJobs staging =
-  mapMaybe jobForFile
-  where
-    jobForFile (path, file) = do
-      download <- mojangFileRawDownload file
-      pure DownloadJob
-        { jobLabel = path
-        , jobUrl = Text.unpack (mojangDownloadUrl download)
-        , jobTargetPath = staging </> path
-        , jobSha1 = Just (mojangDownloadSha1 download)
-        , jobSize = mojangDownloadSize download
-        }
-
-chmodMojangExecutable :: FilePath -> (FilePath, MojangRuntimeFile) -> IO ()
-chmodMojangExecutable staging (path, file) =
-  when (mojangFileExecutable file) $
-    runProcessChecked "/bin/chmod" ["+x", staging </> path] "java_runtime_permission_denied"
-
-data MojangRuntimeManifest = MojangRuntimeManifest
-  { mojangManifestFiles :: [(FilePath, MojangRuntimeFile)]
-  } deriving (Eq, Show)
-
-instance FromJSON MojangRuntimeManifest where
-  parseJSON =
-    withObject "MojangRuntimeManifest" $ \obj -> do
-      filesValue <- obj .: "files"
-      case filesValue of
-        Object files -> do
-          entries <-
-            traverse
-              ( \(key, value) -> do
-                  file <- parseJSON value
-                  pure (Text.unpack (Key.toText key), file)
-              )
-              (KeyMap.toList files)
-          pure (MojangRuntimeManifest entries)
-        _ -> fail "Mojang runtime manifest files must be an object"
-
-data MojangRuntimeFile = MojangRuntimeFile
-  { mojangFileType :: Text
-  , mojangFileRawDownload :: Maybe MojangFileDownload
-  , mojangFileExecutable :: Bool
-  } deriving (Eq, Show)
-
-instance FromJSON MojangRuntimeFile where
-  parseJSON =
-    withObject "MojangRuntimeFile" $ \obj -> do
-      downloads <- (obj .:? "downloads" :: Parser (Maybe Value))
-      raw <-
-        case downloads of
-          Just (Object values) ->
-            case KeyMap.lookup (Key.fromText "raw") values of
-              Just rawValue -> Just <$> parseJSON rawValue
-              Nothing -> pure Nothing
-          _ -> pure Nothing
-      MojangRuntimeFile
-        <$> obj .: "type"
-        <*> pure raw
-        <*> obj .:? "executable" .!= False
-
-data MojangFileDownload = MojangFileDownload
-  { mojangDownloadSha1 :: Text
-  , mojangDownloadSize :: Maybe Int64
-  , mojangDownloadUrl :: Text
-  } deriving (Eq, Show)
-
-instance FromJSON MojangFileDownload where
-  parseJSON =
-    withObject "MojangFileDownload" $ \obj ->
-      MojangFileDownload
-        <$> obj .: "sha1"
-        <*> obj .:? "size"
-        <*> obj .: "url"
-
-fetchRuntimeSha256 :: Manager -> JavaRuntimeDownloadSpec -> IO Text
-fetchRuntimeSha256 manager spec =
-  case runtimeDownloadSha256 spec of
-    Just sha256 -> pure sha256
-    Nothing ->
-      case runtimeDownloadChecksumUrl spec of
-        Nothing -> fail "java_runtime_checksum_missing: provider did not expose checksum URL"
-        Just url -> do
-          text <- fetchText manager =<< coreRequestWithTimeout LongMetadata (Text.unpack url) []
-          maybe
-            (fail "java_runtime_checksum_missing: checksum response did not contain SHA-256")
-            pure
-            (parseSha256 text)
-
-parseSha256 :: Text -> Maybe Text
-parseSha256 text =
-  listToMaybe
-    [ Text.toLower token
-    | token <- Text.words text
-    , Text.length token == 64
-    , Text.all isHexDigit token
-    ]
-
-verifySha256 :: FilePath -> Text -> IO ()
-verifySha256 path expected = do
-  actual <- sha256HexFile path
-  unless (Text.toLower expected == Text.toLower actual) $ do
-    removePathIfExists path
-    fail "java_runtime_checksum_mismatch: downloaded Java archive failed SHA-256 verification"
-
-sha256HexFile :: FilePath -> IO Text
-sha256HexFile path = do
-  (exitCode, stdoutText, stderrText) <- tryShasum "/usr/bin/shasum" `catch` \(_ :: SomeException) -> tryShasum "shasum"
-  case exitCode of
-    ExitSuccess -> pure (parseOutput stdoutText)
-    ExitFailure _ -> fail ("java_runtime_checksum_failed: " <> stderrText)
-  where
-    tryShasum command = do
-      (exitCode, stdoutText, stderrText) <- readCreateProcessWithExitCode (proc command ["-a", "256", path]) ""
-      pure (exitCode, stdoutText, stderrText)
-    parseOutput =
-      Text.toLower . Text.pack . takeWhile (/= ' ')
-
-validateTarNames :: FilePath -> IO ()
-validateTarNames archivePath = do
-  (_, stdoutText, _) <- runProcessCheckedCapture "/usr/bin/tar" ["-tzf", archivePath] "java_runtime_extract_failed"
-  let entries = filter (not . null) (lines stdoutText)
-  when (any unsafeTarEntry entries) $
-    fail "java_runtime_extract_failed: archive contains unsafe paths"
-  (_, verboseText, _) <- runProcessCheckedCapture "/usr/bin/tar" ["-tzvf", archivePath] "java_runtime_extract_failed"
-  validateArchiveSymlinkTargets (mapMaybe tarSymlinkTarget (lines verboseText))
-
-validateZipNames :: FilePath -> IO ()
-validateZipNames archivePath = do
-  (_, stdoutText, _) <- runProcessCheckedCapture "/usr/bin/unzip" ["-Z", "-1", archivePath] "java_runtime_extract_failed"
-  let entries = filter (not . null) (lines stdoutText)
-  when (any unsafeTarEntry entries) $
-    fail "java_runtime_extract_failed: archive contains unsafe paths"
-  (_, listingText, _) <- runProcessCheckedCapture "/usr/bin/unzip" ["-Z", "-l", archivePath] "java_runtime_extract_failed"
-  targets <- traverse (zipSymlinkTarget archivePath) (mapMaybe zipSymlinkName (lines listingText))
-  validateArchiveSymlinkTargets targets
-
-validateArchiveSymlinkTargets :: [FilePath] -> IO ()
-validateArchiveSymlinkTargets targets =
-  when (any unsafeTarEntry targets) $
-    fail "java_runtime_extract_failed: archive contains unsafe symlink"
-
-tarSymlinkTarget :: String -> Maybe FilePath
-tarSymlinkTarget line
-  | "l" `isPrefixOf` line = trimStringLocal <$> arrowTarget line
-  | otherwise = Nothing
-
-arrowTarget :: String -> Maybe String
-arrowTarget [] = Nothing
-arrowTarget text@(_:rest)
-  | " -> " `isPrefixOf` text = Just (drop 4 text)
-  | otherwise = arrowTarget rest
-
-zipSymlinkName :: String -> Maybe FilePath
-zipSymlinkName line =
-  case words line of
-    permissions:_
-      | "l" `isPrefixOf` permissions && length fields >= 10 ->
-          Just (unwords (drop 9 fields))
-    _ -> Nothing
-  where
-    fields = words line
-
-zipSymlinkTarget :: FilePath -> FilePath -> IO FilePath
-zipSymlinkTarget archivePath entry = do
-  (_, stdoutText, _) <- runProcessCheckedCapture "/usr/bin/unzip" ["-p", archivePath, entry] "java_runtime_extract_failed"
-  pure (trimStringLocal stdoutText)
-
-unsafeTarEntry :: FilePath -> Bool
-unsafeTarEntry path =
-  isAbsolute path || any (== "..") (splitDirectories (normalise path))
-
-trimStringLocal :: String -> String
-trimStringLocal =
-  Text.unpack . Text.strip . Text.pack
-
-validateExtractedTree :: FilePath -> IO ()
-validateExtractedTree root = do
-  exists <- doesDirectoryExist root
-  when exists $ do
-    names <- sortOn id <$> listDirectory root
-    mapM_ (validatePath . (root </>)) names
-  where
-    validatePath path = do
-      status <- getSymbolicLinkStatus path
-      symlink <- pure (isSymbolicLink status)
-      when symlink $ do
-        target <- readSymbolicLink path
-        when (unsafeTarEntry target) $
-          fail "java_runtime_extract_failed: archive contains unsafe symlink"
-      isDir <- if symlink then pure False else doesDirectoryExist path
-      when isDir $ do
-        names <- sortOn id <$> listDirectory path
-        mapM_ (validatePath . (path </>)) names
-
-findJavaExecutable :: FilePath -> IO (Maybe FilePath)
-findJavaExecutable root = do
-  exists <- doesDirectoryExist root
-  if not exists
-    then pure Nothing
-    else search root
-  where
-    search path = do
-      names <- sortOn id <$> listDirectory path
-      let direct = [path </> name | name <- names, name == "java" && "bin" `isSuffixOf` takeDirectory (path </> name)]
-      foundFiles <- filterM doesFileExist direct
-      case foundFiles of
-        first:_ -> pure (Just first)
-        [] -> do
-          dirs <- filterM doesDirectoryExist [path </> name | name <- names]
-          firstJust <$> traverse search dirs
-
-firstJust :: [Maybe a] -> Maybe a
-firstJust [] = Nothing
-firstJust (Just value:_) = Just value
-firstJust (Nothing:rest) = firstJust rest
-
-runProcessChecked :: FilePath -> [String] -> String -> IO ()
-runProcessChecked command args errorCode = do
-  (exitCode, _, stderrText) <- readCreateProcessWithExitCode (proc command args) ""
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure _ -> fail (errorCode <> ": " <> stderrText)
-
-runProcessCheckedCapture :: FilePath -> [String] -> String -> IO (ExitCode, String, String)
-runProcessCheckedCapture command args errorCode = do
-  result@(exitCode, _, stderrText) <- readCreateProcessWithExitCode (proc command args) ""
-  case exitCode of
-    ExitSuccess -> pure result
-    ExitFailure _ -> fail (errorCode <> ": " <> stderrText)
-
-downloadOptionsFromRuntime :: DownloadRuntimeOptions -> DownloadOptions
-downloadOptionsFromRuntime options =
-  downloadOptionsWithOverrides
-    (strategyConcurrency options)
-    (strategyRetryCount options)
-
-strategyConcurrency :: DownloadRuntimeOptions -> Maybe Int
-strategyConcurrency options =
-  case normalizeDownloadStrategy <$> downloadRuntimeStrategy options of
-    Just "fast" -> Just (max 48 (fromMaybe 32 (downloadRuntimeConcurrency options)))
-    Just "conservative" -> Just (min 12 (fromMaybe 12 (downloadRuntimeConcurrency options)))
-    _ -> downloadRuntimeConcurrency options
-
-strategyRetryCount :: DownloadRuntimeOptions -> Maybe Int
-strategyRetryCount options =
-  case normalizeDownloadStrategy <$> downloadRuntimeStrategy options of
-    Just "fast" -> Just (max 4 (fromMaybe 3 (downloadRuntimeRetryCount options)))
-    Just "conservative" -> Just (max 2 (fromMaybe 2 (downloadRuntimeRetryCount options)))
-    _ -> downloadRuntimeRetryCount options
-
-normalizeDownloadStrategy :: Text -> Text
-normalizeDownloadStrategy =
-  Text.toLower . Text.replace "-" "" . Text.replace "_" ""
-
-javaMajorCompatible :: Int -> Int -> Bool
-javaMajorCompatible required actual
-  | required >= 17 = actual >= required
-  | otherwise = actual == required
-
-runtimeArchCompatible :: Text -> Text -> Bool
-runtimeArchCompatible expected actual =
-  normalizeArch expected == normalizeArch actual
-
-normalizeArch :: Text -> Text
-normalizeArch value
-  | lowered `elem` ["aarch64", "arm64"] = "aarch64"
-  | lowered `elem` ["x64", "x86_64", "amd64"] = "x64"
-  | otherwise = lowered
-  where
-    lowered = Text.toLower value
-
-normalizeProvider :: Text -> Text
-normalizeProvider =
-  Text.toLower . Text.strip
-
-sanitizeRuntimeId :: Text -> Text
-sanitizeRuntimeId =
-  Text.map sanitizeChar
-  where
-    sanitizeChar char
-      | isAlphaNum char = char
-      | char `elem` ("._-+" :: String) = char
-      | otherwise = '-'
-
-takeSafeSourceName :: FilePath -> String
-takeSafeSourceName path =
-  case takeFileName (normalise path) of
-    "" -> "runtime"
-    name -> name
-
-filterM :: Monad m => (a -> m Bool) -> [a] -> m [a]
-filterM predicate =
-  foldr
-    (\value rest -> do
-        keep <- predicate value
-        values <- rest
-        pure (if keep then value : values else values)
-    )
-    (pure [])

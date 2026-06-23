@@ -5,6 +5,7 @@ module Panino.Api.Routes.Content.Common
   ( allowedContentSubdirs
   , byteToHex
   , contentDependencyKey
+  , contentFileKey
   , contentTargetLoaderCompatible
   , inferLoaderFromVersionIds
   , installedVersionIdsInGameDir
@@ -55,6 +56,10 @@ contentDependencyKey dependency =
     , Text.toLower (fromMaybe "" (contentDependencyVersionId dependency))
     , Text.toLower (contentDependencyName dependency)
     ]
+
+contentFileKey :: ContentInstallFile -> Text
+contentFileKey =
+  Text.toLower . Text.pack . safeContentFileName . contentFileName
 
 samePath :: FilePath -> FilePath -> Bool
 samePath lhs rhs =

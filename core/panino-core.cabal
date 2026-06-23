@@ -35,6 +35,7 @@ library
     Panino.Api.Routes.Content.Cache
     Panino.Api.Routes.Content.Common
     Panino.Api.Routes.Content.InstallPlan
+    Panino.Api.Routes.Content.InstallPlan.Typed
     Panino.Api.Routes.Content.Targets
     Panino.Api.Routes.Content.Task
     Panino.Api.Routes.Content.UpdatePlan
@@ -54,11 +55,16 @@ library
     Panino.Api.Routes.Minecraft.LaunchTask
     Panino.Api.Routes.Minecraft.Progress
     Panino.Api.Routes.Network
+    Panino.Api.Routes.Network.Config
+    Panino.Api.Routes.Network.Probe
+    Panino.Api.Routes.Network.SpeedTest
     Panino.Api.Routes.Performance
     Panino.Api.Routes.PerformancePack
+    Panino.Api.Routes.PerformancePack.Types
     Panino.Api.Routes.Runtime
     Panino.Api.Routes.TaowaMultiplayer
     Panino.Api.Routes.Tasks
+    Panino.Api.Routes.Tasks.Progress
     Panino.Api.Server
     Panino.Api.Server.State
     Panino.Api.Types
@@ -70,7 +76,9 @@ library
     Panino.Api.Types.Tasks
     Panino.Content.Configuration.Preflight
     Panino.Content.Configuration.Modpack
+    Panino.Content.Configuration.Modpack.Import
     Panino.Content.Configuration.Modpack.Manifest
+    Panino.Content.Configuration.Modpack.Plan
     Panino.Content.Configuration.Types
     Panino.Content.Local
     Panino.Content.Local.Conflict
@@ -130,6 +138,10 @@ library
     Panino.Lockfile.Solver.Room
     Panino.Lockfile.Store
     Panino.Lockfile.Types
+    Panino.Lockfile.Types.Document
+    Panino.Lockfile.Types.Package
+    Panino.Lockfile.Types.Solver
+    Panino.Lockfile.Types.Verify
     Panino.Lockfile.Verify
     Panino.Launch.Arguments
     Panino.Launch.Java
@@ -137,13 +149,20 @@ library
     Panino.Launch.Tuning.Types
     Panino.Minecraft.Install
     Panino.Minecraft.InstallPreflight
+    Panino.Minecraft.InstallPreflight.Probe
+    Panino.Minecraft.InstallPreflight.Types
     Panino.Minecraft.InstallPlanGraph
+    Panino.Minecraft.InstallPlanGraph.Typed
+    Panino.Minecraft.InstallPlanGraph.Types
     Panino.Minecraft.InstanceMetadata
     Panino.Minecraft.LauncherProfiles
     Panino.Minecraft.Layout
     Panino.Minecraft.LoaderInstall
     Panino.Minecraft.LoaderInstall.Names
+    Panino.Minecraft.LoaderInstall.Profile
     Panino.Minecraft.LoaderInstall.Shader
+    Panino.Minecraft.LoaderInstall.Types
+    Panino.Minecraft.LoaderInstall.Verify
     Panino.Minecraft.Manifest
     Panino.Minecraft.Modrinth
     Panino.Minecraft.ModPreflight
@@ -177,6 +196,10 @@ library
     Panino.Platform.Hardware
     Panino.Runtime.Java.Catalog
     Panino.Runtime.Java.Install
+    Panino.Runtime.Java.Install.Archive
+    Panino.Runtime.Java.Install.Checksum
+    Panino.Runtime.Java.Install.Mojang
+    Panino.Runtime.Java.Install.Options
     Panino.Runtime.Java.Requirements
     Panino.Runtime.Java.Resolve
     Panino.Runtime.Java.Store
