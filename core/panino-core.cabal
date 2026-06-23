@@ -41,6 +41,9 @@ library
     Panino.Api.Routes.Content.UpdatePlan
     Panino.Api.Routes.Health
     Panino.Api.Routes.Diagnostics
+    Panino.Api.Routes.Diagnostics.EnvironmentConclusions
+    Panino.Api.Routes.Diagnostics.EnvironmentContext
+    Panino.Api.Routes.Diagnostics.EnvironmentRecommendations
     Panino.Api.Routes.Diagnostics.Probes
     Panino.Api.Routes.Diagnostics.RuntimeFeedback
     Panino.Api.Routes.GraphicsTuning
@@ -175,6 +178,8 @@ library
     Panino.Multiplayer.Taowa.Session
     Panino.Multiplayer.Taowa.Types
     Panino.Net.Http
+    Panino.Net.Http.Request
+    Panino.Net.Http.Retry
     Panino.Net.Probe
     Panino.Net.Sources
     Panino.Perf.Metrics

@@ -4,6 +4,8 @@ set -eu
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 tmp_dir="${TMPDIR:-/tmp}/panino-contract-check.$$"
 swift_core_models_dir="macos/PaninoLauncher/PaninoLauncher/Models/Core"
+swift_lockfile_models_dir="$swift_core_models_dir/Lockfile"
+swift_task_models_dir="$swift_core_models_dir/Tasks"
 failed=0
 
 mkdir -p "$tmp_dir"
@@ -104,23 +106,23 @@ check_pair() {
   fi
 }
 
-check_pair "PaninoLockfile" "core/src/Panino/Lockfile/Types/Document.hs" "PaninoLockfile" "tojson" "$swift_core_models_dir/CoreLockfileModels.swift" "CorePaninoLockfile"
-check_pair "LockfileSolveRequest" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileSolveRequest" "fromjson" "$swift_core_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileSolveRequest"
-check_pair "LockfileChange" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileChange" "tojson" "$swift_core_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileChange"
-check_pair "LockfileChangeset" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileChangeset" "fromjson" "$swift_core_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileChangeset"
-check_pair "LockfileExplainEntry" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileExplainEntry" "tojson" "$swift_core_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileExplainEntry"
-check_pair "LockfileExplain" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileExplain" "tojson" "$swift_core_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileExplain"
-check_pair "SolverResult" "core/src/Panino/Lockfile/Types/Solver.hs" "SolverResult" "tojson" "$swift_core_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileSolverResult"
-check_pair "LockfileApplyRequest" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileApplyRequest" "fromjson" "$swift_core_models_dir/CoreLockfileOperationModels.swift" "CoreLockfileApplyRequest"
-check_pair "LockfileVerifyIssue" "core/src/Panino/Lockfile/Types/Verify.hs" "LockfileVerifyIssue" "tojson" "$swift_core_models_dir/CoreLockfileOperationModels.swift" "CoreLockfileVerifyIssue"
-check_pair "LockfileVerifyResponse" "core/src/Panino/Lockfile/Types/Verify.hs" "LockfileVerifyResponse" "tojson" "$swift_core_models_dir/CoreLockfileOperationModels.swift" "CoreLockfileVerifyResponse"
-check_pair "PackageCoordinate" "core/src/Panino/Lockfile/Types/Package.hs" "PackageCoordinate" "tojson" "$swift_core_models_dir/CorePackageResolutionModels.swift" "CorePackageCoordinate"
-check_pair "PackageConstraint" "core/src/Panino/Lockfile/Types/Package.hs" "PackageConstraint" "tojson" "$swift_core_models_dir/CorePackageResolutionModels.swift" "CorePackageConstraint"
-check_pair "ResolvedPackage" "core/src/Panino/Lockfile/Types/Package.hs" "ResolvedPackage" "tojson" "$swift_core_models_dir/CorePackageResolutionModels.swift" "CoreResolvedPackage"
-check_pair "SolverConflict" "core/src/Panino/Lockfile/Types/Solver.hs" "SolverConflict" "tojson" "$swift_core_models_dir/CorePackageResolutionModels.swift" "CoreSolverConflict"
-check_pair "TaskProgress" "core/src/Panino/Api/Types/Tasks.hs" "TaskProgress" "tojson" "$swift_core_models_dir/TaskProgressModels.swift" "TaskProgress"
-check_pair "TaskProgressHost" "core/src/Panino/Api/Types/Tasks.hs" "TaskProgressHost" "tojson" "$swift_core_models_dir/TaskProgressModels.swift" "TaskProgressHost"
-check_pair "TaskProgressMultipart" "core/src/Panino/Api/Types/Tasks.hs" "TaskProgressMultipart" "tojson" "$swift_core_models_dir/TaskProgressModels.swift" "TaskProgressMultipart"
+check_pair "PaninoLockfile" "core/src/Panino/Lockfile/Types/Document.hs" "PaninoLockfile" "tojson" "$swift_lockfile_models_dir/CoreLockfileModels.swift" "CorePaninoLockfile"
+check_pair "LockfileSolveRequest" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileSolveRequest" "fromjson" "$swift_lockfile_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileSolveRequest"
+check_pair "LockfileChange" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileChange" "tojson" "$swift_lockfile_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileChange"
+check_pair "LockfileChangeset" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileChangeset" "fromjson" "$swift_lockfile_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileChangeset"
+check_pair "LockfileExplainEntry" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileExplainEntry" "tojson" "$swift_lockfile_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileExplainEntry"
+check_pair "LockfileExplain" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileExplain" "tojson" "$swift_lockfile_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileExplain"
+check_pair "SolverResult" "core/src/Panino/Lockfile/Types/Solver.hs" "SolverResult" "tojson" "$swift_lockfile_models_dir/CoreLockfileSolverModels.swift" "CoreLockfileSolverResult"
+check_pair "LockfileApplyRequest" "core/src/Panino/Lockfile/Types/Solver.hs" "LockfileApplyRequest" "fromjson" "$swift_lockfile_models_dir/CoreLockfileOperationModels.swift" "CoreLockfileApplyRequest"
+check_pair "LockfileVerifyIssue" "core/src/Panino/Lockfile/Types/Verify.hs" "LockfileVerifyIssue" "tojson" "$swift_lockfile_models_dir/CoreLockfileOperationModels.swift" "CoreLockfileVerifyIssue"
+check_pair "LockfileVerifyResponse" "core/src/Panino/Lockfile/Types/Verify.hs" "LockfileVerifyResponse" "tojson" "$swift_lockfile_models_dir/CoreLockfileOperationModels.swift" "CoreLockfileVerifyResponse"
+check_pair "PackageCoordinate" "core/src/Panino/Lockfile/Types/Package.hs" "PackageCoordinate" "tojson" "$swift_lockfile_models_dir/CorePackageResolutionModels.swift" "CorePackageCoordinate"
+check_pair "PackageConstraint" "core/src/Panino/Lockfile/Types/Package.hs" "PackageConstraint" "tojson" "$swift_lockfile_models_dir/CorePackageResolutionModels.swift" "CorePackageConstraint"
+check_pair "ResolvedPackage" "core/src/Panino/Lockfile/Types/Package.hs" "ResolvedPackage" "tojson" "$swift_lockfile_models_dir/CorePackageResolutionModels.swift" "CoreResolvedPackage"
+check_pair "SolverConflict" "core/src/Panino/Lockfile/Types/Solver.hs" "SolverConflict" "tojson" "$swift_lockfile_models_dir/CorePackageResolutionModels.swift" "CoreSolverConflict"
+check_pair "TaskProgress" "core/src/Panino/Api/Types/Tasks.hs" "TaskProgress" "tojson" "$swift_task_models_dir/TaskProgressModels.swift" "TaskProgress"
+check_pair "TaskProgressHost" "core/src/Panino/Api/Types/Tasks.hs" "TaskProgressHost" "tojson" "$swift_task_models_dir/TaskProgressModels.swift" "TaskProgressHost"
+check_pair "TaskProgressMultipart" "core/src/Panino/Api/Types/Tasks.hs" "TaskProgressMultipart" "tojson" "$swift_task_models_dir/TaskProgressModels.swift" "TaskProgressMultipart"
 
 if [ "$failed" -ne 0 ]; then
   exit 1

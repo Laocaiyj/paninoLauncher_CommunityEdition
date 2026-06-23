@@ -15,7 +15,6 @@ module Panino.Net.Http
   , metadataRetryCount
   ) where
 
-import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
   ( MVar
   , modifyMVar
@@ -31,7 +30,6 @@ import Control.Exception
   , throwIO
   , try
   )
-import Data.Char (toLower)
 import Data.Aeson
   ( FromJSON
   , FromJSON(..)
@@ -61,30 +59,17 @@ import Data.Time.Clock
   , diffUTCTime
   , getCurrentTime
   )
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.HTTP.Client
   ( Manager
   , Request
-  , Response
   , getUri
-  , httpLbs
   , method
-  , managerConnCount
-  , managerIdleConnectionCount
-  , managerResponseTimeout
-  , managerSetProxy
   , parseRequest
-  , proxyEnvironment
   , requestHeaders
   , responseBody
   , responseHeaders
   , responseStatus
   , responseTimeout
-  , responseTimeoutMicro
-  )
-import Network.HTTP.Client.TLS
-  ( newTlsManagerWith
-  , tlsManagerSettings
   )
 import Network.HTTP.Types
   ( HeaderName
@@ -92,6 +77,19 @@ import Network.HTTP.Types
   , statusCode
   )
 import Numeric (showHex)
+import Panino.Net.Http.Request
+  ( RequestTimeoutClass(..)
+  , applyRequestTimeout
+  , applyRequestTimeoutMicros
+  , coreRequest
+  , coreRequestWithTimeout
+  , makeHttpManager
+  )
+import Panino.Net.Http.Retry
+  ( httpLbsWithRetry
+  , metadataRetryCount
+  , retryableStatus
+  )
 import Panino.Net.Sources
   ( resolveSourceUrls
   )
@@ -153,62 +151,6 @@ inFlightRequests =
 
 metadataCacheTtl :: NominalDiffTime
 metadataCacheTtl = 300
-
-data RequestTimeoutClass
-  = QuickMetadata
-  | LongMetadata
-  | DownloadTransfer
-  | LocalFilesystemScan
-  deriving (Eq, Show)
-
-makeHttpManager :: IO Manager
-makeHttpManager = do
-  strategy <- fmap normalizeStrategy <$> lookupEnv "PANINO_DOWNLOAD_STRATEGY"
-  let (connectionCount, idleConnectionCount) =
-        case strategy of
-          Just "fast" -> (192, 64)
-          Just "conservative" -> (64, 16)
-          _ -> (128, 32)
-  newTlsManagerWith
-    (managerSetProxy (proxyEnvironment Nothing) tlsManagerSettings)
-      { managerResponseTimeout = responseTimeoutMicro 60000000
-      , managerConnCount = connectionCount
-      , managerIdleConnectionCount = idleConnectionCount
-      }
-
-normalizeStrategy :: String -> String
-normalizeStrategy =
-  map (\char -> if char == '-' || char == '_' then char else toLower char)
-
-coreRequest :: String -> [(HeaderName, Text)] -> IO Request
-coreRequest url =
-  coreRequestWithTimeout QuickMetadata url
-
-coreRequestWithTimeout :: RequestTimeoutClass -> String -> [(HeaderName, Text)] -> IO Request
-coreRequestWithTimeout timeoutClass url headers = do
-  request <- parseRequest url
-  pure
-    (applyRequestTimeout timeoutClass request)
-      { requestHeaders =
-          [ ("User-Agent", "PaninoLauncher/0.1 Core")
-          ]
-            <> map (\(key, value) -> (key, Text.encodeUtf8 value)) headers
-            <> requestHeaders request
-      }
-
-applyRequestTimeout :: RequestTimeoutClass -> Request -> Request
-applyRequestTimeout timeoutClass request =
-  request { responseTimeout = responseTimeoutMicro (requestTimeoutMicros timeoutClass) }
-
-applyRequestTimeoutMicros :: Int -> Request -> Request
-applyRequestTimeoutMicros micros request =
-  request { responseTimeout = responseTimeoutMicro micros }
-
-requestTimeoutMicros :: RequestTimeoutClass -> Int
-requestTimeoutMicros QuickMetadata = 15000000
-requestTimeoutMicros LongMetadata = 60000000
-requestTimeoutMicros DownloadTransfer = 300000000
-requestTimeoutMicros LocalFilesystemScan = 30000000
 
 fetchJsonUrl :: FromJSON value => Manager -> String -> IO value
 fetchJsonUrl manager url =
@@ -344,70 +286,6 @@ fetchSingleNetworkBytes manager request = do
 sourceStatusUsable :: Int -> Bool
 sourceStatusUsable status =
   status == 304 || (status >= 200 && status < 300)
-
-httpLbsWithRetry :: Request -> Manager -> IO (Response BL.ByteString)
-httpLbsWithRetry request manager = do
-  maxRetries <- metadataRetryCount
-  go (maxRetries + 1) 1
-  where
-    go maxAttempts attempt = do
-      result <- try (httpLbs request manager)
-      case result of
-        Right response
-          | attempt < maxAttempts && retryableStatus (statusCode (responseStatus response)) -> do
-              putStrLn ("retry " <> show attempt <> "/" <> show maxAttempts <> " for " <> show (getUri request) <> ": HTTP " <> show (statusCode (responseStatus response)))
-              threadDelay =<< retryDelay attempt response
-              go maxAttempts (attempt + 1)
-          | otherwise -> pure response
-        Left (err :: SomeException)
-          | attempt < maxAttempts -> do
-              putStrLn ("retry " <> show attempt <> "/" <> show maxAttempts <> " for " <> show (getUri request) <> ": " <> show err)
-              threadDelay =<< addJitter (min 12000000 (400000 * (2 ^ max 0 (attempt - 1))))
-              go maxAttempts (attempt + 1)
-          | otherwise -> throwIO err
-
-    retryDelay attempt response =
-      case (* 1000000) <$> parseRetryAfter response of
-        Just delay -> pure delay
-        Nothing -> addJitter (min 12000000 (400000 * (2 ^ max 0 (attempt - 1))))
-
-retryableStatus :: Int -> Bool
-retryableStatus status =
-  status == 408 || status == 429 || status >= 500
-
-metadataRetryCount :: IO Int
-metadataRetryCount = do
-  configured <- lookupEnv "PANINO_HTTP_RETRY_COUNT"
-  pure $
-    case configured >>= readMaybeString of
-      Just value -> min 10 (max 0 value)
-      Nothing -> 3
-
-addJitter :: Int -> IO Int
-addJitter baseDelay = do
-  now <- getPOSIXTime
-  let window = max 1 (baseDelay `div` 4)
-      jitter = floor (now * 1000000) `mod` window
-  pure (baseDelay + jitter)
-
-parseRetryAfter :: Response body -> Maybe Int
-parseRetryAfter response =
-  lookup hRetryAfter (responseHeaders response) >>= readMaybeBytes
-
-hRetryAfter :: HeaderName
-hRetryAfter = "Retry-After"
-
-readMaybeBytes :: BS.ByteString -> Maybe Int
-readMaybeBytes value =
-  case reads (BS8.unpack value) of
-    (seconds, _) : _ -> Just seconds
-    [] -> Nothing
-
-readMaybeString :: String -> Maybe Int
-readMaybeString value =
-  case reads value of
-    (parsed, "") : _ -> Just parsed
-    _ -> Nothing
 
 joinInFlight :: String -> IO (Int, BL.ByteString) -> IO (Int, BL.ByteString)
 joinInFlight key action = do

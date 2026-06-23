@@ -27,21 +27,21 @@
 /* Begin PBXFileReference section */
 		2C9C56102C00000100A00001 /* PaninoLauncher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PaninoLauncher.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C9C564F2C00000100A00001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		2C9C56142C00000100A00001 /* PaninoLauncherApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaninoLauncherApp.swift; sourceTree = "<group>"; };
-		2C9C56152C00000100A00001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		2C9C56142C00000100A00001 /* PaninoLauncherApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/PaninoLauncherApp.swift; sourceTree = "<group>"; };
+		2C9C56152C00000100A00001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/ContentView.swift; sourceTree = "<group>"; };
 		2C9C56162C00000100A00001 /* CoreProcessLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CoreProcess/CoreProcessLauncher.swift; sourceTree = "<group>"; };
 		2C9C56172C00000100A00001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2C9C56182C00000100A00001 /* panino-test-core */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Support/TestBinary/panino-test-core"; sourceTree = SOURCE_ROOT; };
-		2C9C56302C00000100A00001 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Core/CoreModels.swift; sourceTree = "<group>"; };
-		2C9C56322C00000100A00001 /* LauncherApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Api/LauncherApiClient.swift; sourceTree = "<group>"; };
-		2C9C56342C00000100A00001 /* EventStreamClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Api/EventStreamClient.swift; sourceTree = "<group>"; };
+		2C9C56302C00000100A00001 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Core/Foundation/CoreModels.swift; sourceTree = "<group>"; };
+		2C9C56322C00000100A00001 /* LauncherApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Api/Clients/LauncherApiClient.swift; sourceTree = "<group>"; };
+		2C9C56342C00000100A00001 /* EventStreamClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Api/Clients/EventStreamClient.swift; sourceTree = "<group>"; };
 		2C9C56362C00000100A00001 /* CoreProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CoreProcess/CoreProcessManager.swift; sourceTree = "<group>"; };
-		2C9C56382C00000100A00001 /* LauncherViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherViewModel.swift; sourceTree = "<group>"; };
+		2C9C56382C00000100A00001 /* LauncherViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModels/LauncherViewModel.swift; sourceTree = "<group>"; };
 		2C9C56402C00000100A00001 /* MicrosoftAuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/Auth/Microsoft/MicrosoftAuthModels.swift; sourceTree = "<group>"; };
 		2C9C56422C00000100A00001 /* MicrosoftAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/Auth/Microsoft/MicrosoftAuthService.swift; sourceTree = "<group>"; };
-		2C9C56442C00000100A00001 /* SecureTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureTokenStore.swift; sourceTree = "<group>"; };
-		2C9C56462C00000100A00001 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
-		2C9C564A2C00000100A00001 /* NativeMacIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMacIntegration.swift; sourceTree = "<group>"; };
+		2C9C56442C00000100A00001 /* SecureTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Security/SecureTokenStore.swift; sourceTree = "<group>"; };
+		2C9C56462C00000100A00001 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stores/Settings/SettingsStore.swift; sourceTree = "<group>"; };
+		2C9C564A2C00000100A00001 /* NativeMacIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/NativeMacIntegration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
