@@ -20,18 +20,12 @@ module Panino.Api.Routes.TaowaMultiplayer
   , taowaSessionsResponse
   ) where
 
-import Control.Exception
-  ( SomeException
-  , bracket
-  , try
-  )
 import Control.Concurrent.STM
   ( readTVarIO
   )
 import Control.Applicative ((<|>))
 import Data.Aeson
-  ( Value
-  , object
+  ( object
   , (.=)
   )
 import Data.List
@@ -41,23 +35,11 @@ import Data.List
 import qualified Data.Map.Strict as Map
 import Data.Ord (Down(..))
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Types
-  ( Status
-  , status200
+  ( status200
   , status400
   , status404
-  )
-import Network.Socket
-  ( AddrInfo(..)
-  , SocketType(Stream)
-  , close
-  , connect
-  , defaultHints
-  , getAddrInfo
-  , socket
-  , withSocketsDo
   )
 import Network.Wai
   ( Request
@@ -70,6 +52,18 @@ import Panino.Api.MinecraftStatus
   , fetchInstalledMinecraftInstances
   )
 import Panino.Api.Response (jsonResponse)
+import Panino.Api.Routes.TaowaMultiplayer.ProfileTest (testTaowaFrpProfile)
+import Panino.Api.Routes.TaowaMultiplayer.Support
+  ( activeSessionForProfile
+  , errorObjectWithDetection
+  , forceProfileId
+  , installedCandidate
+  , invalidJsonResponse
+  , notFoundResponse
+  , taowaDiagnosticErrorResponse
+  , taowaJson
+  , taskCandidate
+  )
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( ApiEvent(..)
@@ -79,10 +73,6 @@ import Panino.Diagnostics.Types
   ( Diagnostic(..)
   )
 import Panino.Events.Bus (publishEvent)
-import Panino.Minecraft.Layout
-  ( minecraftRoot
-  , mkLayout
-  )
 import Panino.Multiplayer.Taowa.ConfigStore
   ( buildTaowaFrpProfile
   , deleteTaowaFrpProfile
@@ -94,9 +84,6 @@ import Panino.Multiplayer.Taowa.Diagnostics
   ( readRedactedTaowaLogTail
   , taowaDiagnosticForCode
   , taowaSessionNotFoundDiagnostic
-  )
-import Panino.Multiplayer.Taowa.FrpcProcess
-  ( validateFrpcExecutable
   )
 import Panino.Multiplayer.Taowa.LanDetect
   ( validateLocalPort
@@ -111,11 +98,7 @@ import Panino.Multiplayer.Taowa.Session
   , stopTaowaSession
   )
 import Panino.Multiplayer.Taowa.Types
-  ( TaowaFrpProfile(..)
-  , TaowaFrpProfileRequest(..)
-  , TaowaFrpProfileTestCheck(..)
-  , TaowaFrpProfileTestResponse(..)
-  , TaowaLanDetectRequest
+  ( TaowaLanDetectRequest
   , TaowaLanDetectStatus(..)
   , TaowaLanPortDetection(..)
   , TaowaLanValidatePortRequest
@@ -126,19 +109,6 @@ import Panino.Multiplayer.Taowa.Types
   , TaowaSessionStatus(..)
   , TaowaSessionsResponse(..)
   , publicProfile
-  )
-import System.FilePath
-  ( takeDirectory
-  )
-import System.Exit
-  ( ExitCode(..)
-  )
-import System.Process
-  ( proc
-  , readCreateProcessWithExitCode
-  )
-import System.Timeout
-  ( timeout
   )
 
 taowaFrpProfilesResponse :: ServerState -> IO Response
@@ -397,203 +367,6 @@ taowaSessionsResponse state =
   taowaJson state $ \appRoot -> do
     sessions <- listTaowaSessionsIncludingStored appRoot (stateTaowaSessions state)
     pure (jsonResponse status200 TaowaSessionsResponse { taowaSessions = sessions })
-
-testTaowaFrpProfile :: TaowaFrpProfile -> IO TaowaFrpProfileTestResponse
-testTaowaFrpProfile profile = do
-  executableResult <- validateFrpcExecutable (taowaProfileFrpcPath profile)
-  versionResult <-
-    case executableResult of
-      Left err -> pure (Left err)
-      Right () -> runFrpcVersion (taowaProfileFrpcPath profile)
-  serverReachable <- testTcpConnection (taowaProfileServerAddr profile) (taowaProfileServerPort profile)
-  let executableCheck =
-        case executableResult of
-          Right () -> okCheck "frpcExecutable" "frpc executable is present and executable."
-          Left err -> failedCheck "frpcExecutable" err
-      versionCheck =
-        case versionResult of
-          Right versionText -> okCheck "frpcVersion" ("frpc --version succeeded: " <> versionText)
-          Left err -> failedCheck "frpcVersion" err
-      serverCheck =
-        if serverReachable
-          then okCheck "frpServerTcp" "FRP server TCP port is reachable."
-          else failedCheck "frpServerTcp" "FRP server TCP port is not reachable."
-      diagnostics =
-        concat
-          [ case executableResult of
-              Right () -> []
-              Left err ->
-                [ taowaDiagnosticForCode
-                    (if "not executable" `Text.isInfixOf` Text.toLower err then "taowa_frpc_not_executable" else "taowa_frpc_not_found")
-                    "profile"
-                    err
-                    (profileContext profile)
-                    (Just (taowaProfileFrpcPath profile))
-                ]
-          , case versionResult of
-              Right _ -> []
-              Left err
-                | executableResult == Right () ->
-                    [ taowaDiagnosticForCode
-                        "taowa_profile_invalid"
-                        "profile"
-                        ("frpc --version failed: " <> err)
-                        (profileContext profile)
-                        (Just (taowaProfileFrpcPath profile))
-                    ]
-              _ -> []
-          , if serverReachable
-              then []
-              else
-                [ taowaDiagnosticForCode
-                    "taowa_frp_server_unreachable"
-                    "profile"
-                    "Panino could not connect to the configured FRP server TCP port."
-                    (profileContext profile)
-                    Nothing
-                ]
-          ]
-      checks = [executableCheck, versionCheck, serverCheck]
-  pure
-    TaowaFrpProfileTestResponse
-      { taowaProfileTestProfileId = taowaProfileId profile
-      , taowaProfileTestOk = all taowaProfileTestCheckOk checks
-      , taowaProfileTestChecks = checks
-      , taowaProfileTestDiagnostics = diagnostics
-      }
-  where
-    okCheck name message =
-      TaowaFrpProfileTestCheck name True message
-    failedCheck name message =
-      TaowaFrpProfileTestCheck name False message
-
-runFrpcVersion :: FilePath -> IO (Either Text Text)
-runFrpcVersion frpcPath = do
-  result <-
-    timeout 2000000 $
-      try (readCreateProcessWithExitCode (proc frpcPath ["--version"]) "") ::
-        IO (Maybe (Either SomeException (ExitCode, String, String)))
-  case result of
-    Just (Right (ExitSuccess, stdoutText, stderrText)) ->
-      pure (Right (cleanProcessOutput stdoutText stderrText))
-    Just (Right (exitCode, _stdoutText, stderrText)) ->
-      pure (Left ("frpc --version exited with " <> Text.pack (show exitCode) <> ": " <> Text.pack stderrText))
-    Just (Left err) ->
-      pure (Left ("frpc --version failed: " <> Text.pack (show err)))
-    Nothing ->
-      pure (Left "frpc --version timed out")
-
-testTcpConnection :: Text -> Int -> IO Bool
-testTcpConnection host port = do
-  result <-
-    timeout 2000000 $
-      try connectOnce :: IO (Maybe (Either SomeException ()))
-  pure (maybe False (either (const False) (const True)) result)
-  where
-    connectOnce =
-      withSocketsDo $ do
-        addrs <- getAddrInfo (Just defaultHints { addrSocketType = Stream }) (Just (Text.unpack host)) (Just (show port))
-        case addrs of
-          [] -> fail "no address found"
-          addr:_ ->
-            bracket
-              (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
-              close
-              (\sock -> connect sock (addrAddress addr))
-
-cleanProcessOutput :: String -> String -> Text
-cleanProcessOutput stdoutText stderrText =
-  let value = Text.strip (Text.pack stdoutText <> "\n" <> Text.pack stderrText)
-   in if Text.null value then "<no output>" else Text.take 240 value
-
-profileContext :: TaowaFrpProfile -> [(Text, Text)]
-profileContext profile =
-  [ ("profileId", taowaProfileId profile)
-  , ("serverAddr", taowaProfileServerAddr profile)
-  , ("serverPort", Text.pack (show (taowaProfileServerPort profile)))
-  , ("remotePort", Text.pack (show (taowaProfileRemotePort profile)))
-  , ("frpcPath", Text.pack (taowaProfileFrpcPath profile))
-  ]
-
-activeSessionForProfile :: Text -> TaowaSession -> Bool
-activeSessionForProfile profileId session =
-  taowaSessionProfileId session == profileId
-    && taowaSessionStatus session `elem` [TaowaSessionPrepared, TaowaSessionStartingFrpc, TaowaSessionRunning]
-
-taowaJson :: ServerState -> (FilePath -> IO Response) -> IO Response
-taowaJson state action = do
-  appRoot <- appSupportRoot state
-  result <- try (action appRoot)
-  case result of
-    Right response -> pure response
-    Left (err :: SomeException) ->
-      pure (jsonResponse status400 (errorObject "taowa_operation_failed" (Text.pack (show err))))
-
-appSupportRoot :: ServerState -> IO FilePath
-appSupportRoot state = do
-  layout <- mkLayout (stateDefaultGameDir state)
-  pure (takeDirectory (minecraftRoot layout))
-
-invalidJsonResponse :: String -> Response
-invalidJsonResponse err =
-  jsonResponse status400 (errorObject "invalid_json" (Text.pack err))
-
-notFoundResponse :: Text -> Text -> Response
-notFoundResponse code message =
-  jsonResponse status404 (errorObject code message)
-
-errorObject :: Text -> Text -> Value
-errorObject code message =
-  object
-    [ "error" .= code
-    , "message" .= message
-    ]
-
-errorObjectWithDetection :: Text -> Text -> TaowaLanPortDetection -> Value
-errorObjectWithDetection code message detection =
-  object $
-    [ "error" .= code
-    , "message" .= message
-    , "detection" .= detection
-    ]
-      <> case taowaLanDiagnostics detection of
-        diagnostic:_ ->
-          [ "diagnostic" .= diagnostic
-          , "diagnostics" .= taowaLanDiagnostics detection
-          ]
-        [] -> []
-
-forceProfileId :: Text -> TaowaFrpProfileRequest -> TaowaFrpProfileRequest
-forceProfileId profileId request =
-  request { taowaRequestProfileId = Just profileId }
-
-taskCandidate :: TaskSnapshot -> Value
-taskCandidate task =
-  object
-    [ "taskId" .= taskSnapshotId task
-    , "gameDir" .= taskSnapshotGameDir task
-    , "version" .= taskSnapshotVersion task
-    , "state" .= taskSnapshotState task
-    , "updatedAt" .= taskSnapshotUpdatedAt task
-    ]
-
-installedCandidate :: MinecraftInstalledInstance -> Value
-installedCandidate instanceValue =
-  object
-    [ "versionId" .= installedInstanceVersionId instanceValue
-    , "name" .= installedInstanceName instanceValue
-    , "gameDir" .= installedInstanceGameDir instanceValue
-    ]
-
-taowaDiagnosticErrorResponse :: Status -> Diagnostic -> Response
-taowaDiagnosticErrorResponse status diagnostic =
-  jsonResponse status $
-    object
-      [ "error" .= diagnosticCode diagnostic
-      , "message" .= diagnosticMessage diagnostic
-      , "diagnostic" .= diagnostic
-      , "diagnostics" .= [diagnostic]
-      ]
 
 emitTaowaSessionEvent :: ServerState -> Text -> TaowaSession -> Text -> IO ()
 emitTaowaSessionEvent state eventType session message = do

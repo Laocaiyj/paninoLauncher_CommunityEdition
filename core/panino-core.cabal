@@ -66,7 +66,10 @@ library
     Panino.Api.Routes.PerformancePack.Types
     Panino.Api.Routes.Runtime
     Panino.Api.Routes.TaowaMultiplayer
+    Panino.Api.Routes.TaowaMultiplayer.ProfileTest
+    Panino.Api.Routes.TaowaMultiplayer.Support
     Panino.Api.Routes.Tasks
+    Panino.Api.Routes.Tasks.History
     Panino.Api.Routes.Tasks.Progress
     Panino.Api.Server
     Panino.Api.Server.State
@@ -110,6 +113,9 @@ library
     Panino.Download.Hash
     Panino.Download.HostGate
     Panino.Download.Manager
+    Panino.Download.Manager.HostStats
+    Panino.Download.Manager.Preverified
+    Panino.Download.Manager.Progress
     Panino.Download.Multipart
     Panino.Download.Scheduler
     Panino.Download.Transfer
@@ -151,8 +157,12 @@ library
     Panino.Launch.Tuning.Recommend
     Panino.Launch.Tuning.Types
     Panino.Minecraft.Install
+    Panino.Minecraft.Install.Jobs
     Panino.Minecraft.InstallPreflight
+    Panino.Minecraft.InstallPreflight.Checks
+    Panino.Minecraft.InstallPreflight.Plan
     Panino.Minecraft.InstallPreflight.Probe
+    Panino.Minecraft.InstallPreflight.Resolve
     Panino.Minecraft.InstallPreflight.Types
     Panino.Minecraft.InstallPlanGraph
     Panino.Minecraft.InstallPlanGraph.Typed
@@ -209,6 +219,10 @@ library
     Panino.Runtime.Java.Resolve
     Panino.Runtime.Java.Store
     Panino.Runtime.Java.Types
+    Panino.Runtime.Java.Types.Catalog
+    Panino.Runtime.Java.Types.Managed
+    Panino.Runtime.Java.Types.Requests
+    Panino.Runtime.Java.Types.Resolve
   build-depends:
     aeson >= 2.2 && < 2.3,
     async >= 2.2 && < 2.3,
