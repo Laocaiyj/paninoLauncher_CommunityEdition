@@ -27,6 +27,8 @@ library
   hs-source-dirs: src
   exposed-modules:
     Panino.Api.MinecraftStatus
+    Panino.Api.MinecraftStatus.Scan
+    Panino.Api.MinecraftStatus.Types
     Panino.Api.Params
     Panino.Api.Response
     Panino.Api.Routes.Configuration
@@ -110,6 +112,9 @@ library
     Panino.Content.Online.Modrinth.Types
     Panino.Content.Online.Normalize
     Panino.Content.Online.Types
+    Panino.Content.Online.Types.Minecraft
+    Panino.Content.Online.Types.Project
+    Panino.Content.Online.Types.Request
     Panino.Compatibility.Evaluate
     Panino.Compatibility.Explain
     Panino.Compatibility.Rules
@@ -134,6 +139,7 @@ library
     Panino.Events.Bus
     Panino.Graphics.Tuning.Options
     Panino.Graphics.Tuning.Recommend
+    Panino.Graphics.Tuning.Recommend.Policy
     Panino.Graphics.Tuning.Types
     Panino.Install.Plan.Executor
     Panino.Install.Plan.Types
@@ -180,6 +186,9 @@ library
     Panino.Minecraft.LoaderInstall
     Panino.Minecraft.LoaderInstall.Names
     Panino.Minecraft.LoaderInstall.Profile
+    Panino.Minecraft.LoaderInstall.Profile.Common
+    Panino.Minecraft.LoaderInstall.Profile.Installer
+    Panino.Minecraft.LoaderInstall.Profile.Meta
     Panino.Minecraft.LoaderInstall.Shader
     Panino.Minecraft.LoaderInstall.Types
     Panino.Minecraft.LoaderInstall.Verify
@@ -194,7 +203,11 @@ library
     Panino.Multiplayer.Taowa.LanDetect
     Panino.Multiplayer.Taowa.Session
     Panino.Multiplayer.Taowa.Types
+    Panino.Multiplayer.Taowa.Types.Lan
+    Panino.Multiplayer.Taowa.Types.Profile
+    Panino.Multiplayer.Taowa.Types.Session
     Panino.Net.Http
+    Panino.Net.Http.Fetch
     Panino.Net.Http.Request
     Panino.Net.Http.Retry
     Panino.Net.Probe
