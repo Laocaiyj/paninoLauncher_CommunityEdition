@@ -54,6 +54,7 @@ library
     Panino.Api.Routes.Minecraft
     Panino.Api.Routes.Minecraft.Common
     Panino.Api.Routes.Minecraft.InstallTask
+    Panino.Api.Routes.Minecraft.InstallTask.Rollback
     Panino.Api.Routes.Minecraft.LaunchHooks
     Panino.Api.Routes.Minecraft.LaunchTask
     Panino.Api.Routes.Minecraft.Progress
@@ -63,6 +64,9 @@ library
     Panino.Api.Routes.Network.SpeedTest
     Panino.Api.Routes.Performance
     Panino.Api.Routes.PerformancePack
+    Panino.Api.Routes.PerformancePack.Install
+    Panino.Api.Routes.PerformancePack.Plan
+    Panino.Api.Routes.PerformancePack.Rollback
     Panino.Api.Routes.PerformancePack.Types
     Panino.Api.Routes.Runtime
     Panino.Api.Routes.TaowaMultiplayer
@@ -72,6 +76,7 @@ library
     Panino.Api.Routes.Tasks.History
     Panino.Api.Routes.Tasks.Progress
     Panino.Api.Server
+    Panino.Api.Server.Routing
     Panino.Api.Server.State
     Panino.Api.Types
     Panino.Api.Types.Content
@@ -97,10 +102,12 @@ library
     Panino.Content.Local.Types
     Panino.Content.Online
     Panino.Content.Online.CurseForge
+    Panino.Content.Online.CurseForge.Types
     Panino.Content.Online.Errors
     Panino.Content.Online.Http
     Panino.Content.Online.Minecraft
     Panino.Content.Online.Modrinth
+    Panino.Content.Online.Modrinth.Types
     Panino.Content.Online.Normalize
     Panino.Content.Online.Types
     Panino.Compatibility.Evaluate
