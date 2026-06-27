@@ -9,6 +9,8 @@ import qualified Data.Text as Text
 import Panino.Install.Plan.Types
   ( InstallPlanNode(..)
   , InstallPlanRollbackAction(..)
+  , installNodeSha1FromText
+  , installNodeSourceUrlsFromTexts
   , installNodeTargetPath
   , typedPlanFingerprint
   , typedPlanNodes
@@ -66,8 +68,8 @@ installNode ident target blockedReason =
     , installNodePhase = "download"
     , installNodeLabel = Text.pack ident
     , installNodeTargetPath = Just target
-    , installNodeSourceUrls = ["https://example.invalid/" <> Text.pack ident]
-    , installNodeSha1 = Just (Text.pack ident <> "-sha1")
+    , installNodeSourceUrls = installNodeSourceUrlsFromTexts ["https://example.invalid/" <> Text.pack ident]
+    , installNodeSha1 = installNodeSha1FromText (Just (Text.pack ident <> "-sha1"))
     , installNodeSize = Just 1
     , installNodeRequired = True
     , installNodeDependsOn = []

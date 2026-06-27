@@ -51,9 +51,14 @@ import Panino.Core.Types
   )
 import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
+  , LockfileUpdatePolicy(..)
   , PackageConstraint(..)
   , PackageCoordinate(..)
+  , PackageSource
   , ResolvedPackage(..)
+  , normalizePackageSource
+  , packageSourceFromText
+  , packageSourceText
   , resolvedPackageKey
   , solveRequestMinecraftVersionText
   )
@@ -70,7 +75,7 @@ normalizePackage gameDir reason package =
   package
     { resolvedPackageCoordinate =
         coordinate
-          { coordinateSource = normalizeSource (coordinateSource coordinate)
+          { coordinateSource = normalizePackageSource (coordinateSource coordinate)
           , coordinateKind = normalizeKind (coordinateKind coordinate)
           }
     , resolvedPackageTargetPath = normalizeTargetPath gameDir <$> resolvedPackageTargetPath package
@@ -106,16 +111,16 @@ applyExistingLockPolicy request selectedUpdateIds package
 shouldLockExisting :: LockfileSolveRequest -> [Text] -> ResolvedPackage -> Bool
 shouldLockExisting request selectedUpdateIds package =
   case solveRequestUpdatePolicy request of
-    "keepLocked" -> True
-    "repair" -> True
-    "launchVerify" -> True
-    "syncRoom" -> True
-    "updateSelected" -> resolvedPackageId package `notElem` selectedUpdateIds
+    LockfileKeepLocked -> True
+    LockfileRepair -> True
+    LockfileLaunchVerify -> True
+    LockfileSyncRoom -> True
+    LockfileUpdateSelected -> resolvedPackageId package `notElem` selectedUpdateIds
     _ -> False
 
 selectedUpdatePackageIds :: LockfileSolveRequest -> [ResolvedPackage] -> [Text]
 selectedUpdatePackageIds request roots
-  | solveRequestUpdatePolicy request == "updateSelected" =
+  | solveRequestUpdatePolicy request == LockfileUpdateSelected =
       stableTextSet (map resolvedPackageId roots <> concatMap directRequiredTargets roots)
   | otherwise = []
   where
@@ -135,20 +140,8 @@ normalizeConstraint constraint =
     }
 
 normalizeSource :: Text -> Text
-normalizeSource source =
-  case Text.toLower source of
-    "modrinth" -> "modrinth"
-    "curseforge" -> "curseforge"
-    "curse-forge" -> "curseforge"
-    "loader_meta" -> "loaderMeta"
-    "loadermeta" -> "loaderMeta"
-    "java_runtime" -> "javaRuntime"
-    "javaruntime" -> "javaRuntime"
-    "local" -> "local"
-    "manual" -> "manual"
-    "mojang" -> "mojang"
-    "panino" -> "panino"
-    other -> other
+normalizeSource =
+  packageSourceText . packageSourceFromText
 
 normalizeKind :: Text -> Text
 normalizeKind kind =
@@ -230,7 +223,7 @@ packageSelectionScore request package =
     rootRequestBonus value =
       sum [ 8 | "root request" `elem` resolvedPackageSelectedBecause value ]
     safeUpdateBonus value =
-      sum [ 100 | solveRequestUpdatePolicy request == "updateAllSafe" && packageCompatibleWithRequest request value ]
+      sum [ 100 | solveRequestUpdatePolicy request == LockfileUpdateAllSafe && packageCompatibleWithRequest request value ]
 
 packageResolutionScore :: ResolvedPackage -> Int
 packageResolutionScore package =
@@ -292,7 +285,7 @@ readMaybeText :: Text -> Maybe Int
 readMaybeText =
   readMaybe . Text.unpack
 
-packageSource :: ResolvedPackage -> Text
+packageSource :: ResolvedPackage -> PackageSource
 packageSource =
   coordinateSource . resolvedPackageCoordinate
 

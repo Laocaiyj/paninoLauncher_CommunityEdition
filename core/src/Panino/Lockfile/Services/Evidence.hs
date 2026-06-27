@@ -21,6 +21,7 @@ import qualified Panino.Install.Plan.Types as Plan
 import Panino.Lockfile.Types
   ( LockfileExplain(..)
   , LockfileSolveRequest(..)
+  , LockfileSolveStatus(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , SolverResult(..)
@@ -80,7 +81,7 @@ applyServiceEvidence updateFingerprint evidence result =
       fingerprint = lockfileFingerprint <$> lockfile
       explain = (solverResultExplain result) { explainFingerprint = fingerprint }
    in result
-        { solverResultStatus = if null blockedReasons then solverResultStatus result else "blocked"
+        { solverResultStatus = if null blockedReasons then solverResultStatus result else LockfileSolveBlocked
         , solverResultLockfile = lockfile
         , solverResultTypedPlan = typedPlan
         , solverResultWarnings = warnings

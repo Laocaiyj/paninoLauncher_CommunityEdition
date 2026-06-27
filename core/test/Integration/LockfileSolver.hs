@@ -23,7 +23,10 @@ import Network.HTTP.Types
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Panino.CoreLogic.Determinism (canonicalJson)
-import Panino.Core.Types (urlFromText)
+import Panino.Core.Types
+  ( gameDirFromPath
+  , urlFromText
+  )
 import Panino.Install.Plan.Executor
   ( InstallPlanExecutionResult(..)
   , executeExecutableInstallPlan
@@ -190,16 +193,20 @@ assertLockfileSolver = do
         (canonicalJson (toJSON verifyResponseShuffled))
       assertEqual "lockfile verify creates repair plan" True (isJust (verifyResponseRepairPlan verifyResponse))
       assertEqual "lockfile launch verify blocks missing or mismatched files" True (not (null (lockfileLaunchBlockedReasons verifyResponse)))
-      assertEqual
-        "lockfile apply rejects stale solver fingerprint"
-        (Left "solver_fingerprint_mismatch")
-        ( lockfileApplyReadyLockfile
-            LockfileApplyRequest
-              { applyRequestTargetGameDir = gameDir
-              , applyRequestSolverFingerprint = "stale-fingerprint"
-              , applyRequestResult = result
-              }
-        )
+      case gameDirFromPath gameDir of
+        Nothing ->
+          fail "lockfile apply test expected non-empty target game dir"
+        Just staleApplyGameDir ->
+          assertEqual
+            "lockfile apply rejects stale solver fingerprint"
+            (Left "solver_fingerprint_mismatch")
+            ( lockfileApplyReadyLockfile
+                LockfileApplyRequest
+                  { applyRequestTargetGameDir = staleApplyGameDir
+                  , applyRequestSolverFingerprint = "stale-fingerprint"
+                  , applyRequestResult = result
+                  }
+            )
       let applyGameDir = tempDir </> "panino-lockfile-apply-test"
       applyGameDirExists <- doesDirectoryExist applyGameDir
       when applyGameDirExists (removeDirectoryRecursive applyGameDir)

@@ -68,8 +68,12 @@ import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
   , PackageConstraint(..)
   , PackageCoordinate(..)
+  , PackageSource(..)
   , ResolvedPackage(..)
   , coordinateProjectIdText
+  , normalizePackageSource
+  , packageSourceFromText
+  , packageSourceIsOnline
   , resolvedPackageKey
   , solveRequestMinecraftVersionText
   )
@@ -109,7 +113,7 @@ onlineRootServiceEvidence manager request =
 
 onlineRootNeedsResolution :: ResolvedPackage -> Bool
 onlineRootNeedsResolution package =
-  normalizeSource (packageSource package) `elem` ["modrinth", "curseforge"]
+  packageSourceIsOnline (packageSource package)
     && resolvedPackageSourceSnapshot package `notElem` [Just "install-preflight", Just "modpack-preflight"]
     && ( coordinateVersionId (resolvedPackageCoordinate package) == Nothing
            || resolvedPackageTargetPath package == Nothing
@@ -123,9 +127,9 @@ onlineRootPackage manager request package =
     Nothing -> pure Nothing
     Just projectIdValue -> do
       response <-
-        case normalizeSource (packageSource package) of
-          "modrinth" -> modrinthProject manager (projectRequest "modrinth" projectIdValue)
-          "curseforge" -> curseForgeProject manager (projectRequest "curseForge" projectIdValue)
+        case normalizePackageSource (packageSource package) of
+          PackageSourceModrinth -> modrinthProject manager (projectRequest "modrinth" projectIdValue)
+          PackageSourceCurseForge -> curseForgeProject manager (projectRequest "curseForge" projectIdValue)
           _ -> fail "unsupported online source"
       case preferredContentRelease response of
         Nothing -> fail ("no compatible online release found for " <> Text.unpack projectIdValue)
@@ -216,7 +220,7 @@ requiredCurseForgeDependenciesForPackage package =
       , dependencySource = "curseForge"
       , dependencyRelation = "required"
       }
-  | normalizeSource (packageSource package) == "curseforge"
+  | normalizePackageSource (packageSource package) == PackageSourceCurseForge
   , constraint <- resolvedPackageDependencies package
   , normalizeRelation (constraintRelation constraint) == "requires"
   , constraintRequired constraint
@@ -272,7 +276,7 @@ requiredModrinthDependencies request =
         , dependencyRelation = "required"
         }
     | package <- solveRequestRoots request <> solveRequestManualPackages request
-    , packageSource package == "modrinth"
+    , normalizePackageSource (packageSource package) == PackageSourceModrinth
     , resolvedPackageSourceSnapshot package /= Just "install-preflight"
     , constraint <- resolvedPackageDependencies package
     , normalizeRelation (constraintRelation constraint) == "requires"
@@ -302,7 +306,7 @@ onlineReleaseToPackage release =
     { resolvedPackageId = releaseProjectId release
     , resolvedPackageCoordinate =
         PackageCoordinate
-          { coordinateSource = normalizeSource (releaseSource release)
+          { coordinateSource = packageSourceFromText (releaseSource release)
           , coordinateProjectId = projectIdFromText (releaseProjectId release)
           , coordinateVersionId = versionIdFromText (releaseId release)
           , coordinateFileId = fileId <$> selectedFile
@@ -341,7 +345,7 @@ onlineReleaseToPackageForRoot root release =
    in package
         { resolvedPackageCoordinate =
             coordinate
-              { coordinateSource = normalizeSource (coordinateSource rootCoordinate)
+              { coordinateSource = normalizePackageSource (coordinateSource rootCoordinate)
               , coordinateProjectId = coordinateProjectId rootCoordinate <|> coordinateProjectId coordinate
               , coordinateSlug = coordinateSlug rootCoordinate <|> coordinateSlug coordinate
               , coordinateName = coordinateName rootCoordinate <|> coordinateName coordinate

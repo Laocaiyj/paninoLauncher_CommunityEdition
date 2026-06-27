@@ -38,6 +38,11 @@ import Panino.Api.Response (jsonResponse)
 import Panino.Api.Server.State
   ( ServerState(..)
   )
+import Panino.Core.Types
+  ( GameDir
+  , gameDirFromPath
+  , gameDirPath
+  )
 import Panino.Install.Plan.Executor
   ( blockedInstallPlanExecutionResult
   , executeExecutableInstallPlan
@@ -65,6 +70,7 @@ import Panino.Lockfile.Types
   , LockfileDiffRequest(..)
   , PaninoLockfile(..)
   , SolverResult(..)
+  , applyRequestTargetGameDirPath
   )
 
 lockfileSolveResponse :: ServerState -> Request -> IO Response
@@ -87,11 +93,12 @@ lockfileApplyResponse state request = do
 
 lockfileCurrentResponse :: ServerState -> Request -> IO Response
 lockfileCurrentResponse state request = do
-  case queryText "gameDir" request <|> stateDefaultGameDir state of
+  case queryGameDir "gameDir" request <|> (stateDefaultGameDir state >>= gameDirFromPath) of
     Nothing ->
       pure (jsonResponse status400 (object ["error" .= ("game_dir_required" :: Text)]))
     Just gameDir -> do
-      loaded <- readCurrentLockfile gameDir
+      let targetGameDir = gameDirPath gameDir
+      loaded <- readCurrentLockfile targetGameDir
       case loaded of
         Left err ->
           pure (jsonResponse status400 (object ["error" .= ("lockfile_parse_failed" :: Text), "message" .= Text.pack err]))
@@ -100,7 +107,7 @@ lockfileCurrentResponse state request = do
             jsonResponse
               status200
               ( object
-                  [ "path" .= currentLockfilePath gameDir
+                  [ "path" .= currentLockfilePath targetGameDir
                   , "lockfile" .= maybeLockfile
                   ]
               )
@@ -131,16 +138,17 @@ lockfileVerifyResponse state request = do
     Left err ->
       pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= Text.pack err]))
     Right verifyRequest -> do
-      case verifyRequestTargetGameDir verifyRequest <|> stateDefaultGameDir state of
+      case verifyRequestTargetGameDir verifyRequest <|> (stateDefaultGameDir state >>= gameDirFromPath) of
         Nothing ->
           pure (jsonResponse status400 (object ["error" .= ("game_dir_required" :: Text)]))
         Just gameDir -> do
-          maybeLockfile <- resolveVerifyLockfile gameDir verifyRequest
+          let targetGameDir = gameDirPath gameDir
+          maybeLockfile <- resolveVerifyLockfile targetGameDir verifyRequest
           case maybeLockfile of
             Left err ->
               pure (jsonResponse status400 (object ["error" .= ("lockfile_unavailable" :: Text), "message" .= err]))
             Right lockfile -> do
-              response <- verifyLockfile gameDir lockfile
+              response <- verifyLockfile targetGameDir lockfile
               pure (jsonResponse status200 response)
 
 applyLockfileResult :: Manager -> LockfileApplyRequest -> IO Response
@@ -191,8 +199,9 @@ applyLockfileResult manager request =
                     )
                 )
             else do
-              path <- writeCurrentLockfile (applyRequestTargetGameDir request) lockfile
-              (resultPath, explainPath) <- writeLastSolverArtifacts (applyRequestTargetGameDir request) (applyRequestResult request)
+              let targetGameDir = applyRequestTargetGameDirPath request
+              path <- writeCurrentLockfile targetGameDir lockfile
+              (resultPath, explainPath) <- writeLastSolverArtifacts targetGameDir (applyRequestResult request)
               pure
                 ( jsonResponse
                     status200
@@ -207,7 +216,7 @@ applyLockfileResult manager request =
                 )
 
 data LockfileVerifyRequest = LockfileVerifyRequest
-  { verifyRequestTargetGameDir :: Maybe FilePath
+  { verifyRequestTargetGameDir :: Maybe GameDir
   , verifyRequestLockfile :: Maybe PaninoLockfile
   } deriving (Eq, Show)
 
@@ -229,7 +238,8 @@ resolveVerifyLockfile gameDir verifyRequest =
         Right Nothing -> pure (Left "No panino-lock.json exists for this game directory.")
         Right (Just lockfile) -> pure (Right lockfile)
 
-queryText :: Text -> Request -> Maybe FilePath
-queryText key request =
-  fmap (Text.unpack . Text.decodeUtf8) $
-    lookup (Text.encodeUtf8 key) (queryString request) >>= id
+queryGameDir :: Text -> Request -> Maybe GameDir
+queryGameDir key request =
+  lookup (Text.encodeUtf8 key) (queryString request)
+    >>= id
+    >>= gameDirFromPath . Text.unpack . Text.decodeUtf8

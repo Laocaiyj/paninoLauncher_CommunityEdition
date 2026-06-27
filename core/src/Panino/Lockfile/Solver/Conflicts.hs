@@ -37,6 +37,8 @@ import Panino.Lockfile.Types
   , SolverConflict(..)
   , coordinateProjectIdText
   , coordinateVersionIdText
+  , packageSourceIsManualLike
+  , packageSourceText
   , resolvedPackageTargetPathFilePath
   , solveRequestMinecraftVersionText
   )
@@ -61,7 +63,7 @@ detectPackageBlockedReasons packages =
           hasTarget = isJust (resolvedPackageTargetPath package)
           hasSha1 = Map.member "sha1" (resolvedPackageHashes package)
           hasUrl = not (null (resolvedPackageDownloadUrls package))
-          manualSource = source `elem` ["manual", "local"]
+          manualSource = packageSourceIsManualLike source
        in [ "unsafe_target_path:" <> resolvedPackageId package
           | maybe False (not . targetPathSafe) (resolvedPackageTargetPathFilePath package)
           ]
@@ -221,7 +223,7 @@ projectKeyFor :: ResolvedPackage -> Text
 projectKeyFor package =
   Text.intercalate
     ":"
-    [ coordinateSource (resolvedPackageCoordinate package)
+    [ packageSourceText (coordinateSource (resolvedPackageCoordinate package))
     , fromMaybe "" (coordinateProjectIdText (resolvedPackageCoordinate package))
     ]
 

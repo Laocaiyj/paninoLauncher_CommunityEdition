@@ -36,6 +36,7 @@ import Data.Maybe
   ( fromMaybe
   , mapMaybe
   )
+import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Core.Types
@@ -69,7 +70,7 @@ data TypedInstallPlan = TypedInstallPlan
   , typedPlanTitle :: Text
   , typedPlanTargetGameDir :: Maybe GameDir
   , typedPlanSource :: Maybe Text
-  , typedPlanStatus :: Text
+  , typedPlanStatus :: InstallPlanStatus
   , typedPlanSummary :: InstallPlanSummary
   , typedPlanNodes :: [InstallPlanNode]
   , typedPlanEdges :: [InstallPlanEdge]
@@ -85,6 +86,10 @@ data InstallPlanStatus
   | InstallStatusOther Text
   deriving (Eq, Show)
 
+instance IsString InstallPlanStatus where
+  fromString =
+    installPlanStatusFromText . Text.pack
+
 installPlanStatusFromText :: Text -> InstallPlanStatus
 installPlanStatusFromText status
   | Text.null status = InstallStatusReady
@@ -98,6 +103,14 @@ installPlanStatusText status =
     InstallStatusReady -> "ready"
     InstallStatusBlocked -> "blocked"
     InstallStatusOther rawStatus -> rawStatus
+
+instance ToJSON InstallPlanStatus where
+  toJSON =
+    toJSON . installPlanStatusText
+
+instance FromJSON InstallPlanStatus where
+  parseJSON value =
+    installPlanStatusFromText <$> parseJSON value
 
 instance ToJSON TypedInstallPlan where
   toJSON plan =
@@ -128,7 +141,7 @@ instance FromJSON TypedInstallPlan where
         <*> obj .:? "title" .!= ""
         <*> obj .:? "targetGameDir"
         <*> obj .:? "source"
-        <*> obj .:? "status" .!= "ready"
+        <*> obj .:? "status" .!= InstallStatusReady
         <*> obj .:? "summary" .!= emptyInstallPlanSummary
         <*> obj .:? "nodes" .!= []
         <*> obj .:? "edges" .!= []
@@ -336,8 +349,8 @@ finalizeTypedInstallPlan plan =
           )
       status =
         if not (null blockedReasons)
-          then installPlanStatusText InstallStatusBlocked
-          else installPlanStatusText (installPlanStatusFromText (typedPlanStatus plan))
+          then InstallStatusBlocked
+          else typedPlanStatus plan
       summary = summarizeInstallPlanNodes nodes
       staged =
         plan

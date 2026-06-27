@@ -20,12 +20,17 @@ import Panino.CoreLogic.Determinism
   )
 import Panino.Lockfile.Types
   ( LockfileChange(..)
+  , LockfileChangeAction(..)
   , LockfileChangeset(..)
   , LockfileSolveRequest(..)
+  , LockfileUpdatePolicy(..)
   , PackageCoordinate(..)
+  , PackageSource
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , coordinateVersionIdText
+  , lockfileChangeActionText
+  , packageSourceIsManualLike
   , emptyChangeset
   , resolvedPackageKey
   , resolvedPackageTargetPathFilePath
@@ -42,7 +47,7 @@ diffLockfiles base target =
     basePackages = stableSortPackages resolvedPackageKey (lockfilePackages base)
     targetIds = stableTextSet (map resolvedPackageId (lockfilePackages target))
     removeChanges =
-      [ packageChange "remove" package Nothing "Package is not present in the target lockfile."
+      [ packageChange LockfileActionRemove package Nothing "Package is not present in the target lockfile."
       | package <- basePackages
       , resolvedPackageId package `notElem` targetIds
       ]
@@ -55,8 +60,8 @@ buildChangeset request packages blockedReasons =
     existingMap = Map.fromList [(resolvedPackageId package, package) | package <- existingPackages]
     selectedIds = map resolvedPackageId packages
     removeChanges =
-      [ packageChange "remove" package Nothing "Package is no longer selected by relock."
-      | solveRequestUpdatePolicy request == "relock"
+      [ packageChange LockfileActionRemove package Nothing "Package is no longer selected by relock."
+      | solveRequestUpdatePolicy request == LockfileRelock
       , package <- existingPackages
       , resolvedPackageId package `notElem` selectedIds
       ]
@@ -71,18 +76,18 @@ changesetForPackages existingMap packages blockedReasons removeChanges =
   where
     insertChange changeset package
       | any (Text.isSuffixOf (resolvedPackageId package)) blockedReasons =
-          changeset { changesetBlocked = packageChange "blocked" package Nothing "Solver blocked this package." : changesetBlocked changeset }
-      | packageSource package `elem` ["manual", "local"] =
-          changeset { changesetManual = packageChange "manual" package Nothing "Manual or local file is tracked without automatic download." : changesetManual changeset }
+          changeset { changesetBlocked = packageChange LockfileActionBlocked package Nothing "Solver blocked this package." : changesetBlocked changeset }
+      | packageSourceIsManualLike (packageSource package) =
+          changeset { changesetManual = packageChange LockfileActionManual package Nothing "Manual or local file is tracked without automatic download." : changesetManual changeset }
       | otherwise =
           case Map.lookup (resolvedPackageId package) existingMap of
             Nothing ->
-              changeset { changesetAdd = packageChange "add" package Nothing "Package is newly selected." : changesetAdd changeset }
+              changeset { changesetAdd = packageChange LockfileActionAdd package Nothing "Package is newly selected." : changesetAdd changeset }
             Just existing
               | packageChangesetFingerprint existing == packageChangesetFingerprint package ->
-                  changeset { changesetKeep = packageChange "keep" package (Just existing) "Existing lockfile package is kept." : changesetKeep changeset }
+                  changeset { changesetKeep = packageChange LockfileActionKeep package (Just existing) "Existing lockfile package is kept." : changesetKeep changeset }
               | otherwise ->
-                  changeset { changesetReplace = packageChange "replace" package (Just existing) "Selected package differs from existing lockfile." : changesetReplace changeset }
+                  changeset { changesetReplace = packageChange LockfileActionReplace package (Just existing) "Selected package differs from existing lockfile." : changesetReplace changeset }
 
 packageChangesetFingerprint :: ResolvedPackage -> Text
 packageChangesetFingerprint package =
@@ -93,7 +98,7 @@ packageChangesetFingerprint package =
       , resolvedPackagePinReason = Nothing
       }
 
-packageChange :: Text -> ResolvedPackage -> Maybe ResolvedPackage -> Text -> LockfileChange
+packageChange :: LockfileChangeAction -> ResolvedPackage -> Maybe ResolvedPackage -> Text -> LockfileChange
 packageChange action package existing reason =
   LockfileChange
     { lockfileChangeAction = action
@@ -123,7 +128,7 @@ lockfileChangeKey :: LockfileChange -> Text
 lockfileChangeKey change =
   Text.intercalate
     "|"
-    [ lockfileChangeAction change
+    [ lockfileChangeActionText (lockfileChangeAction change)
     , lockfileChangePackageId change
     , lockfileChangeDisplayName change
     , fromMaybe "" (lockfileChangeFromVersionId change)
@@ -131,6 +136,6 @@ lockfileChangeKey change =
     , Text.pack (fromMaybe "" (lockfileChangeTargetPath change))
     ]
 
-packageSource :: ResolvedPackage -> Text
+packageSource :: ResolvedPackage -> PackageSource
 packageSource =
   coordinateSource . resolvedPackageCoordinate

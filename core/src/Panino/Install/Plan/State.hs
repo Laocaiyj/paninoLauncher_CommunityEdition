@@ -17,7 +17,6 @@ import Panino.Install.Plan.Types
   ( InstallPlanStatus(..)
   , TypedInstallPlan(..)
   , finalizeTypedInstallPlan
-  , installPlanStatusFromText
   , installPlanStatusText
   )
 
@@ -49,7 +48,7 @@ classifyTypedInstallPlan :: TypedInstallPlan -> InstallPlanReadiness
 classifyTypedInstallPlan plan =
   let finalized = finalizeTypedInstallPlan plan
       nonReadyReasons =
-        case installPlanStatusFromText (typedPlanStatus finalized) of
+        case typedPlanStatus finalized of
           InstallStatusReady -> []
           status -> ["non_executable_status:" <> installPlanStatusText status]
       blockedReasons = stableTextSet (typedPlanBlockedReasons finalized <> nonReadyReasons)

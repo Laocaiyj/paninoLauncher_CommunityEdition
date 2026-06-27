@@ -2,7 +2,13 @@
 
 module Panino.Lockfile.Types.Verify
   ( LockfileVerifyIssue(..)
+  , LockfileVerifyIssueKind(..)
   , LockfileVerifyResponse(..)
+  , LockfileVerifyStatus(..)
+  , lockfileVerifyIssueKindFromText
+  , lockfileVerifyIssueKindText
+  , lockfileVerifyStatusFromText
+  , lockfileVerifyStatusText
   ) where
 
 import Data.Aeson
@@ -10,11 +16,55 @@ import Data.Aeson
   , object
   , (.=)
   )
+import Data.String (IsString(..))
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Panino.Install.Plan.Types (TypedInstallPlan)
 
+data LockfileVerifyIssueKind
+  = VerifyIssueMissingFile
+  | VerifyIssueHashMismatch
+  | VerifyIssueExtraFile
+  | VerifyIssueManualFile
+  | VerifyIssueLockfileDrift
+  | VerifyIssueJavaMismatch
+  | VerifyIssueLoaderMismatch
+  | VerifyIssueOther Text
+  deriving (Eq, Show)
+
+instance IsString LockfileVerifyIssueKind where
+  fromString =
+    lockfileVerifyIssueKindFromText . Text.pack
+
+lockfileVerifyIssueKindFromText :: Text -> LockfileVerifyIssueKind
+lockfileVerifyIssueKindFromText kind
+  | kind == "missingFile" = VerifyIssueMissingFile
+  | kind == "hashMismatch" = VerifyIssueHashMismatch
+  | kind == "extraFile" = VerifyIssueExtraFile
+  | kind == "manualFile" = VerifyIssueManualFile
+  | kind == "lockfileDrift" = VerifyIssueLockfileDrift
+  | kind == "javaMismatch" = VerifyIssueJavaMismatch
+  | kind == "loaderMismatch" = VerifyIssueLoaderMismatch
+  | otherwise = VerifyIssueOther kind
+
+lockfileVerifyIssueKindText :: LockfileVerifyIssueKind -> Text
+lockfileVerifyIssueKindText kind =
+  case kind of
+    VerifyIssueMissingFile -> "missingFile"
+    VerifyIssueHashMismatch -> "hashMismatch"
+    VerifyIssueExtraFile -> "extraFile"
+    VerifyIssueManualFile -> "manualFile"
+    VerifyIssueLockfileDrift -> "lockfileDrift"
+    VerifyIssueJavaMismatch -> "javaMismatch"
+    VerifyIssueLoaderMismatch -> "loaderMismatch"
+    VerifyIssueOther rawKind -> rawKind
+
+instance ToJSON LockfileVerifyIssueKind where
+  toJSON =
+    toJSON . lockfileVerifyIssueKindText
+
 data LockfileVerifyIssue = LockfileVerifyIssue
-  { verifyIssueKind :: Text
+  { verifyIssueKind :: LockfileVerifyIssueKind
   , verifyIssuePackageId :: Maybe Text
   , verifyIssueTargetPath :: Maybe FilePath
   , verifyIssueExpectedSha1 :: Maybe Text
@@ -33,8 +83,35 @@ instance ToJSON LockfileVerifyIssue where
       , "message" .= verifyIssueMessage issue
       ]
 
+data LockfileVerifyStatus
+  = LockfileStatusLocked
+  | LockfileStatusDrifted
+  | LockfileStatusOther Text
+  deriving (Eq, Show)
+
+instance IsString LockfileVerifyStatus where
+  fromString =
+    lockfileVerifyStatusFromText . Text.pack
+
+lockfileVerifyStatusFromText :: Text -> LockfileVerifyStatus
+lockfileVerifyStatusFromText status
+  | status == "locked" = LockfileStatusLocked
+  | status == "drifted" = LockfileStatusDrifted
+  | otherwise = LockfileStatusOther status
+
+lockfileVerifyStatusText :: LockfileVerifyStatus -> Text
+lockfileVerifyStatusText status =
+  case status of
+    LockfileStatusLocked -> "locked"
+    LockfileStatusDrifted -> "drifted"
+    LockfileStatusOther rawStatus -> rawStatus
+
+instance ToJSON LockfileVerifyStatus where
+  toJSON =
+    toJSON . lockfileVerifyStatusText
+
 data LockfileVerifyResponse = LockfileVerifyResponse
-  { verifyResponseStatus :: Text
+  { verifyResponseStatus :: LockfileVerifyStatus
   , verifyResponseFingerprint :: Maybe Text
   , verifyResponseMissingFiles :: [LockfileVerifyIssue]
   , verifyResponseHashMismatches :: [LockfileVerifyIssue]

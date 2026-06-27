@@ -42,6 +42,7 @@ import Panino.Lockfile.Types
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , lockfileFileKey
+  , packageSourceIsManualLike
   , resolvedPackageKey
   )
 
@@ -69,7 +70,7 @@ buildLockfile request packages constraints warnings =
     , lockfileConstraints = stableSortPackages constraintKey constraints
     , lockfileOverrides = []
     , lockfileSourceSnapshots = stableSortOnText jsonValueKey (mapMaybe packageSourceSnapshotValue sortedPackages)
-    , lockfileManualEntries = stableSortPackages resolvedPackageKey (filter ((`elem` ["manual", "local"]) . packageSource) sortedPackages)
+    , lockfileManualEntries = stableSortPackages resolvedPackageKey (filter (packageSourceIsManualLike . packageSource) sortedPackages)
     , lockfileWarnings = warnings
     }
   where
@@ -114,7 +115,7 @@ optifineWarnings request packages =
 
 packageRequiredForRoom :: ResolvedPackage -> Bool
 packageRequiredForRoom package =
-  packageSource package `notElem` ["manual", "local"]
+  not (packageSourceIsManualLike (packageSource package))
     && coordinateKind (resolvedPackageCoordinate package)
       `elem`
         [ "minecraft"

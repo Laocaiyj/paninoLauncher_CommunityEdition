@@ -21,10 +21,6 @@ import Panino.Api.Routes.Content.InstallPlan (ContentInstallPlanBundle(..))
 import Panino.Api.Routes.Tasks (emitTaskProgress, taskIsCancelled)
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
-import Panino.Core.Types
-  ( sha1FromText
-  , urlFromText
-  )
 import Panino.Download.Manager (DownloadHostTelemetry(..), DownloadJob(..), DownloadMultipartTelemetry(..), DownloadOptions, DownloadProgress(..), downloadOptionsWithOverrides, runDownloadJobsWithOptionsAndProgressAndCancel)
 import Panino.Install.Plan.Executor
   ( InstallNodeResult(..)
@@ -129,9 +125,9 @@ downloadJobFromPlanNode node = do
   pure
     DownloadJob
       { jobLabel = Text.unpack (Plan.installNodeLabel node)
-      , jobUrl = urlFromText url
+      , jobUrl = url
       , jobTargetPath = targetPath
-      , jobSha1 = Plan.installNodeSha1 node >>= sha1FromText
+      , jobSha1 = Plan.installNodeSha1 node
       , jobSize = Plan.installNodeSize node
       }
 

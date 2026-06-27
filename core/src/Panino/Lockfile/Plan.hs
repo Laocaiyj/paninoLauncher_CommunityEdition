@@ -37,6 +37,7 @@ import Panino.Diagnostics.Types (Diagnostic)
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Lockfile.Types
   ( LockfileChange(..)
+  , LockfileChangeAction(..)
   , LockfileChangeset(..)
   , LockfileFile(..)
   , lockfileFileKey
@@ -104,10 +105,9 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
       , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (Just gameDir)
       , Plan.typedPlanSource = Just "lockfile-solver"
       , Plan.typedPlanStatus =
-          Plan.installPlanStatusText $
-            if null blockedReasons
-              then Plan.InstallStatusReady
-              else Plan.InstallStatusBlocked
+          if null blockedReasons
+            then Plan.InstallStatusReady
+            else Plan.InstallStatusBlocked
       , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing
       , Plan.typedPlanNodes = map packageNode sortedPackages
       , Plan.typedPlanEdges = packageEdges sortedPackages sortedConstraints
@@ -160,13 +160,13 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
     packageAction :: ResolvedPackage -> Text
     packageAction package =
       case lookup (resolvedPackageId package) changeActionMap of
-        Just "keep" -> "keep"
-        Just "manual" -> "keep"
-        Just "replace" -> "replace"
-        Just "repair" -> "replace"
-        Just "blocked" -> "verify"
-        Just "remove" -> "delete"
-        Just "add" -> if isJust (resolvedPackageTargetPath package) then "download" else "keep"
+        Just LockfileActionKeep -> "keep"
+        Just LockfileActionManual -> "keep"
+        Just LockfileActionReplace -> "replace"
+        Just LockfileActionRepair -> "replace"
+        Just LockfileActionBlocked -> "verify"
+        Just LockfileActionRemove -> "delete"
+        Just LockfileActionAdd -> if isJust (resolvedPackageTargetPath package) then "download" else "keep"
         _ | null (resolvedPackageDownloadUrls package) -> "keep"
           | otherwise -> "download"
     packagePhase :: ResolvedPackage -> Text

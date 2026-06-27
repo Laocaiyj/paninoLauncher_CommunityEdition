@@ -39,7 +39,6 @@ import Panino.CoreLogic.Determinism
 import Panino.Core.Types
   ( projectIdFromText
   , relativePathFromFilePath
-  , urlFromText
   , versionIdFromText
   )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
@@ -47,7 +46,6 @@ import qualified Panino.Install.Plan.Types as Plan
 import Panino.Lockfile.Normalize
   ( normalizeKind
   , normalizeLoader
-  , normalizeSource
   )
 import Panino.Lockfile.Services.Evidence
   ( ServiceEvidence(..)
@@ -61,7 +59,9 @@ import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
   , PackageConstraint(..)
   , PackageCoordinate(..)
+  , PackageSource
   , ResolvedPackage(..)
+  , packageSourceFromText
   , resolvedPackageKey
   , solveRequestMinecraftVersionText
   , solveRequestTargetGameDirPath
@@ -237,9 +237,9 @@ modpackPreflightPackages request response =
   stableSortPackages resolvedPackageKey $
     mapMaybe (modpackNodePackage source) (Plan.typedPlanNodes (modpackPreflightTypedPlan response))
   where
-    source = normalizeSource (fromMaybe "modrinth" (solveRequestSourceType request))
+    source = packageSourceFromText (fromMaybe "modrinth" (solveRequestSourceType request))
 
-modpackNodePackage :: Text -> Plan.InstallPlanNode -> Maybe ResolvedPackage
+modpackNodePackage :: PackageSource -> Plan.InstallPlanNode -> Maybe ResolvedPackage
 modpackNodePackage source node
   | Plan.installNodeKind node `elem` ["mod", "resourcePack", "shaderPack", "overrideFile"] =
       Just
@@ -260,9 +260,9 @@ modpackNodePackage source node
           , resolvedPackageVersionName = Nothing
           , resolvedPackageFileName = Text.pack . takeFileName <$> Plan.installNodeTargetPath node
           , resolvedPackageTargetPath = Plan.installNodeTargetPath node >>= relativePathFromFilePath
-          , resolvedPackageHashes = maybe Map.empty (Map.singleton "sha1") (Plan.installNodeSha1 node)
+          , resolvedPackageHashes = maybe Map.empty (Map.singleton "sha1") (Plan.installNodeSha1Text node)
           , resolvedPackageSize = Plan.installNodeSize node
-          , resolvedPackageDownloadUrls = map urlFromText (stableTextSet (Plan.installNodeSourceUrls node))
+          , resolvedPackageDownloadUrls = Plan.installNodeSourceUrls node
           , resolvedPackageGameVersions = []
           , resolvedPackageLoaders = []
           , resolvedPackageJavaMajor = Nothing

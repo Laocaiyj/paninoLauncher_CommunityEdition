@@ -73,6 +73,8 @@ import Panino.Lockfile.Types
   ( LockfileApplyRequest(..)
   , LockfileExplain(..)
   , LockfileSolveRequest(..)
+  , LockfileSolveStatus(..)
+  , LockfileUpdatePolicy(..)
   , LockfileVerifyResponse(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
@@ -144,7 +146,10 @@ solveLockfile request =
           warnings
           blockedReasons
           diagnostics
-      status = if null blockedReasons then "ready" else "blocked"
+      status =
+        if null blockedReasons
+          then LockfileSolveReady
+          else LockfileSolveBlocked
    in SolverResult
         { solverResultStatus = status
         , solverResultLockfile = Just lockfile
@@ -158,7 +163,7 @@ solveLockfile request =
         }
   where
     existingRootPackageIds packages
-      | solveRequestUpdatePolicy request == "relock" = []
+      | solveRequestUpdatePolicy request == LockfileRelock = []
       | otherwise = map resolvedPackageId packages
 
 solveLockfileWithServices :: Manager -> LockfileSolveRequest -> IO SolverResult
@@ -171,7 +176,7 @@ lockfileApplyReadyLockfile request =
   case solverResultLockfile (applyRequestResult request) of
     Nothing -> Left "lockfile_missing"
     Just lockfile
-      | solverResultStatus (applyRequestResult request) /= "ready" -> Left "solver_blocked"
+      | solverResultStatus (applyRequestResult request) /= LockfileSolveReady -> Left "solver_blocked"
       | lockfileFingerprint lockfile /= applyRequestSolverFingerprint request -> Left "solver_fingerprint_mismatch"
       | otherwise -> Right lockfile
 

@@ -22,15 +22,21 @@ import Panino.Lockfile.Changeset (packageChange)
 import Panino.Lockfile.Plan (buildLockfileTypedPlan)
 import Panino.Lockfile.Types
   ( LockfileChangeset(..)
+  , LockfileChangeAction(..)
   , LockfileFile(..)
   , LockfileVerifyIssue(..)
+  , LockfileVerifyIssueKind(..)
   , LockfileVerifyResponse(..)
+  , LockfileVerifyStatus(..)
   , PackageCoordinate(..)
+  , PackageSource
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , emptyChangeset
   , lockfileFileKey
   , lockfileFileTargetPathFilePath
+  , lockfileVerifyIssueKindText
+  , packageSourceIsManualLike
   , resolvedPackageKey
   , resolvedPackageTargetPathFilePath
   )
@@ -48,13 +54,13 @@ verifyLockfile :: FilePath -> PaninoLockfile -> IO LockfileVerifyResponse
 verifyLockfile gameDir lockfile = do
   fileIssues <- traverse verifyFile (stableSortPackages lockfileFileKey (lockfileFiles lockfile))
   extraIssues <- extraFileIssues gameDir lockfile
-  let missingIssues = stableSortPackages verifyIssueKey [issue | Left issue <- fileIssues, verifyIssueKind issue == "missingFile"]
-      mismatchIssues = stableSortPackages verifyIssueKey [issue | Left issue <- fileIssues, verifyIssueKind issue == "hashMismatch"]
+  let missingIssues = stableSortPackages verifyIssueKey [issue | Left issue <- fileIssues, verifyIssueKind issue == VerifyIssueMissingFile]
+      mismatchIssues = stableSortPackages verifyIssueKey [issue | Left issue <- fileIssues, verifyIssueKind issue == VerifyIssueHashMismatch]
       manualIssues = manualFileIssues lockfile
       driftIssues =
         stableSortPackages verifyIssueKey $
         [ LockfileVerifyIssue
-            { verifyIssueKind = "lockfileDrift"
+            { verifyIssueKind = VerifyIssueLockfileDrift
             , verifyIssuePackageId = Nothing
             , verifyIssueTargetPath = Nothing
             , verifyIssueExpectedSha1 = Nothing
@@ -67,7 +73,7 @@ verifyLockfile gameDir lockfile = do
       repairChangeset =
         emptyChangeset
           { changesetRepair =
-              [ packageChange "repair" package Nothing "Repair missing or mismatched file from lockfile."
+              [ packageChange LockfileActionRepair package Nothing "Repair missing or mismatched file from lockfile."
               | package <- repairPackages
               ]
           }
@@ -86,8 +92,8 @@ verifyLockfile gameDir lockfile = do
                 []
       status =
         if null missingIssues && null mismatchIssues && null extraIssues && null driftIssues
-          then "locked"
-          else "drifted"
+          then LockfileStatusLocked
+          else LockfileStatusDrifted
   pure
     LockfileVerifyResponse
       { verifyResponseStatus = status
@@ -112,7 +118,7 @@ verifyLockfile gameDir lockfile = do
           pure $
             Left $
               LockfileVerifyIssue
-                { verifyIssueKind = "missingFile"
+                { verifyIssueKind = VerifyIssueMissingFile
                 , verifyIssuePackageId = Just (lockfileFilePackageId file)
                 , verifyIssueTargetPath = Just relativeTarget
                 , verifyIssueExpectedSha1 = expectedSha1
@@ -126,7 +132,7 @@ verifyLockfile gameDir lockfile = do
               pure $
                 Left $
                   LockfileVerifyIssue
-                    { verifyIssueKind = "hashMismatch"
+                    { verifyIssueKind = VerifyIssueHashMismatch
                     , verifyIssuePackageId = Just (lockfileFilePackageId file)
                     , verifyIssueTargetPath = Just relativeTarget
                     , verifyIssueExpectedSha1 = expectedSha1
@@ -139,7 +145,7 @@ manualFileIssues :: PaninoLockfile -> [LockfileVerifyIssue]
 manualFileIssues lockfile =
   stableSortPackages verifyIssueKey $
   [ LockfileVerifyIssue
-      { verifyIssueKind = "manualFile"
+      { verifyIssueKind = VerifyIssueManualFile
       , verifyIssuePackageId = Just (resolvedPackageId package)
       , verifyIssueTargetPath = resolvedPackageTargetPathFilePath package
       , verifyIssueExpectedSha1 = Map.lookup "sha1" (resolvedPackageHashes package)
@@ -147,7 +153,7 @@ manualFileIssues lockfile =
       , verifyIssueMessage = "Manual or local file is tracked by the lockfile."
       }
   | package <- stableSortPackages resolvedPackageKey (lockfilePackages lockfile)
-  , packageSource package `elem` ["manual", "local"]
+  , packageSourceIsManualLike (packageSource package)
   ]
 
 extraFileIssues :: FilePath -> PaninoLockfile -> IO [LockfileVerifyIssue]
@@ -158,7 +164,7 @@ extraFileIssues gameDir lockfile = do
   pure $
     stableSortPackages verifyIssueKey $
     [ LockfileVerifyIssue
-        { verifyIssueKind = "extraFile"
+        { verifyIssueKind = VerifyIssueExtraFile
         , verifyIssuePackageId = Nothing
         , verifyIssueTargetPath = Just relativePath
         , verifyIssueExpectedSha1 = Nothing
@@ -214,7 +220,7 @@ verifyIssueKey :: LockfileVerifyIssue -> Text
 verifyIssueKey issue =
   Text.intercalate
     "|"
-    [ verifyIssueKind issue
+    [ lockfileVerifyIssueKindText (verifyIssueKind issue)
     , fromMaybe "" (verifyIssuePackageId issue)
     , Text.pack (fromMaybe "" (verifyIssueTargetPath issue))
     , fromMaybe "" (verifyIssueExpectedSha1 issue)
@@ -222,6 +228,6 @@ verifyIssueKey issue =
     , verifyIssueMessage issue
     ]
 
-packageSource :: ResolvedPackage -> Text
+packageSource :: ResolvedPackage -> PackageSource
 packageSource =
   coordinateSource . resolvedPackageCoordinate

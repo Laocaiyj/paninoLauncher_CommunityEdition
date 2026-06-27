@@ -35,13 +35,30 @@ import Panino.Install.Plan.Types
   )
 import Panino.Lockfile.Types
   ( LockfileSolveRequest
+  , LockfileChangeAction(..)
+  , LockfileSolveMode(..)
+  , LockfileSolveStatus(..)
+  , LockfileUpdatePolicy(..)
+  , LockfileVerifyIssueKind(..)
+  , LockfileVerifyStatus(..)
   , PackageCoordinate(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , coordinateProjectIdText
   , coordinateVersionIdText
+  , lockfileChangeActionFromText
+  , lockfileChangeActionText
+  , lockfileSolveModeFromText
+  , lockfileSolveModeText
+  , lockfileSolveStatusFromText
+  , lockfileSolveStatusText
+  , lockfileUpdatePolicyFromText
+  , lockfileUpdatePolicyText
   , lockfileMinecraftText
   , lockfileTargetGameDirPath
+  , lockfileVerifyIssueKindFromText
+  , lockfileVerifyIssueKindText
+  , lockfileVerifyStatusText
   , resolvedPackageDownloadUrlTexts
   , resolvedPackageTargetPathFilePath
   , solveRequestMinecraftVersionText
@@ -69,6 +86,17 @@ assertCoreTypes = do
   assertEqual "minecraft launch phase id keeps wire shape" "launch" (minecraftTaskPhaseId MinecraftPhaseLaunch)
   assertEqual "install plan empty status is ready" InstallStatusReady (installPlanStatusFromText "")
   assertEqual "install plan unknown status keeps wire text" "staged" (installPlanStatusText (InstallStatusOther "staged"))
+  assertEqual "lockfile solve empty status is blocked" LockfileSolveBlocked (lockfileSolveStatusFromText "")
+  assertEqual "lockfile solve unknown status keeps wire text" "queued" (lockfileSolveStatusText (LockfileSolveOther "queued"))
+  assertEqual "lockfile solve mode defaults to install" LockfileModeInstall (lockfileSolveModeFromText "")
+  assertEqual "lockfile solve mode unknown keeps wire text" "roomSync" (lockfileSolveModeText (lockfileSolveModeFromText "roomSync"))
+  assertEqual "lockfile update policy parses updateSelected" LockfileUpdateSelected (lockfileUpdatePolicyFromText "updateSelected")
+  assertEqual "lockfile update policy unknown keeps wire text" "customPolicy" (lockfileUpdatePolicyText (lockfileUpdatePolicyFromText "customPolicy"))
+  assertEqual "lockfile change action parses repair" LockfileActionRepair (lockfileChangeActionFromText "repair")
+  assertEqual "lockfile change action unknown keeps wire text" "customAction" (lockfileChangeActionText (lockfileChangeActionFromText "customAction"))
+  assertEqual "lockfile verify locked status keeps wire text" "locked" (lockfileVerifyStatusText LockfileStatusLocked)
+  assertEqual "lockfile verify issue kind parses known wire text" VerifyIssueMissingFile (lockfileVerifyIssueKindFromText "missingFile")
+  assertEqual "lockfile verify unknown issue kind keeps wire text" "customIssue" (lockfileVerifyIssueKindText (lockfileVerifyIssueKindFromText "customIssue"))
   assertLockfileWireShape
   assertEqual
     "core typed toml escapes strings"

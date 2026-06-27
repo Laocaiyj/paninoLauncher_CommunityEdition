@@ -9,6 +9,8 @@ import Data.Aeson
   , encode
   , toJSON
   )
+import qualified Data.ByteString.Lazy.Char8 as BL8
+import Data.List (isInfixOf)
 import Panino.CoreLogic.Determinism (canonicalJson)
 import Panino.Diagnostics.Types (Diagnostic(..))
 import Panino.Install.Plan.Types
@@ -135,6 +137,7 @@ assertTypedInstallPlanTypes = do
             }
       edgePlanA = finalizeTypedInstallPlan (basePlanWithEdges [assetIndexNode, assetObjectNode] [optionalEdge, assetEdge])
       edgePlanB = finalizeTypedInstallPlan (basePlanWithEdges [assetObjectNode, assetIndexNode] [assetEdge, optionalEdge])
+      stagedPlan = finalizeTypedInstallPlan ((basePlan [assetIndexNode]) {typedPlanStatus = "staged"})
 
   assertEqual "typed install plan fingerprint ignores node order" (typedPlanFingerprint planA) (typedPlanFingerprint planB)
   assertEqual "typed install plan id ignores node order" (typedPlanId planA) (typedPlanId planB)
@@ -146,6 +149,13 @@ assertTypedInstallPlanTypes = do
   assertEqual "typed install plan default status" "ready" (typedPlanStatus planA)
   assertEqual "typed install plan summarizes downloads" (Just 384) (installSummaryEstimatedBytes (typedPlanSummary planA))
   assertEqual "typed install plan json roundtrips" (Right planA) (eitherDecode (encode planA))
+  assertContains "typed install plan status stays a JSON string" "\"status\":\"ready\"" (BL8.unpack (encode planA))
+  assertEqual "typed install plan unknown status remains typed and serializable" "staged" (typedPlanStatus stagedPlan)
+  assertContains "typed install plan unknown status keeps wire string" "\"status\":\"staged\"" (BL8.unpack (encode stagedPlan))
   assertEqual "typed install plan blocked status" "blocked" (typedPlanStatus blockedPlan)
   assertEqual "typed install plan blocked reason" ["missing_url"] (typedPlanBlockedReasons blockedPlan)
   assertEqual "typed install plan blocked diagnostic" True (not (null (typedPlanDiagnostics blockedPlan)))
+
+assertContains :: String -> String -> String -> IO ()
+assertContains label expected actual =
+  assertEqual label True (expected `isInfixOf` actual)

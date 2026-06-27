@@ -4,13 +4,19 @@ module Panino.Lockfile.Types.Package
   ( LockfileFile(..)
   , PackageConstraint(..)
   , PackageCoordinate(..)
+  , PackageSource(..)
   , ResolvedPackage(..)
   , coordinateProjectIdText
   , coordinateVersionIdText
   , lockfileFileDownloadUrlTexts
   , lockfileFileKey
   , lockfileFileTargetPathFilePath
+  , normalizePackageSource
   , packageCoordinateKey
+  , packageSourceFromText
+  , packageSourceIsManualLike
+  , packageSourceIsOnline
+  , packageSourceText
   , resolvedPackageDownloadUrlTexts
   , resolvedPackageKey
   , resolvedPackageTargetPathFilePath
@@ -20,6 +26,7 @@ import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
   , object
+  , withText
   , withObject
   , (.:)
   , (.:?)
@@ -30,6 +37,7 @@ import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
+import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Core.Types
@@ -43,8 +51,79 @@ import Panino.Core.Types
   , versionIdText
   )
 
+data PackageSource
+  = PackageSourceModrinth
+  | PackageSourceCurseForge
+  | PackageSourceLoaderMeta
+  | PackageSourceJavaRuntime
+  | PackageSourceLocal
+  | PackageSourceManual
+  | PackageSourceMojang
+  | PackageSourcePanino
+  | PackageSourceOther Text
+  deriving (Eq, Show)
+
+instance IsString PackageSource where
+  fromString =
+    packageSourceFromText . Text.pack
+
+packageSourceFromText :: Text -> PackageSource
+packageSourceFromText source =
+  case Text.toLower source of
+    "modrinth" -> PackageSourceModrinth
+    "curseforge" -> PackageSourceCurseForge
+    "curse-forge" -> PackageSourceCurseForge
+    "loader_meta" -> PackageSourceLoaderMeta
+    "loadermeta" -> PackageSourceLoaderMeta
+    "java_runtime" -> PackageSourceJavaRuntime
+    "javaruntime" -> PackageSourceJavaRuntime
+    "local" -> PackageSourceLocal
+    "manual" -> PackageSourceManual
+    "mojang" -> PackageSourceMojang
+    "panino" -> PackageSourcePanino
+    other -> PackageSourceOther other
+
+packageSourceText :: PackageSource -> Text
+packageSourceText source =
+  case source of
+    PackageSourceModrinth -> "modrinth"
+    PackageSourceCurseForge -> "curseforge"
+    PackageSourceLoaderMeta -> "loaderMeta"
+    PackageSourceJavaRuntime -> "javaRuntime"
+    PackageSourceLocal -> "local"
+    PackageSourceManual -> "manual"
+    PackageSourceMojang -> "mojang"
+    PackageSourcePanino -> "panino"
+    PackageSourceOther value -> value
+
+normalizePackageSource :: PackageSource -> PackageSource
+normalizePackageSource =
+  packageSourceFromText . packageSourceText
+
+packageSourceIsManualLike :: PackageSource -> Bool
+packageSourceIsManualLike source =
+  case normalizePackageSource source of
+    PackageSourceManual -> True
+    PackageSourceLocal -> True
+    _ -> False
+
+packageSourceIsOnline :: PackageSource -> Bool
+packageSourceIsOnline source =
+  case normalizePackageSource source of
+    PackageSourceModrinth -> True
+    PackageSourceCurseForge -> True
+    _ -> False
+
+instance ToJSON PackageSource where
+  toJSON =
+    toJSON . packageSourceText
+
+instance FromJSON PackageSource where
+  parseJSON =
+    withText "PackageSource" (pure . packageSourceFromText)
+
 data PackageCoordinate = PackageCoordinate
-  { coordinateSource :: Text
+  { coordinateSource :: PackageSource
   , coordinateProjectId :: Maybe ProjectId
   , coordinateVersionId :: Maybe VersionId
   , coordinateFileId :: Maybe Text
@@ -236,7 +315,7 @@ packageCoordinateKey :: PackageCoordinate -> Text
 packageCoordinateKey coordinate =
   Text.intercalate
     ":"
-    [ Text.toLower (coordinateSource coordinate)
+    [ Text.toLower (packageSourceText (coordinateSource coordinate))
     , fromMaybe "" (coordinateProjectIdText coordinate)
     , fromMaybe "" (coordinateVersionIdText coordinate)
     , fromMaybe "" (coordinateFileId coordinate)
