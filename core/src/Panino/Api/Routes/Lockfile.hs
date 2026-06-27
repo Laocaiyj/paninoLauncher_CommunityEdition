@@ -39,9 +39,11 @@ import Panino.Api.Server.State
   ( ServerState(..)
   )
 import Panino.Install.Plan.Executor
-  ( executeInstallPlan
+  ( blockedInstallPlanExecutionResult
+  , executeExecutableInstallPlan
   , installExecutionStatus
   )
+import qualified Panino.Install.Plan.State as PlanState
 import Panino.Lockfile.Apply
   ( rollbackLockfilePlanNode
   , runLockfilePlanNode
@@ -166,12 +168,17 @@ applyLockfileResult manager request =
     Left code ->
       pure (jsonResponse status409 (object ["error" .= code]))
     Right lockfile -> do
+          let typedPlan = solverResultTypedPlan (applyRequestResult request)
           execution <-
-            executeInstallPlan
-              (solverResultTypedPlan (applyRequestResult request))
-              (runLockfilePlanNode manager)
-              rollbackLockfilePlanNode
-              (\_ -> pure ())
+            case PlanState.requireExecutableInstallPlan typedPlan of
+              Left blocked ->
+                blockedInstallPlanExecutionResult blocked (\_ -> pure ())
+              Right executablePlan ->
+                executeExecutableInstallPlan
+                  executablePlan
+                  (runLockfilePlanNode manager)
+                  rollbackLockfilePlanNode
+                  (\_ -> pure ())
           if installExecutionStatus execution /= "succeeded"
             then
               pure

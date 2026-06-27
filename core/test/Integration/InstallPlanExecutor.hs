@@ -19,8 +19,13 @@ import Panino.Install.Plan.Executor
   ( InstallNodeResult(..)
   , InstallNodeStatus(..)
   , InstallPlanExecutionResult(..)
-  , executeInstallPlan
+  , blockedInstallPlanExecutionResult
+  , executeExecutableInstallPlan
   , installPlanExecutionBatches
+  )
+import Panino.Install.Plan.State
+  ( ExecutableInstallPlan
+  , requireExecutableInstallPlan
   )
 import Panino.Install.Plan.Types
   ( InstallPlanEdge(..)
@@ -70,12 +75,13 @@ assertInstallPlanExecutor = do
             , typedPlanDiagnostics = []
             , typedPlanRollbackPolicy = "automatic"
             }
-  assertEqual "executor batches by dependency and phase" (Right [[nodeA, nodeC], [nodeB], [nodeAfter]]) (installPlanExecutionBatches plan)
+  executablePlan <- requireTestExecutable plan
+  assertEqual "executor batches by dependency and phase" (Right [[nodeA, nodeC], [nodeB], [nodeAfter]]) (installPlanExecutionBatches executablePlan)
 
   events <- newMVar []
   result <-
-    executeInstallPlan
-      plan
+    executeExecutableInstallPlan
+      executablePlan
       ( \node -> do
           modifyMVar_ events (pure . (<> ["run:" <> installNodeId node]))
           when (installNodeId node == "b") (fail "boom")
@@ -94,7 +100,10 @@ assertInstallPlanExecutor = do
           plan
             { typedPlanBlockedReasons = ["blocked_by_test"]
             }
-  blockedResult <- executeInstallPlan blockedPlan (\_ -> fail "must not run") (\_ -> fail "must not rollback") (\_ -> pure ())
+  blockedResult <-
+    case requireExecutableInstallPlan blockedPlan of
+      Left blocked -> blockedInstallPlanExecutionResult blocked (\_ -> pure ())
+      Right _ -> fail "blocked plan unexpectedly classified as executable"
   assertEqual "executor refuses blocked plan" "blocked" (installExecutionStatus blockedResult)
   assertEqual "executor marks nodes blocked" True (all ((== InstallNodeBlocked) . installResultStatus) (installExecutionResults blockedResult))
   assertEqual "executor blocked nodes include diagnostics" True (all (maybe False ((== "blocked_by_test") . diagnosticCode) . installResultDiagnostic) (installExecutionResults blockedResult))
@@ -114,11 +123,13 @@ assertInstallPlanExecutor = do
             , typedPlanEdges = []
             }
   invalidResult <-
-    executeInstallPlan
-      invalidPlan
-      (\_ -> modifyMVar_ ranInvalid (const (pure True)))
-      (\_ -> pure ())
-      (\_ -> pure ())
+    do
+      invalidExecutablePlan <- requireTestExecutable invalidPlan
+      executeExecutableInstallPlan
+        invalidExecutablePlan
+        (\_ -> modifyMVar_ ranInvalid (const (pure True)))
+        (\_ -> pure ())
+        (\_ -> pure ())
   invalidRan <- readMVar ranInvalid
   assertEqual "executor validates node before running" False invalidRan
   assertEqual "executor marks verification error failed" "failed" (installExecutionStatus invalidResult)
@@ -135,9 +146,10 @@ assertInstallPlanExecutor = do
                 ]
             , typedPlanEdges = []
             }
+  concurrentExecutablePlan <- requireTestExecutable concurrentPlan
   concurrentResult <-
-    executeInstallPlan
-      concurrentPlan
+    executeExecutableInstallPlan
+      concurrentExecutablePlan
       ( \node ->
           when (installNodeId node == "fast") (threadDelay 1000)
       )
@@ -150,6 +162,16 @@ assertInstallPlanExecutor = do
     | item <- installExecutionResults concurrentResult
     , installResultStatus item == InstallNodeSucceeded
     ]
+
+requireTestExecutable :: TypedInstallPlan -> IO ExecutableInstallPlan
+requireTestExecutable plan =
+  case requireExecutableInstallPlan plan of
+    Right executablePlan -> pure executablePlan
+    Left blocked -> fail ("expected executable install plan, got blocked: " <> Text.unpack (Text.intercalate ", " (typedPlanBlockedReasons blockedPlan)))
+      where
+        blockedPlan = case requireExecutableInstallPlan plan of
+          Left blockedAgain -> blockedTypedPlanFallback blockedAgain
+          Right _ -> plan
 
 executorTestNode :: Text -> Text -> [Text] -> Text -> InstallPlanNode
 executorTestNode nodeId phase dependencies action =
