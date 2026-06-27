@@ -35,6 +35,10 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , ResolvedPackage(..)
   , SolverConflict(..)
+  , coordinateProjectIdText
+  , coordinateVersionIdText
+  , resolvedPackageTargetPathFilePath
+  , solveRequestMinecraftVersionText
   )
 import System.FilePath (normalise)
 
@@ -59,7 +63,7 @@ detectPackageBlockedReasons packages =
           hasUrl = not (null (resolvedPackageDownloadUrls package))
           manualSource = source `elem` ["manual", "local"]
        in [ "unsafe_target_path:" <> resolvedPackageId package
-          | maybe False (not . targetPathSafe) (resolvedPackageTargetPath package)
+          | maybe False (not . targetPathSafe) (resolvedPackageTargetPathFilePath package)
           ]
             <> [ "solver_source_unavailable:" <> resolvedPackageId package
                | hasTarget && not manualSource && not hasUrl
@@ -77,8 +81,8 @@ pathHashConflicts packages =
       ("Different hashes are locked for " <> Text.pack targetPath)
       (map resolvedPackageId grouped)
       [targetPath]
-  | (index, grouped) <- zip [(1 :: Int)..] (groupOn (fromMaybe "" . resolvedPackageTargetPath) packages)
-  , let targetPath = fromMaybe "" (resolvedPackageTargetPath (head grouped))
+  | (index, grouped) <- zip [(1 :: Int)..] (groupOn (fromMaybe "" . resolvedPackageTargetPathFilePath) packages)
+  , let targetPath = fromMaybe "" (resolvedPackageTargetPathFilePath (head grouped))
   , not (null targetPath)
   , distinctSha1 grouped > 1
   ]
@@ -91,11 +95,11 @@ projectReleaseConflicts packages =
       "Project version conflict"
       ("Multiple releases are selected for project " <> projectKey)
       (map resolvedPackageId grouped)
-      (mapMaybe resolvedPackageTargetPath grouped)
+      (mapMaybe resolvedPackageTargetPathFilePath grouped)
   | (index, grouped) <- zip [(1 :: Int)..] (groupOn projectKeyFor packages)
   , let projectKey = projectKeyFor (head grouped)
   , not (Text.null projectKey)
-  , length (stableTextSet (mapMaybe (coordinateVersionId . resolvedPackageCoordinate) grouped)) > 1
+  , length (stableTextSet (mapMaybe (coordinateVersionIdText . resolvedPackageCoordinate) grouped)) > 1
   ]
 
 duplicateModConflicts :: [ResolvedPackage] -> [SolverConflict]
@@ -106,7 +110,7 @@ duplicateModConflicts packages =
       "Duplicate mod"
       ("Multiple jars appear to provide " <> modKey)
       (map resolvedPackageId grouped)
-      (mapMaybe resolvedPackageTargetPath grouped)
+      (mapMaybe resolvedPackageTargetPathFilePath grouped)
   | (index, grouped) <- zip [(1 :: Int)..] (groupOn modKeyFor (filter ((== "mod") . coordinateKind . resolvedPackageCoordinate) packages))
   , let modKey = modKeyFor (head grouped)
   , not (Text.null modKey)
@@ -124,8 +128,8 @@ compatibilityConflicts request packages =
           "Minecraft version mismatch"
           (resolvedPackageDisplayName package <> " does not support Minecraft " <> minecraftVersion)
           [resolvedPackageId package]
-          (maybe [] (: []) (resolvedPackageTargetPath package))
-      | Just minecraftVersion <- [solveRequestMinecraftVersion request]
+          (maybe [] (: []) (resolvedPackageTargetPathFilePath package))
+      | Just minecraftVersion <- [solveRequestMinecraftVersionText request]
       , not (null (resolvedPackageGameVersions package))
       , minecraftVersion `notElem` resolvedPackageGameVersions package
       ]
@@ -135,7 +139,7 @@ compatibilityConflicts request packages =
               "Loader mismatch"
               (resolvedPackageDisplayName package <> " does not support loader " <> loader)
               [resolvedPackageId package]
-              (maybe [] (: []) (resolvedPackageTargetPath package))
+              (maybe [] (: []) (resolvedPackageTargetPathFilePath package))
            | Just loader <- [normalizeLoader <$> solveRequestLoader request]
            , not (null (resolvedPackageLoaders package))
            , loader `notElem` resolvedPackageLoaders package
@@ -146,7 +150,7 @@ compatibilityConflicts request packages =
               "Java version mismatch"
               (resolvedPackageDisplayName package <> " requires Java " <> Text.pack (show requiredMajor) <> ", but the solve request is fixed to Java " <> Text.pack (show selectedMajor))
               [resolvedPackageId package]
-              (maybe [] (: []) (resolvedPackageTargetPath package))
+              (maybe [] (: []) (resolvedPackageTargetPathFilePath package))
            | Just selectedMajor <- [javaMajorFromPolicy (solveRequestJavaPolicy request)]
            , Just requiredMajor <- [resolvedPackageJavaMajor package]
            , selectedMajor < requiredMajor
@@ -174,7 +178,7 @@ targetDirectoryConflicts packages =
   concatMap checkPackage packages
   where
     checkPackage package =
-      case resolvedPackageTargetPath package of
+      case resolvedPackageTargetPathFilePath package of
         Nothing -> []
         Just targetPath
           | coordinateKind (resolvedPackageCoordinate package) == "resourcePack" && not ("resourcepacks/" `isPrefixPath` targetPath) ->
@@ -191,7 +195,7 @@ targetDirectoryConflicts packages =
         "Target directory mismatch"
         (resolvedPackageDisplayName package <> " must be installed under " <> expected)
         [resolvedPackageId package]
-        (maybe [] (: []) (resolvedPackageTargetPath package))
+        (maybe [] (: []) (resolvedPackageTargetPathFilePath package))
 
 solverConflict :: Text -> Text -> Text -> Text -> [Text] -> [FilePath] -> SolverConflict
 solverConflict code conflictId title message packageIds filePaths =
@@ -218,7 +222,7 @@ projectKeyFor package =
   Text.intercalate
     ":"
     [ coordinateSource (resolvedPackageCoordinate package)
-    , fromMaybe "" (coordinateProjectId (resolvedPackageCoordinate package))
+    , fromMaybe "" (coordinateProjectIdText (resolvedPackageCoordinate package))
     ]
 
 modKeyFor :: ResolvedPackage -> Text

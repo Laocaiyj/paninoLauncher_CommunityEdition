@@ -30,7 +30,9 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , emptyChangeset
   , lockfileFileKey
+  , lockfileFileTargetPathFilePath
   , resolvedPackageKey
+  , resolvedPackageTargetPathFilePath
   )
 import System.Directory
   ( doesDirectoryExist
@@ -101,7 +103,8 @@ verifyLockfile gameDir lockfile = do
       }
   where
     verifyFile file = do
-      let target = gameDir </> lockfileFileTargetPath file
+      let relativeTarget = lockfileFileTargetPathFilePath file
+          target = gameDir </> relativeTarget
           expectedSha1 = Map.lookup "sha1" (lockfileFileHashes file)
       exists <- doesFileExist target
       if not exists
@@ -111,7 +114,7 @@ verifyLockfile gameDir lockfile = do
               LockfileVerifyIssue
                 { verifyIssueKind = "missingFile"
                 , verifyIssuePackageId = Just (lockfileFilePackageId file)
-                , verifyIssueTargetPath = Just (lockfileFileTargetPath file)
+                , verifyIssueTargetPath = Just relativeTarget
                 , verifyIssueExpectedSha1 = expectedSha1
                 , verifyIssueActualSha1 = Nothing
                 , verifyIssueMessage = "Lockfile-managed file is missing."
@@ -125,7 +128,7 @@ verifyLockfile gameDir lockfile = do
                   LockfileVerifyIssue
                     { verifyIssueKind = "hashMismatch"
                     , verifyIssuePackageId = Just (lockfileFilePackageId file)
-                    , verifyIssueTargetPath = Just (lockfileFileTargetPath file)
+                    , verifyIssueTargetPath = Just relativeTarget
                     , verifyIssueExpectedSha1 = expectedSha1
                     , verifyIssueActualSha1 = Just actualSha1
                     , verifyIssueMessage = "Lockfile-managed file hash does not match."
@@ -138,7 +141,7 @@ manualFileIssues lockfile =
   [ LockfileVerifyIssue
       { verifyIssueKind = "manualFile"
       , verifyIssuePackageId = Just (resolvedPackageId package)
-      , verifyIssueTargetPath = resolvedPackageTargetPath package
+      , verifyIssueTargetPath = resolvedPackageTargetPathFilePath package
       , verifyIssueExpectedSha1 = Map.lookup "sha1" (resolvedPackageHashes package)
       , verifyIssueActualSha1 = Nothing
       , verifyIssueMessage = "Manual or local file is tracked by the lockfile."
@@ -149,7 +152,7 @@ manualFileIssues lockfile =
 
 extraFileIssues :: FilePath -> PaninoLockfile -> IO [LockfileVerifyIssue]
 extraFileIssues gameDir lockfile = do
-  let managedTargets = map lockfileFileTargetPath (lockfileFiles lockfile)
+  let managedTargets = map lockfileFileTargetPathFilePath (lockfileFiles lockfile)
       dirs = stableTextSet (map (Text.pack . takeDirectory) managedTargets)
   found <- concat <$> traverse (listFilesUnder gameDir . Text.unpack) dirs
   pure $

@@ -4,12 +4,21 @@ module Panino.Install.Plan.Types
   ( InstallPlanEdge(..)
   , InstallPlanNode(..)
   , InstallPlanRollbackAction(..)
+  , InstallPlanStatus(..)
   , InstallPlanSummary(..)
   , InstallVerification(..)
   , TypedInstallPlan(..)
   , finalizeTypedInstallPlan
   , installPlanFingerprint
+  , installNodeSha1FromText
+  , installNodeSha1Text
+  , installNodeSourceUrlsFromTexts
+  , installNodeSourceUrlTexts
+  , installPlanStatusFromText
+  , installPlanStatusText
   , summarizeInstallPlanNodes
+  , typedPlanTargetGameDirFromPath
+  , typedPlanTargetGameDirPath
   ) where
 
 import Data.Aeson
@@ -29,6 +38,17 @@ import Data.Maybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( GameDir
+  , Sha1
+  , Url
+  , gameDirFromPath
+  , gameDirPath
+  , sha1FromText
+  , sha1Text
+  , urlFromText
+  , urlText
+  )
 import Panino.CoreLogic.Determinism
   ( stableFingerprint
   , stableSortDiagnostics
@@ -47,7 +67,7 @@ data TypedInstallPlan = TypedInstallPlan
   , typedPlanFingerprint :: Text
   , typedPlanKind :: Text
   , typedPlanTitle :: Text
-  , typedPlanTargetGameDir :: Maybe FilePath
+  , typedPlanTargetGameDir :: Maybe GameDir
   , typedPlanSource :: Maybe Text
   , typedPlanStatus :: Text
   , typedPlanSummary :: InstallPlanSummary
@@ -58,6 +78,26 @@ data TypedInstallPlan = TypedInstallPlan
   , typedPlanDiagnostics :: [Diagnostic]
   , typedPlanRollbackPolicy :: Text
   } deriving (Eq, Show)
+
+data InstallPlanStatus
+  = InstallStatusReady
+  | InstallStatusBlocked
+  | InstallStatusOther Text
+  deriving (Eq, Show)
+
+installPlanStatusFromText :: Text -> InstallPlanStatus
+installPlanStatusFromText status
+  | Text.null status = InstallStatusReady
+  | status == "ready" = InstallStatusReady
+  | status == "blocked" = InstallStatusBlocked
+  | otherwise = InstallStatusOther status
+
+installPlanStatusText :: InstallPlanStatus -> Text
+installPlanStatusText status =
+  case status of
+    InstallStatusReady -> "ready"
+    InstallStatusBlocked -> "blocked"
+    InstallStatusOther rawStatus -> rawStatus
 
 instance ToJSON TypedInstallPlan where
   toJSON plan =
@@ -135,8 +175,8 @@ data InstallPlanNode = InstallPlanNode
   , installNodePhase :: Text
   , installNodeLabel :: Text
   , installNodeTargetPath :: Maybe FilePath
-  , installNodeSourceUrls :: [Text]
-  , installNodeSha1 :: Maybe Text
+  , installNodeSourceUrls :: [Url]
+  , installNodeSha1 :: Maybe Sha1
   , installNodeSize :: Maybe Int64
   , installNodeRequired :: Bool
   , installNodeDependsOn :: [Text]
@@ -185,6 +225,30 @@ instance FromJSON InstallPlanNode where
         <*> obj .:? "rollback" .!= noRollback
         <*> obj .:? "blockedReason"
         <*> obj .:? "diagnostics" .!= []
+
+typedPlanTargetGameDirPath :: TypedInstallPlan -> Maybe FilePath
+typedPlanTargetGameDirPath =
+  fmap gameDirPath . typedPlanTargetGameDir
+
+typedPlanTargetGameDirFromPath :: Maybe FilePath -> Maybe GameDir
+typedPlanTargetGameDirFromPath =
+  (>>= gameDirFromPath)
+
+installNodeSourceUrlTexts :: InstallPlanNode -> [Text]
+installNodeSourceUrlTexts =
+  map urlText . installNodeSourceUrls
+
+installNodeSourceUrlsFromTexts :: [Text] -> [Url]
+installNodeSourceUrlsFromTexts =
+  map urlFromText
+
+installNodeSha1Text :: InstallPlanNode -> Maybe Text
+installNodeSha1Text =
+  fmap sha1Text . installNodeSha1
+
+installNodeSha1FromText :: Maybe Text -> Maybe Sha1
+installNodeSha1FromText =
+  (>>= sha1FromText)
 
 data InstallPlanEdge = InstallPlanEdge
   { installEdgeFrom :: Text
@@ -272,10 +336,8 @@ finalizeTypedInstallPlan plan =
           )
       status =
         if not (null blockedReasons)
-          then "blocked"
-          else if Text.null (typedPlanStatus plan)
-            then "ready"
-            else typedPlanStatus plan
+          then installPlanStatusText InstallStatusBlocked
+          else installPlanStatusText (installPlanStatusFromText (typedPlanStatus plan))
       summary = summarizeInstallPlanNodes nodes
       staged =
         plan
@@ -301,7 +363,7 @@ installPlanFingerprint plan =
     object
       [ "fingerprintVersion" .= ("typed-plan-v1" :: Text)
       , "kind" .= typedPlanKind plan
-      , "target" .= Text.pack (fromMaybe "" (typedPlanTargetGameDir plan))
+      , "target" .= Text.pack (fromMaybe "" (typedPlanTargetGameDirPath plan))
       , "source" .= fromMaybe "" (typedPlanSource plan)
       , "rollbackPolicy" .= typedPlanRollbackPolicy plan
       , "status" .= typedPlanStatus plan
@@ -352,7 +414,7 @@ normalizeNode :: InstallPlanNode -> InstallPlanNode
 normalizeNode node =
   node
     { installNodeDependsOn = stableTextSet (installNodeDependsOn node)
-    , installNodeSourceUrls = stableTextSet (installNodeSourceUrls node)
+    , installNodeSourceUrls = stableUrlSet (installNodeSourceUrls node)
     , installNodeVerifications = stableSortPlanNodes verificationFingerprint (installNodeVerifications node)
     , installNodeDiagnostics = stableDiagnostics (installNodeDiagnostics node)
     }
@@ -370,8 +432,8 @@ nodeFingerprint node =
     , installNodePhase node
     , installNodeLabel node
     , Text.pack (fromMaybe "" (installNodeTargetPath node))
-    , Text.intercalate "," (stableTextSet (installNodeSourceUrls node))
-    , fromMaybe "" (installNodeSha1 node)
+    , Text.intercalate "," (stableTextSet (installNodeSourceUrlTexts node))
+    , fromMaybe "" (installNodeSha1Text node)
     , maybe "" (Text.pack . show) (installNodeSize node)
     , if installNodeRequired node then "required" else "optional"
     , Text.intercalate "," (stableTextSet (installNodeDependsOn node))
@@ -431,3 +493,7 @@ stableDiagnostics diagnostics =
     insertDiagnostic diagnostic values
       | any ((== diagnosticFingerprint diagnostic) . diagnosticFingerprint) values = values
       | otherwise = diagnostic : values
+
+stableUrlSet :: [Url] -> [Url]
+stableUrlSet =
+  map urlFromText . stableTextSet . map urlText

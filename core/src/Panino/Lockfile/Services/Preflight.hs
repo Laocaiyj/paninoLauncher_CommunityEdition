@@ -36,6 +36,12 @@ import Panino.CoreLogic.Determinism
   , stableSortPackages
   , stableTextSet
   )
+import Panino.Core.Types
+  ( projectIdFromText
+  , relativePathFromFilePath
+  , urlFromText
+  , versionIdFromText
+  )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Lockfile.Normalize
@@ -57,6 +63,8 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , ResolvedPackage(..)
   , resolvedPackageKey
+  , solveRequestMinecraftVersionText
+  , solveRequestTargetGameDirPath
   )
 import Panino.Minecraft.InstallPreflight
   ( LoaderInstallPreflightRequest(..)
@@ -75,7 +83,7 @@ import System.FilePath
 
 preflightServiceEvidence :: Manager -> LockfileSolveRequest -> IO ServiceEvidence
 preflightServiceEvidence manager request =
-  case solveRequestMinecraftVersion request of
+  case solveRequestMinecraftVersionText request of
     Nothing -> pure emptyServiceEvidence
     Just minecraftVersion
       | solveRequestLoader request == Nothing && solveRequestShaderLoader request == Nothing ->
@@ -91,7 +99,7 @@ preflightServiceEvidence manager request =
                     , preflightLoaderVersion = Nothing
                     , preflightShaderLoader = solveRequestShaderLoader request
                     , preflightShaderVersion = Nothing
-                    , preflightGameDir = Just (solveRequestTargetGameDir request)
+                    , preflightGameDir = Just (solveRequestTargetGameDirPath request)
                     , preflightJavaExecutable = javaExecutableFromPolicy (solveRequestJavaPolicy request)
                     , preflightSourceProfile = Nothing
                     }
@@ -121,8 +129,8 @@ preflightResolvedPackages response =
           , resolvedPackageCoordinate =
               PackageCoordinate
                 { coordinateSource = "loaderMeta"
-                , coordinateProjectId = Just loader
-                , coordinateVersionId = preflightResponseLoaderVersion response
+                , coordinateProjectId = projectIdFromText loader
+                , coordinateVersionId = versionIdFromText =<< preflightResponseLoaderVersion response
                 , coordinateFileId = preflightResponseLoaderProfileId response
                 , coordinateSlug = Just loader
                 , coordinateName = Just (loader <> " loader")
@@ -161,7 +169,7 @@ preflightShaderPackage minecraftVersion shader project =
     , resolvedPackageCoordinate =
         PackageCoordinate
           { coordinateSource = "modrinth"
-          , coordinateProjectId = Just project
+          , coordinateProjectId = projectIdFromText project
           , coordinateVersionId = Nothing
           , coordinateFileId = Nothing
           , coordinateSlug = Just project
@@ -189,7 +197,7 @@ preflightShaderPackage minecraftVersion shader project =
             , constraintTargetPackageId = Just project
             , constraintTargetKind = "mod"
             , constraintRelation = "requires"
-            , constraintMinecraftVersions = [minecraftVersion]
+            , constraintMinecraftVersions = maybe [] (: []) (versionIdFromText minecraftVersion)
             , constraintLoaders = []
             , constraintJavaMajor = Nothing
             , constraintSide = Just "client"
@@ -212,7 +220,7 @@ modpackSourceServiceEvidence request =
           ModpackPreflightRequest
             { modpackPreflightSourceType = fromMaybe "local" (solveRequestSourceType request)
             , modpackPreflightSourcePath = Just sourcePath
-            , modpackPreflightTargetGameDir = Just (solveRequestTargetGameDir request)
+            , modpackPreflightTargetGameDir = Just (solveRequestTargetGameDirPath request)
             }
       pure
         emptyServiceEvidence
@@ -251,10 +259,10 @@ modpackNodePackage source node
           , resolvedPackageDisplayName = Plan.installNodeLabel node
           , resolvedPackageVersionName = Nothing
           , resolvedPackageFileName = Text.pack . takeFileName <$> Plan.installNodeTargetPath node
-          , resolvedPackageTargetPath = Plan.installNodeTargetPath node
+          , resolvedPackageTargetPath = Plan.installNodeTargetPath node >>= relativePathFromFilePath
           , resolvedPackageHashes = maybe Map.empty (Map.singleton "sha1") (Plan.installNodeSha1 node)
           , resolvedPackageSize = Plan.installNodeSize node
-          , resolvedPackageDownloadUrls = stableTextSet (Plan.installNodeSourceUrls node)
+          , resolvedPackageDownloadUrls = map urlFromText (stableTextSet (Plan.installNodeSourceUrls node))
           , resolvedPackageGameVersions = []
           , resolvedPackageLoaders = []
           , resolvedPackageJavaMajor = Nothing
@@ -276,11 +284,11 @@ performancePackServiceEvidence :: LockfileSolveRequest -> IO ServiceEvidence
 performancePackServiceEvidence request
   | not (solveRequestIncludePerformancePack request) = pure emptyServiceEvidence
   | otherwise = do
-      modFiles <- performanceModFileNames (Just (solveRequestTargetGameDir request))
+      modFiles <- performanceModFileNames (Just (solveRequestTargetGameDirPath request))
       let recommendation =
             recommendPerformancePack
               (solveRequestLoader request)
-              (solveRequestMinecraftVersion request)
+              (solveRequestMinecraftVersionText request)
               Nothing
               modFiles
       pure
@@ -297,7 +305,7 @@ performancePackPackage recommendation =
         PackageCoordinate
           { coordinateSource = "panino"
           , coordinateProjectId = Just "performance-pack"
-          , coordinateVersionId = performanceRecommendationMinecraftVersion recommendation
+          , coordinateVersionId = versionIdFromText =<< performanceRecommendationMinecraftVersion recommendation
           , coordinateFileId = Nothing
           , coordinateSlug = Just "performance-pack"
           , coordinateName = Just (performanceRecommendationTitle recommendation)

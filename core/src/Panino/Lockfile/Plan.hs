@@ -27,6 +27,12 @@ import Panino.CoreLogic.Determinism
   , stableSortPackages
   , stableTextSet
   )
+import Panino.Core.Types
+  ( Url
+  , relativePathFilePath
+  , urlFromText
+  , urlText
+  )
 import Panino.Diagnostics.Types (Diagnostic)
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Lockfile.Types
@@ -38,7 +44,9 @@ import Panino.Lockfile.Types
   , PackageConstraint(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
+  , resolvedPackageDownloadUrlTexts
   , resolvedPackageKey
+  , resolvedPackageTargetPathFilePath
   )
 import System.FilePath
   ( isRelative
@@ -69,9 +77,10 @@ lockfileFingerprintFor lockfile =
 packageToLockfileFile :: ResolvedPackage -> Maybe LockfileFile
 packageToLockfileFile package = do
   targetPath <- resolvedPackageTargetPath package
+  let targetPathFilePath = relativePathFilePath targetPath
   let fileName =
         fromMaybe
-          (Text.pack (lastPathSegment targetPath))
+          (Text.pack (lastPathSegment targetPathFilePath))
           (resolvedPackageFileName package)
   pure
     LockfileFile
@@ -80,7 +89,7 @@ packageToLockfileFile package = do
       , lockfileFileTargetPath = targetPath
       , lockfileFileHashes = resolvedPackageHashes package
       , lockfileFileSize = resolvedPackageSize package
-      , lockfileFileDownloadUrls = stableTextSet (resolvedPackageDownloadUrls package)
+      , lockfileFileDownloadUrls = stableUrlSet (resolvedPackageDownloadUrls package)
       , lockfileFileKind = coordinateKind (resolvedPackageCoordinate package)
       }
 
@@ -92,9 +101,13 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
       , Plan.typedPlanFingerprint = ""
       , Plan.typedPlanKind = "lockfile"
       , Plan.typedPlanTitle = "Lockfile solve"
-      , Plan.typedPlanTargetGameDir = Just gameDir
+      , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (Just gameDir)
       , Plan.typedPlanSource = Just "lockfile-solver"
-      , Plan.typedPlanStatus = if null blockedReasons then "ready" else "blocked"
+      , Plan.typedPlanStatus =
+          Plan.installPlanStatusText $
+            if null blockedReasons
+              then Plan.InstallStatusReady
+              else Plan.InstallStatusBlocked
       , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing
       , Plan.typedPlanNodes = map packageNode sortedPackages
       , Plan.typedPlanEdges = packageEdges sortedPackages sortedConstraints
@@ -133,9 +146,9 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
         , Plan.installNodeAction = packageAction package
         , Plan.installNodePhase = packagePhase package
         , Plan.installNodeLabel = resolvedPackageDisplayName package
-        , Plan.installNodeTargetPath = absoluteTarget <$> resolvedPackageTargetPath package
-        , Plan.installNodeSourceUrls = stableTextSet (resolvedPackageDownloadUrls package)
-        , Plan.installNodeSha1 = Map.lookup "sha1" (resolvedPackageHashes package)
+        , Plan.installNodeTargetPath = absoluteTarget <$> resolvedPackageTargetPathFilePath package
+        , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts (stableTextSet (resolvedPackageDownloadUrlTexts package))
+        , Plan.installNodeSha1 = Plan.installNodeSha1FromText (Map.lookup "sha1" (resolvedPackageHashes package))
         , Plan.installNodeSize = resolvedPackageSize package
         , Plan.installNodeRequired = True
         , Plan.installNodeDependsOn = dependsFor package
@@ -187,7 +200,7 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
               "download" -> "removeCreatedFile"
               "delete" -> "restoreBackup"
               _ -> "noneWithReason"
-        , Plan.installRollbackTargetPath = absoluteTarget <$> resolvedPackageTargetPath package
+        , Plan.installRollbackTargetPath = absoluteTarget <$> resolvedPackageTargetPathFilePath package
         , Plan.installRollbackBackupPath = Nothing
         , Plan.installRollbackReason = Just "Lockfile apply owns final lockfile write; node rollback only covers file action."
         }
@@ -252,3 +265,7 @@ constraintKey constraint =
 jsonValueKey :: Value -> Text
 jsonValueKey =
   Text.pack . BL8.unpack . canonicalJson
+
+stableUrlSet :: [Url] -> [Url]
+stableUrlSet =
+  map urlFromText . stableTextSet . map urlText

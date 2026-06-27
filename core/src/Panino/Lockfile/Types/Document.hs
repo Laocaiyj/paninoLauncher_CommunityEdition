@@ -2,6 +2,8 @@
 
 module Panino.Lockfile.Types.Document
   ( PaninoLockfile(..)
+  , lockfileMinecraftText
+  , lockfileTargetGameDirPath
   ) where
 
 import Data.Aeson
@@ -16,6 +18,12 @@ import Data.Aeson
   )
 import Data.Text (Text)
 import Data.Time (UTCTime)
+import Panino.Core.Types
+  ( GameDir
+  , VersionId
+  , gameDirPath
+  , versionIdText
+  )
 import Panino.Lockfile.Types.Package
   ( LockfileFile
   , PackageConstraint
@@ -28,8 +36,8 @@ data PaninoLockfile = PaninoLockfile
   , lockfileFingerprint :: Text
   , lockfileCreatedAt :: Maybe UTCTime
   , lockfileUpdatedAt :: Maybe UTCTime
-  , lockfileTargetGameDir :: Maybe FilePath
-  , lockfileMinecraft :: Maybe Text
+  , lockfileTargetGameDir :: Maybe GameDir
+  , lockfileMinecraft :: Maybe VersionId
   , lockfileJava :: Maybe Value
   , lockfileLoader :: Maybe Value
   , lockfileShaderLoader :: Maybe Value
@@ -88,3 +96,11 @@ instance FromJSON PaninoLockfile where
         <*> obj .:? "sourceSnapshots" .!= []
         <*> obj .:? "manualEntries" .!= []
         <*> obj .:? "warnings" .!= []
+
+lockfileTargetGameDirPath :: PaninoLockfile -> Maybe FilePath
+lockfileTargetGameDirPath =
+  fmap gameDirPath . lockfileTargetGameDir
+
+lockfileMinecraftText :: PaninoLockfile -> Maybe Text
+lockfileMinecraftText =
+  fmap versionIdText . lockfileMinecraft

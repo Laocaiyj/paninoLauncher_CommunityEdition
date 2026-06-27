@@ -6,6 +6,7 @@ module Integration.LockfileSolver.Update
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import Panino.Core.Types (versionIdFromText)
 import Panino.Lockfile.Solver (solveLockfile)
 import Panino.Lockfile.Types
   ( LockfileChangeset(..)
@@ -138,7 +139,7 @@ updatePackage package version sha1 =
   package
     { resolvedPackageCoordinate =
         (resolvedPackageCoordinate package)
-          { coordinateVersionId = Just version
+          { coordinateVersionId = versionIdFromText version
           }
     , resolvedPackageVersionName = Just version
     , resolvedPackageHashes = Map.fromList [("sha1", sha1)]

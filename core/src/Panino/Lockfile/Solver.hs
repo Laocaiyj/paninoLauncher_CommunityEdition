@@ -78,6 +78,7 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , SolverResult(..)
   , resolvedPackageKey
+  , solveRequestTargetGameDirPath
   )
 import Panino.Lockfile.Verify
   ( verifyIssueBlockedReason
@@ -88,11 +89,11 @@ solveLockfile :: LockfileSolveRequest -> SolverResult
 solveLockfile request =
   let normalizedRoots =
         stableSortPackages resolvedPackageKey $
-          map (applyPins request . normalizePackage (solveRequestTargetGameDir request) "root request") (solveRequestRoots request)
+          map (applyPins request . normalizePackage (solveRequestTargetGameDirPath request) "root request") (solveRequestRoots request)
       selectedUpdateIds = selectedUpdatePackageIds request normalizedRoots
       normalizedManual =
         stableSortPackages resolvedPackageKey $
-          map (applyPins request . normalizePackage (solveRequestTargetGameDir request) "manual entry") (solveRequestManualPackages request)
+          map (applyPins request . normalizePackage (solveRequestTargetGameDirPath request) "manual entry") (solveRequestManualPackages request)
       normalizedExisting =
         stableSortPackages resolvedPackageKey $
           maybe
@@ -100,7 +101,7 @@ solveLockfile request =
             ( map
                 ( applyExistingLockPolicy request selectedUpdateIds
                     . applyPins request
-                    . normalizePackage (solveRequestTargetGameDir request) "existing lockfile"
+                    . normalizePackage (solveRequestTargetGameDirPath request) "existing lockfile"
                 )
                 . lockfilePackages
             )
@@ -136,7 +137,7 @@ solveLockfile request =
           }
       typedPlan =
         buildLockfileTypedPlan
-          (solveRequestTargetGameDir request)
+          (solveRequestTargetGameDirPath request)
           selectedPackages
           constraints
           changeset

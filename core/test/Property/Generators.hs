@@ -13,9 +13,15 @@ module Property.Generators
   ) where
 
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Panino.Core.Types
+  ( projectIdFromText
+  , relativePathFromFilePath
+  , urlFromText
+  )
 import Panino.Compatibility.Types
   ( CompatibilityEvaluateRequest(..)
   , CompatibilityPackageInput(..)
@@ -147,7 +153,7 @@ simplePackage ident =
     , resolvedPackageCoordinate =
         PackageCoordinate
           { coordinateSource = "property"
-          , coordinateProjectId = Just ident
+          , coordinateProjectId = projectIdFromText ident
           , coordinateVersionId = Just "1"
           , coordinateFileId = Just (ident <> "-file")
           , coordinateSlug = Just ident
@@ -157,10 +163,10 @@ simplePackage ident =
     , resolvedPackageDisplayName = ident
     , resolvedPackageVersionName = Just "1.0.0"
     , resolvedPackageFileName = Just (ident <> ".jar")
-    , resolvedPackageTargetPath = Just ("mods/" <> Text.unpack ident <> ".jar")
+    , resolvedPackageTargetPath = relativePathFromFilePath ("mods/" <> Text.unpack ident <> ".jar")
     , resolvedPackageHashes = Map.fromList [("sha1", ident <> "-sha1")]
     , resolvedPackageSize = Just 1
-    , resolvedPackageDownloadUrls = ["https://example.invalid/" <> ident <> ".jar"]
+    , resolvedPackageDownloadUrls = [urlFromText ("https://example.invalid/" <> ident <> ".jar")]
     , resolvedPackageGameVersions = ["1.21.1"]
     , resolvedPackageLoaders = ["fabric"]
     , resolvedPackageJavaMajor = Nothing
@@ -201,7 +207,9 @@ packageFile package =
   LockfileFile
     { lockfileFilePackageId = resolvedPackageId package
     , lockfileFileName = resolvedPackageId package <> ".jar"
-    , lockfileFileTargetPath = "mods/" <> Text.unpack (resolvedPackageId package) <> ".jar"
+    , lockfileFileTargetPath =
+        fromMaybe "mods/generated.jar" $
+          relativePathFromFilePath ("mods/" <> Text.unpack (resolvedPackageId package) <> ".jar")
     , lockfileFileHashes = resolvedPackageHashes package
     , lockfileFileSize = resolvedPackageSize package
     , lockfileFileDownloadUrls = resolvedPackageDownloadUrls package

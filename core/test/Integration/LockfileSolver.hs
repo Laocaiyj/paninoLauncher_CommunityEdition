@@ -23,6 +23,7 @@ import Network.HTTP.Types
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Panino.CoreLogic.Determinism (canonicalJson)
+import Panino.Core.Types (urlFromText)
 import Panino.Install.Plan.Executor
   ( InstallPlanExecutionResult(..)
   , executeExecutableInstallPlan
@@ -209,7 +210,7 @@ assertLockfileSolver = do
         $ \port -> do
           let downloadedPackage =
                 (testLockfilePackage "downloaded" "Downloaded" "downloaded-version" "downloaded.jar" "mods/downloaded.jar" "47265105ec5517e46aec2ed5310c177e1e811af8" [])
-                  { resolvedPackageDownloadUrls = [Text.pack ("http://127.0.0.1:" <> show port <> "/downloaded.jar")]
+                  { resolvedPackageDownloadUrls = [urlFromText (Text.pack ("http://127.0.0.1:" <> show port <> "/downloaded.jar"))]
                   , resolvedPackageSize = Just 10
                   }
               applyResult = solveLockfile (testLockfileSolveRequest applyGameDir [downloadedPackage] Nothing)

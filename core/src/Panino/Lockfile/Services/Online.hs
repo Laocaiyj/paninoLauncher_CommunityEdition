@@ -43,6 +43,13 @@ import Panino.CoreLogic.Determinism
   ( stableSortPackages
   , stableTextSet
   )
+import Panino.Core.Types
+  ( RelativePath
+  , projectIdFromText
+  , relativePathFromFilePath
+  , urlFromText
+  , versionIdFromText
+  )
 import Panino.Lockfile.Normalize
   ( dedupePackages
   , normalizeKind
@@ -62,7 +69,9 @@ import Panino.Lockfile.Types
   , PackageConstraint(..)
   , PackageCoordinate(..)
   , ResolvedPackage(..)
+  , coordinateProjectIdText
   , resolvedPackageKey
+  , solveRequestMinecraftVersionText
   )
 import System.FilePath ((</>))
 
@@ -132,7 +141,7 @@ onlineRootPackage manager request package =
 
 onlineRootProjectId :: ResolvedPackage -> Maybe Text
 onlineRootProjectId package =
-  coordinateProjectId coordinate
+  coordinateProjectIdText coordinate
     <|> coordinateSlug coordinate
     <|> nonEmptyText (resolvedPackageId package)
   where
@@ -229,7 +238,7 @@ onlineContentQuery source kind request =
     , contentSearchText = ""
     , contentSearchProjectTypes = [projectTypeForKind kind]
     , contentSearchCategories = []
-    , contentSearchGameVersion = solveRequestMinecraftVersion request
+    , contentSearchGameVersion = solveRequestMinecraftVersionText request
     , contentSearchLoaders = maybe [] ((: []) . normalizeLoader) (solveRequestLoader request)
     , contentSearchSort = "downloads"
     , contentSearchOffset = 0
@@ -278,7 +287,7 @@ modrinthDependencyQuery request =
     , contentSearchText = ""
     , contentSearchProjectTypes = ["mod"]
     , contentSearchCategories = []
-    , contentSearchGameVersion = solveRequestMinecraftVersion request
+    , contentSearchGameVersion = solveRequestMinecraftVersionText request
     , contentSearchLoaders = maybe [] ((: []) . normalizeLoader) (solveRequestLoader request)
     , contentSearchSort = "downloads"
     , contentSearchOffset = 0
@@ -294,8 +303,8 @@ onlineReleaseToPackage release =
     , resolvedPackageCoordinate =
         PackageCoordinate
           { coordinateSource = normalizeSource (releaseSource release)
-          , coordinateProjectId = Just (releaseProjectId release)
-          , coordinateVersionId = Just (releaseId release)
+          , coordinateProjectId = projectIdFromText (releaseProjectId release)
+          , coordinateVersionId = versionIdFromText (releaseId release)
           , coordinateFileId = fileId <$> selectedFile
           , coordinateSlug = Just (releaseProjectId release)
           , coordinateName = Just (releaseProjectId release)
@@ -304,10 +313,10 @@ onlineReleaseToPackage release =
     , resolvedPackageDisplayName = releaseProjectId release
     , resolvedPackageVersionName = Just (releaseVersionName release)
     , resolvedPackageFileName = fileName <$> selectedFile
-    , resolvedPackageTargetPath = (("mods" </>) . Text.unpack . fileName) <$> selectedFile
+    , resolvedPackageTargetPath = selectedFile >>= targetPathForOnlineFile "mod"
     , resolvedPackageHashes = maybe Map.empty fileHashes selectedFile
     , resolvedPackageSize = fileSizeBytes <$> selectedFile
-    , resolvedPackageDownloadUrls = maybe [] (maybe [] (: []) . fileDownloadUrl) selectedFile
+    , resolvedPackageDownloadUrls = maybe [] (maybe [] ((: []) . urlFromText) . fileDownloadUrl) selectedFile
     , resolvedPackageGameVersions = stableTextSet (releaseGameVersions release)
     , resolvedPackageLoaders = stableTextSet (map normalizeLoader (releaseLoaders release))
     , resolvedPackageJavaMajor = Nothing
@@ -342,16 +351,16 @@ onlineReleaseToPackageForRoot root release =
             if Text.null (resolvedPackageDisplayName root)
               then resolvedPackageDisplayName package
               else resolvedPackageDisplayName root
-        , resolvedPackageTargetPath = targetPathForOnlineFile kind <$> selectedFile
+        , resolvedPackageTargetPath = selectedFile >>= targetPathForOnlineFile kind
         , resolvedPackageSelectedBecause =
             stableTextSet (resolvedPackageSelectedBecause root <> ["online project resolver"])
         , resolvedPackageLocked = resolvedPackageLocked root
         , resolvedPackagePinReason = resolvedPackagePinReason root
         }
 
-targetPathForOnlineFile :: Text -> OnlineFile -> FilePath
+targetPathForOnlineFile :: Text -> OnlineFile -> Maybe RelativePath
 targetPathForOnlineFile kind file =
-  targetDirectoryForKind kind </> Text.unpack (fileName file)
+  relativePathFromFilePath (targetDirectoryForKind kind </> Text.unpack (fileName file))
 
 targetDirectoryForKind :: Text -> FilePath
 targetDirectoryForKind kind =

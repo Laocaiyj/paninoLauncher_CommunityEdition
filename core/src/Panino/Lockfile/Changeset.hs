@@ -25,8 +25,10 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
+  , coordinateVersionIdText
   , emptyChangeset
   , resolvedPackageKey
+  , resolvedPackageTargetPathFilePath
   )
 
 diffLockfiles :: PaninoLockfile -> PaninoLockfile -> LockfileChangeset
@@ -97,9 +99,9 @@ packageChange action package existing reason =
     { lockfileChangeAction = action
     , lockfileChangePackageId = resolvedPackageId package
     , lockfileChangeDisplayName = resolvedPackageDisplayName package
-    , lockfileChangeFromVersionId = existing >>= coordinateVersionId . resolvedPackageCoordinate
-    , lockfileChangeToVersionId = coordinateVersionId (resolvedPackageCoordinate package)
-    , lockfileChangeTargetPath = resolvedPackageTargetPath package
+    , lockfileChangeFromVersionId = existing >>= coordinateVersionIdText . resolvedPackageCoordinate
+    , lockfileChangeToVersionId = coordinateVersionIdText (resolvedPackageCoordinate package)
+    , lockfileChangeTargetPath = resolvedPackageTargetPathFilePath package
     , lockfileChangeReason = reason
     }
 

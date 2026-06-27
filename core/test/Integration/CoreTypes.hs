@@ -10,6 +10,8 @@ import Data.Aeson
   )
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import Data.Either (isLeft)
+import Data.List (isInfixOf)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Panino.Core.TypedToml
   ( TomlValue(..)
@@ -26,6 +28,32 @@ import Panino.Core.Types
   , sha1Text
   , urlFromText
   )
+import Panino.Install.Plan.Types
+  ( InstallPlanStatus(..)
+  , installPlanStatusFromText
+  , installPlanStatusText
+  )
+import Panino.Lockfile.Types
+  ( LockfileSolveRequest
+  , PackageCoordinate(..)
+  , PaninoLockfile(..)
+  , ResolvedPackage(..)
+  , coordinateProjectIdText
+  , coordinateVersionIdText
+  , lockfileMinecraftText
+  , lockfileTargetGameDirPath
+  , resolvedPackageDownloadUrlTexts
+  , resolvedPackageTargetPathFilePath
+  , solveRequestMinecraftVersionText
+  , solveRequestTargetGameDirPath
+  )
+import Panino.Api.Routes.Minecraft.Phase
+  ( MinecraftTaskPhase(..)
+  , installProgressPhases
+  , launchRepairProgressPhases
+  , minecraftTaskPhaseId
+  , progressPhaseId
+  )
 import TestSupport (assertEqual)
 
 assertCoreTypes :: IO ()
@@ -36,6 +64,12 @@ assertCoreTypes = do
   assertEqual "core sha1 constructor normalizes case" (Just "abcdef") (sha1Text <$> sha1FromText "ABCDEF")
   assertEqual "core sha1 json rejects empty text" True (isLeft (eitherDecode "\"\"" :: Either String Sha1))
   assertEqual "core game dir json rejects empty text" True (isLeft (eitherDecode "\"\"" :: Either String GameDir))
+  assertEqual "minecraft install phase ids keep wire shape" ["prepare", "minecraft", "loader", "content", "verify"] (map progressPhaseId installProgressPhases)
+  assertEqual "minecraft launch repair phase ids keep wire shape" ["minecraft", "loader", "content", "verify"] (map progressPhaseId launchRepairProgressPhases)
+  assertEqual "minecraft launch phase id keeps wire shape" "launch" (minecraftTaskPhaseId MinecraftPhaseLaunch)
+  assertEqual "install plan empty status is ready" InstallStatusReady (installPlanStatusFromText "")
+  assertEqual "install plan unknown status keeps wire text" "staged" (installPlanStatusText (InstallStatusOther "staged"))
+  assertLockfileWireShape
   assertEqual
     "core typed toml escapes strings"
     ("serverAddr = \"host\\\"\\\\\\nname\"\nserverPort = 7000\n\n[[proxies]]\n" :: Text)
@@ -46,3 +80,83 @@ assertCoreTypes = do
         , tableArray "proxies"
         ]
     )
+
+assertLockfileWireShape :: IO ()
+assertLockfileWireShape = do
+  let coordinate =
+        PackageCoordinate
+          { coordinateSource = "modrinth"
+          , coordinateProjectId = Just "iris"
+          , coordinateVersionId = Just "iris-version"
+          , coordinateFileId = Just "iris-file"
+          , coordinateSlug = Just "iris"
+          , coordinateName = Just "Iris"
+          , coordinateKind = "mod"
+          }
+      package =
+        ResolvedPackage
+          { resolvedPackageId = "iris"
+          , resolvedPackageCoordinate = coordinate
+          , resolvedPackageDisplayName = "Iris"
+          , resolvedPackageVersionName = Just "1.0.0"
+          , resolvedPackageFileName = Just "iris.jar"
+          , resolvedPackageTargetPath = Just "mods/iris.jar"
+          , resolvedPackageHashes = Map.singleton "sha1" "abcdef"
+          , resolvedPackageSize = Just 1
+          , resolvedPackageDownloadUrls = ["https://example.com/iris.jar"]
+          , resolvedPackageGameVersions = ["1.21.5"]
+          , resolvedPackageLoaders = ["fabric"]
+          , resolvedPackageJavaMajor = Nothing
+          , resolvedPackageSide = Just "client"
+          , resolvedPackageSelectedBecause = []
+          , resolvedPackageLocked = False
+          , resolvedPackagePinReason = Nothing
+          , resolvedPackageDependencies = []
+          , resolvedPackageConflicts = []
+          , resolvedPackageSourceSnapshot = Nothing
+          }
+      lockfile =
+        PaninoLockfile
+          { lockfileVersion = 1
+          , lockfileSolverVersion = "test"
+          , lockfileFingerprint = "fingerprint"
+          , lockfileCreatedAt = Nothing
+          , lockfileUpdatedAt = Nothing
+          , lockfileTargetGameDir = Just "/tmp/panino"
+          , lockfileMinecraft = Just "1.21.5"
+          , lockfileJava = Nothing
+          , lockfileLoader = Nothing
+          , lockfileShaderLoader = Nothing
+          , lockfileRoots = ["iris"]
+          , lockfilePackages = [package]
+          , lockfileFiles = []
+          , lockfileConstraints = []
+          , lockfileOverrides = []
+          , lockfileSourceSnapshots = []
+          , lockfileManualEntries = []
+          , lockfileWarnings = []
+          }
+      encodedPackage = BL8.unpack (encode package)
+      encodedLockfile = BL8.unpack (encode lockfile)
+  assertEqual "coordinate project id text view" (Just "iris") (coordinateProjectIdText coordinate)
+  assertEqual "coordinate version id text view" (Just "iris-version") (coordinateVersionIdText coordinate)
+  assertEqual "resolved package target path text view" (Just "mods/iris.jar") (resolvedPackageTargetPathFilePath package)
+  assertEqual "resolved package download url text view" ["https://example.com/iris.jar"] (resolvedPackageDownloadUrlTexts package)
+  assertEqual "lockfile target game dir text view" (Just "/tmp/panino") (lockfileTargetGameDirPath lockfile)
+  assertEqual "lockfile minecraft text view" (Just "1.21.5") (lockfileMinecraftText lockfile)
+  assertContains "package projectId stays a JSON string" "\"projectId\":\"iris\"" encodedPackage
+  assertContains "package versionId stays a JSON string" "\"versionId\":\"iris-version\"" encodedPackage
+  assertContains "package targetPath stays a JSON string" "\"targetPath\":\"mods/iris.jar\"" encodedPackage
+  assertContains "package downloadUrls stays a JSON string list" "\"downloadUrls\":[\"https://example.com/iris.jar\"]" encodedPackage
+  assertContains "lockfile targetGameDir stays a JSON string" "\"targetGameDir\":\"/tmp/panino\"" encodedLockfile
+  assertContains "lockfile minecraft stays a JSON string" "\"minecraft\":\"1.21.5\"" encodedLockfile
+  case eitherDecode "{\"targetGameDir\":\"/tmp/panino\",\"minecraftVersion\":\"1.21.5\"}" :: Either String LockfileSolveRequest of
+    Left err ->
+      assertEqual ("lockfile solve request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "solve request targetGameDir decodes from JSON string" "/tmp/panino" (solveRequestTargetGameDirPath request)
+      assertEqual "solve request minecraftVersion decodes from JSON string" (Just "1.21.5") (solveRequestMinecraftVersionText request)
+
+assertContains :: String -> String -> String -> IO ()
+assertContains label expected actual =
+  assertEqual label True (expected `isInfixOf` actual)

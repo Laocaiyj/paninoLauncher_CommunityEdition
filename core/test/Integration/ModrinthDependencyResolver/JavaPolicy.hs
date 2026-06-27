@@ -20,6 +20,7 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
+  , solveRequestTargetGameDirPath
   , SolverResult
   , solverResultBlockedReasons
   , solverResultLockfile
@@ -57,10 +58,11 @@ assertLockfileJavaPolicySolves solveLockfile tempDir = do
           , solveRequestShaderLoader = Nothing
           , solveRequestJavaPolicy = Just (object ["policy" .= ("managed" :: Text)])
           }
-  managedJavaTargetExistsBefore <- doesDirectoryExist (solveRequestTargetGameDir managedJavaRequest)
-  whenDirectoryExists managedJavaTargetExistsBefore (solveRequestTargetGameDir managedJavaRequest)
+      managedJavaTargetGameDir = solveRequestTargetGameDirPath managedJavaRequest
+  managedJavaTargetExistsBefore <- doesDirectoryExist managedJavaTargetGameDir
+  whenDirectoryExists managedJavaTargetExistsBefore managedJavaTargetGameDir
   managedJavaResult <- solveLockfile managedJavaRequest
-  managedJavaTargetExists <- doesDirectoryExist (solveRequestTargetGameDir managedJavaRequest)
+  managedJavaTargetExists <- doesDirectoryExist managedJavaTargetGameDir
   assertEqual "lockfile solver blocks unavailable managed Java" "blocked" (solverResultStatus managedJavaResult)
   assertEqual "lockfile solver still locks required Java package when managed runtime is unavailable" True (maybe False (("java:21" `elem`) . map resolvedPackageId . lockfilePackages) (solverResultLockfile managedJavaResult))
   assertEqual "blocked Java runtime plan is not executable" "blocked" (typedPlanStatus (solverResultTypedPlan managedJavaResult))

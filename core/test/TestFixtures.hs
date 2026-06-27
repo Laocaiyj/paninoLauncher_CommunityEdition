@@ -13,8 +13,15 @@ module TestFixtures
   ) where
 
 import qualified Data.Map.Strict as Map
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Text (Text)
+import Panino.Core.Types
+  ( gameDirFromPath
+  , projectIdFromText
+  , relativePathFromFilePath
+  , urlFromText
+  , versionIdFromText
+  )
 import Panino.Lockfile.Types
   ( LockfileFile(..)
   , LockfileSolveRequest(..)
@@ -115,7 +122,7 @@ testLockfileSolveRequest :: FilePath -> [ResolvedPackage] -> Maybe PaninoLockfil
 testLockfileSolveRequest gameDir roots existingLockfile =
   LockfileSolveRequest
     { solveRequestMode = "install"
-    , solveRequestTargetGameDir = gameDir
+    , solveRequestTargetGameDir = fromMaybe "/tmp/panino-test" (gameDirFromPath gameDir)
     , solveRequestMinecraftVersion = Just "1.21.5"
     , solveRequestLoader = Just "fabric"
     , solveRequestLoaderVersion = Just "0.16.10"
@@ -143,8 +150,8 @@ testLockfilePackage packageId name releaseIdText fileNameText targetPath sha1 de
     , resolvedPackageCoordinate =
         PackageCoordinate
           { coordinateSource = "modrinth"
-          , coordinateProjectId = Just packageId
-          , coordinateVersionId = Just releaseIdText
+          , coordinateProjectId = projectIdFromText packageId
+          , coordinateVersionId = versionIdFromText releaseIdText
           , coordinateFileId = Just fileNameText
           , coordinateSlug = Just packageId
           , coordinateName = Just name
@@ -153,10 +160,10 @@ testLockfilePackage packageId name releaseIdText fileNameText targetPath sha1 de
     , resolvedPackageDisplayName = name
     , resolvedPackageVersionName = Just releaseIdText
     , resolvedPackageFileName = Just fileNameText
-    , resolvedPackageTargetPath = Just targetPath
+    , resolvedPackageTargetPath = relativePathFromFilePath targetPath
     , resolvedPackageHashes = Map.fromList [("sha1", sha1)]
     , resolvedPackageSize = Just 123
-    , resolvedPackageDownloadUrls = ["https://cdn.modrinth.example/" <> fileNameText]
+    , resolvedPackageDownloadUrls = [urlFromText ("https://cdn.modrinth.example/" <> fileNameText)]
     , resolvedPackageGameVersions = ["1.21.5"]
     , resolvedPackageLoaders = ["fabric"]
     , resolvedPackageJavaMajor = Nothing
@@ -186,7 +193,7 @@ testPackageConstraint sourcePackage targetPackage relation required =
     , constraintTargetPackageId = Just targetPackage
     , constraintTargetKind = "mod"
     , constraintRelation = relation
-    , constraintMinecraftVersions = ["1.21.5"]
+    , constraintMinecraftVersions = maybe [] (: []) (versionIdFromText "1.21.5")
     , constraintLoaders = ["fabric"]
     , constraintJavaMajor = Nothing
     , constraintSide = Just "client"
@@ -202,7 +209,7 @@ testPaninoLockfile gameDir packages =
     , lockfileFingerprint = ""
     , lockfileCreatedAt = Nothing
     , lockfileUpdatedAt = Nothing
-    , lockfileTargetGameDir = Just gameDir
+    , lockfileTargetGameDir = gameDirFromPath gameDir
     , lockfileMinecraft = Just "1.21.5"
     , lockfileJava = Nothing
     , lockfileLoader = Nothing

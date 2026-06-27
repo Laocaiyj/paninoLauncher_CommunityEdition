@@ -41,12 +41,21 @@ import Panino.CoreLogic.Determinism
   ( stableSortPackages
   , stableTextSet
   )
+import Panino.Core.Types
+  ( RelativePath
+  , Url
+  , relativePathFilePath
+  , relativePathFromFilePath
+  , urlFromText
+  , urlText
+  )
 import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
   , PackageConstraint(..)
   , PackageCoordinate(..)
   , ResolvedPackage(..)
   , resolvedPackageKey
+  , solveRequestMinecraftVersionText
   )
 import System.FilePath
   ( isRelative
@@ -65,7 +74,7 @@ normalizePackage gameDir reason package =
           , coordinateKind = normalizeKind (coordinateKind coordinate)
           }
     , resolvedPackageTargetPath = normalizeTargetPath gameDir <$> resolvedPackageTargetPath package
-    , resolvedPackageDownloadUrls = stableTextSet (resolvedPackageDownloadUrls package)
+    , resolvedPackageDownloadUrls = stableUrlSet (resolvedPackageDownloadUrls package)
     , resolvedPackageGameVersions = stableTextSet (resolvedPackageGameVersions package)
     , resolvedPackageLoaders = stableTextSet (map normalizeLoader (resolvedPackageLoaders package))
     , resolvedPackageSelectedBecause =
@@ -179,12 +188,12 @@ normalizeRelation relation =
     "dependency" -> "requires"
     other -> other
 
-normalizeTargetPath :: FilePath -> FilePath -> FilePath
+normalizeTargetPath :: FilePath -> RelativePath -> RelativePath
 normalizeTargetPath gameDir targetPath
-  | isRelative normalized = normalized
-  | otherwise = normalise (makeRelative gameDir normalized)
+  | isRelative normalized = fromMaybe targetPath (relativePathFromFilePath normalized)
+  | otherwise = fromMaybe targetPath (relativePathFromFilePath (normalise (makeRelative gameDir normalized)))
   where
-    normalized = normalise targetPath
+    normalized = normalise (relativePathFilePath targetPath)
 
 packageAllConstraints :: ResolvedPackage -> [PackageConstraint]
 packageAllConstraints package =
@@ -241,7 +250,7 @@ packageCompatibleWithRequest request package =
       maybe
         True
         (\minecraftVersion -> null (resolvedPackageGameVersions package) || minecraftVersion `elem` resolvedPackageGameVersions package)
-        (solveRequestMinecraftVersion request)
+        (solveRequestMinecraftVersionText request)
     loaderCompatible =
       maybe
         True
@@ -303,3 +312,7 @@ targetPathSafe path =
   isRelative path
     && not (null path)
     && ".." `notElem` splitDirectories path
+
+stableUrlSet :: [Url] -> [Url]
+stableUrlSet =
+  map urlFromText . stableTextSet . map urlText

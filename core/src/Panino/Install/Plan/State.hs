@@ -14,8 +14,11 @@ module Panino.Install.Plan.State
 import Data.Text (Text)
 import Panino.CoreLogic.Determinism (stableTextSet)
 import Panino.Install.Plan.Types
-  ( TypedInstallPlan(..)
+  ( InstallPlanStatus(..)
+  , TypedInstallPlan(..)
   , finalizeTypedInstallPlan
+  , installPlanStatusFromText
+  , installPlanStatusText
   )
 
 newtype ExecutableInstallPlan =
@@ -46,10 +49,15 @@ classifyTypedInstallPlan :: TypedInstallPlan -> InstallPlanReadiness
 classifyTypedInstallPlan plan =
   let finalized = finalizeTypedInstallPlan plan
       nonReadyReasons =
-        if typedPlanStatus finalized == "ready"
-          then []
-          else ["non_executable_status:" <> typedPlanStatus finalized]
+        case installPlanStatusFromText (typedPlanStatus finalized) of
+          InstallStatusReady -> []
+          status -> ["non_executable_status:" <> installPlanStatusText status]
       blockedReasons = stableTextSet (typedPlanBlockedReasons finalized <> nonReadyReasons)
    in if null blockedReasons
         then InstallPlanExecutable (ExecutableInstallPlan finalized)
-        else InstallPlanBlocked (BlockedInstallPlan (finalizeTypedInstallPlan finalized {typedPlanBlockedReasons = blockedReasons}) blockedReasons)
+        else
+          InstallPlanBlocked
+            ( BlockedInstallPlan
+                (finalizeTypedInstallPlan finalized {typedPlanBlockedReasons = blockedReasons})
+                blockedReasons
+            )

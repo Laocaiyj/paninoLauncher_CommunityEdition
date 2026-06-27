@@ -26,7 +26,7 @@ preflightTypedPlan request loaderCheck shaderCheck warnings blockedReasons diagn
       , Plan.typedPlanFingerprint = ""
       , Plan.typedPlanKind = "minecraftProfilePreflight"
       , Plan.typedPlanTitle = "Minecraft install preflight"
-      , Plan.typedPlanTargetGameDir = preflightGameDir request
+      , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (preflightGameDir request)
       , Plan.typedPlanSource = Just "minecraft"
       , Plan.typedPlanStatus = ""
       , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing

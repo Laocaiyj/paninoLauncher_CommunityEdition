@@ -39,7 +39,7 @@ contentTypedInstallPlan request targetDir sourceFiles plannedFiles dependencies 
       , Plan.typedPlanFingerprint = ""
       , Plan.typedPlanKind = "content"
       , Plan.typedPlanTitle = contentInstallProjectTitle request
-      , Plan.typedPlanTargetGameDir = contentInstallGameDir request
+      , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (contentInstallGameDir request)
       , Plan.typedPlanSource = Just (contentInstallSource request)
       , Plan.typedPlanStatus = ""
       , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing
@@ -91,8 +91,8 @@ contentFileTypedNode request targetDir isPrimaryFile sourceFile plannedFile requ
     , Plan.installNodePhase = "content"
     , Plan.installNodeLabel = contentPlanFileName plannedFile
     , Plan.installNodeTargetPath = Just (contentPlanTargetPath plannedFile)
-    , Plan.installNodeSourceUrls = [contentFileUrl sourceFile | contentPlanFileAction plannedFile /= "keep"]
-    , Plan.installNodeSha1 = contentPlanFileSha1 plannedFile
+    , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts [contentFileUrl sourceFile | contentPlanFileAction plannedFile /= "keep"]
+    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (contentPlanFileSha1 plannedFile)
     , Plan.installNodeSize = contentPlanFileSize plannedFile
     , Plan.installNodeRequired = True
     , Plan.installNodeDependsOn =
@@ -115,7 +115,7 @@ contentDependencyTypedNode request pairs dependency =
     , Plan.installNodeLabel = contentDependencyName dependency
     , Plan.installNodeTargetPath = contentPlanTargetPath <$> matchingPlannedFile
     , Plan.installNodeSourceUrls = []
-    , Plan.installNodeSha1 = contentDependencySha1 dependency
+    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (contentDependencySha1 dependency)
     , Plan.installNodeSize = matchingPlannedFile >>= contentPlanFileSize
     , Plan.installNodeRequired = contentDependencyRequired dependency
     , Plan.installNodeDependsOn = []

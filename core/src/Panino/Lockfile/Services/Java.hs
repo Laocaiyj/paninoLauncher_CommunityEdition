@@ -25,6 +25,11 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
 import Panino.CoreLogic.Hashing (sha1File)
+import Panino.Core.Types
+  ( projectIdFromText
+  , urlFromText
+  , versionIdFromText
+  )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
 import Panino.Lockfile.Services.Evidence
   ( ServiceEvidence(..)
@@ -35,6 +40,8 @@ import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
   , PackageCoordinate(..)
   , ResolvedPackage(..)
+  , solveRequestMinecraftVersionText
+  , solveRequestTargetGameDirPath
   )
 import Panino.Minecraft.Layout
   ( mkLayout
@@ -57,11 +64,12 @@ import System.FilePath
 
 javaRuntimeServiceEvidence :: Manager -> LockfileSolveRequest -> IO ServiceEvidence
 javaRuntimeServiceEvidence manager request =
-  case solveRequestMinecraftVersion request of
+  case solveRequestMinecraftVersionText request of
     Nothing -> pure emptyServiceEvidence
     Just minecraftVersion -> do
-      let appRoot = takeDirectory (solveRequestTargetGameDir request)
-      cacheLayout <- mkLayout (Just (lockfileSolveCacheGameDir (solveRequestTargetGameDir request)))
+      let targetGameDir = solveRequestTargetGameDirPath request
+          appRoot = takeDirectory targetGameDir
+      cacheLayout <- mkLayout (Just (lockfileSolveCacheGameDir targetGameDir))
       outcome <-
         try
           ( resolveJavaRuntime
@@ -101,7 +109,7 @@ javaResolveRequest :: LockfileSolveRequest -> Text -> JavaRuntimeResolveRequest
 javaResolveRequest request minecraftVersion =
   JavaRuntimeResolveRequest
     { resolveMinecraftVersion = minecraftVersion
-    , resolveGameDir = Just (solveRequestTargetGameDir request)
+    , resolveGameDir = Just (solveRequestTargetGameDirPath request)
     , resolveInstanceId = javaPolicyText "instanceId" request
     , resolvePolicy = javaPolicyText "policy" request
     , resolvePreferredRuntimeId = javaPolicyText "preferredRuntimeId" request
@@ -139,10 +147,12 @@ javaRuntimePackage response =
     , resolvedPackageCoordinate =
         PackageCoordinate
           { coordinateSource = "javaRuntime"
-          , coordinateProjectId = Just ("java-" <> Text.pack (show (resolveResponseRequiredMajorVersion response)))
-          , coordinateVersionId = resolveResponseSelectedRuntimeId response <|> (Text.pack . show . runtimeDownloadFeatureVersion <$> resolveResponseDownload response)
+          , coordinateProjectId = projectIdFromText javaProjectId
+          , coordinateVersionId =
+              (versionIdFromText =<< resolveResponseSelectedRuntimeId response)
+                <|> (versionIdFromText . Text.pack . show . runtimeDownloadFeatureVersion =<< resolveResponseDownload response)
           , coordinateFileId = runtimeDownloadArch <$> resolveResponseDownload response
-          , coordinateSlug = Just ("java-" <> Text.pack (show (resolveResponseRequiredMajorVersion response)))
+          , coordinateSlug = Just javaProjectId
           , coordinateName = Just ("Java " <> Text.pack (show (resolveResponseRequiredMajorVersion response)))
           , coordinateKind = "javaRuntime"
           }
@@ -155,7 +165,7 @@ javaRuntimePackage response =
           (\download -> maybe Map.empty (\sha -> Map.singleton "sha256" sha) (runtimeDownloadSha256 download))
           (resolveResponseDownload response)
     , resolvedPackageSize = Nothing
-    , resolvedPackageDownloadUrls = maybe [] ((: []) . runtimeDownloadUrl) (resolveResponseDownload response)
+    , resolvedPackageDownloadUrls = maybe [] ((: []) . urlFromText . runtimeDownloadUrl) (resolveResponseDownload response)
     , resolvedPackageGameVersions = [resolveResponseMinecraftVersion response]
     , resolvedPackageLoaders = []
     , resolvedPackageJavaMajor = Just (resolveResponseRequiredMajorVersion response)
@@ -167,6 +177,8 @@ javaRuntimePackage response =
     , resolvedPackageConflicts = []
     , resolvedPackageSourceSnapshot = Just ("java-runtime:" <> resolveResponseStatus response)
     }
+  where
+    javaProjectId = "java-" <> Text.pack (show (resolveResponseRequiredMajorVersion response))
 
 javaRuntimePolicyValue :: JavaRuntimeResolveResponse -> IO Value
 javaRuntimePolicyValue response = do

@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Panino.Api.Routes.Minecraft.Progress
-  ( ProgressPhase(..)
+  ( MinecraftTaskPhase(..)
+  , ProgressPhase
   , emitPhaseMarker
   , installProgressPhases
   , launchRepairProgressPhases
@@ -20,6 +21,16 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Api.Routes.Tasks (emitTaskProgress)
+import Panino.Api.Routes.Minecraft.Phase
+  ( MinecraftTaskPhase(..)
+  , ProgressPhase
+  , fallbackProgressPhase
+  , installProgressPhases
+  , launchRepairProgressPhases
+  , minecraftTaskPhaseId
+  , progressPhaseId
+  , progressPhaseTitle
+  )
 import Panino.Api.Server.State (ServerState)
 import Panino.Api.Types
   ( InstallRequest(..)
@@ -35,33 +46,11 @@ import Panino.Download.Manager
   )
 import Panino.Minecraft.LoaderInstall (normalizeLoaderName)
 
-data ProgressPhase = ProgressPhase
-  { progressPhaseId :: Text
-  , progressPhaseTitle :: Text
-  } deriving (Eq, Show)
-
 data AggregatedProgressState = AggregatedProgressState
   { aggregatedPhaseIndex :: Int
   , aggregatedPhaseMaxPercent :: Double
   , aggregatedOverallMaxPercent :: Double
   } deriving (Eq, Show)
-
-installProgressPhases :: [ProgressPhase]
-installProgressPhases =
-  [ ProgressPhase "prepare" "Prepare install plan"
-  , ProgressPhase "minecraft" "Download Minecraft files"
-  , ProgressPhase "loader" "Install loader files"
-  , ProgressPhase "content" "Download companion content"
-  , ProgressPhase "verify" "Verify instance"
-  ]
-
-launchRepairProgressPhases :: [ProgressPhase]
-launchRepairProgressPhases =
-  [ ProgressPhase "minecraft" "Repair Minecraft files"
-  , ProgressPhase "loader" "Repair loader files"
-  , ProgressPhase "content" "Repair companion content"
-  , ProgressPhase "verify" "Verify launch files"
-  ]
 
 newAggregatedProgressSink :: ServerState -> TaskSnapshot -> [ProgressPhase] -> IO (DownloadProgress -> IO ())
 newAggregatedProgressSink state task phases =
@@ -81,7 +70,7 @@ newInstallProgressSink state task request = do
               shouldEmit = not verifyEmitted && nextCompleted >= expectedBatches
           pure ((nextCompleted, verifyEmitted || shouldEmit), shouldEmit)
       when shouldEmitVerify $
-        emitPhaseMarker state task "verify" "Verify instance" 5 5 80 "verifying instance"
+        emitPhaseMarker state task MinecraftPhaseVerify "Verify instance" 5 5 80 "verifying instance"
 
 expectedInstallDownloadBatches :: InstallRequest -> Int
 expectedInstallDownloadBatches request =
@@ -162,16 +151,16 @@ phaseAt :: [ProgressPhase] -> Int -> ProgressPhase
 phaseAt phases index =
   case drop index phases of
     phase:_ -> phase
-    [] -> ProgressPhase "download" "Downloading files"
+    [] -> fallbackProgressPhase
 
-emitPhaseMarker :: ServerState -> TaskSnapshot -> Text -> Text -> Int -> Int -> Double -> Text -> IO ()
-emitPhaseMarker state task phaseId phaseTitle phaseIndex phaseCount overall label =
+emitPhaseMarker :: ServerState -> TaskSnapshot -> MinecraftTaskPhase -> Text -> Int -> Int -> Double -> Text -> IO ()
+emitPhaseMarker state task phase phaseTitle phaseIndex phaseCount overall label =
   emitTaskProgress
     state
     task
     TaskProgress
       { taskProgressTaskId = taskSnapshotId task
-      , taskProgressPhaseId = phaseId
+      , taskProgressPhaseId = minecraftTaskPhaseId phase
       , taskProgressPhaseTitle = phaseTitle
       , taskProgressPhaseIndex = phaseIndex
       , taskProgressPhaseCount = phaseCount

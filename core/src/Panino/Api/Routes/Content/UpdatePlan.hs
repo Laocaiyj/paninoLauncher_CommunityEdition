@@ -51,7 +51,7 @@ resolveContentUpdatePlan request =
           , Plan.typedPlanFingerprint = ""
           , Plan.typedPlanKind = "update"
           , Plan.typedPlanTitle = "Content update"
-          , Plan.typedPlanTargetGameDir = Just (updatePlanGameDir request)
+          , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (Just (updatePlanGameDir request))
           , Plan.typedPlanSource = Just (updatePlanSource request)
           , Plan.typedPlanStatus = ""
           , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing
@@ -136,11 +136,12 @@ contentUpdateResourceNode resource =
     , Plan.installNodeLabel = updateResourceProjectTitle resource
     , Plan.installNodeTargetPath = Just (updateResourceCurrentTargetPath resource)
     , Plan.installNodeSourceUrls =
-        [ url
-        | action `elem` ["replace", "download"]
-        , Just url <- [updateResourceRemoteUrl resource]
-        ]
-    , Plan.installNodeSha1 = updateResourceRemoteSha1 resource <|> updateResourceCurrentSha1 resource
+        Plan.installNodeSourceUrlsFromTexts
+          [ url
+          | action `elem` ["replace", "download"]
+          , Just url <- [updateResourceRemoteUrl resource]
+          ]
+    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (updateResourceRemoteSha1 resource <|> updateResourceCurrentSha1 resource)
     , Plan.installNodeSize = updateResourceRemoteSize resource
     , Plan.installNodeRequired = True
     , Plan.installNodeDependsOn =
@@ -169,7 +170,7 @@ contentUpdateDependencyNode resource dependency =
     , Plan.installNodeLabel = contentDependencyName dependency
     , Plan.installNodeTargetPath = Nothing
     , Plan.installNodeSourceUrls = []
-    , Plan.installNodeSha1 = contentDependencySha1 dependency
+    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (contentDependencySha1 dependency)
     , Plan.installNodeSize = Nothing
     , Plan.installNodeRequired = contentDependencyRequired dependency
     , Plan.installNodeDependsOn = []

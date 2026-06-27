@@ -79,6 +79,9 @@ instance Show RelativePath where
 instance IsString VersionId where
   fromString = VersionId . Text.pack
 
+instance IsString GameDir where
+  fromString = GameDir
+
 instance IsString ProjectId where
   fromString = ProjectId . Text.pack
 
@@ -87,6 +90,9 @@ instance IsString Sha1 where
 
 instance IsString Url where
   fromString = Url . Text.pack
+
+instance IsString RelativePath where
+  fromString = RelativePath
 
 gameDirFromPath :: FilePath -> Maybe GameDir
 gameDirFromPath path =

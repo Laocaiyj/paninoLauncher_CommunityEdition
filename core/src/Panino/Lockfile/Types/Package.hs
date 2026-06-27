@@ -5,9 +5,15 @@ module Panino.Lockfile.Types.Package
   , PackageConstraint(..)
   , PackageCoordinate(..)
   , ResolvedPackage(..)
+  , coordinateProjectIdText
+  , coordinateVersionIdText
+  , lockfileFileDownloadUrlTexts
   , lockfileFileKey
+  , lockfileFileTargetPathFilePath
   , packageCoordinateKey
+  , resolvedPackageDownloadUrlTexts
   , resolvedPackageKey
+  , resolvedPackageTargetPathFilePath
   ) where
 
 import Data.Aeson
@@ -26,11 +32,21 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( ProjectId
+  , RelativePath
+  , Url
+  , VersionId
+  , projectIdText
+  , relativePathFilePath
+  , urlText
+  , versionIdText
+  )
 
 data PackageCoordinate = PackageCoordinate
   { coordinateSource :: Text
-  , coordinateProjectId :: Maybe Text
-  , coordinateVersionId :: Maybe Text
+  , coordinateProjectId :: Maybe ProjectId
+  , coordinateVersionId :: Maybe VersionId
   , coordinateFileId :: Maybe Text
   , coordinateSlug :: Maybe Text
   , coordinateName :: Maybe Text
@@ -67,7 +83,7 @@ data PackageConstraint = PackageConstraint
   , constraintTargetPackageId :: Maybe Text
   , constraintTargetKind :: Text
   , constraintRelation :: Text
-  , constraintMinecraftVersions :: [Text]
+  , constraintMinecraftVersions :: [VersionId]
   , constraintLoaders :: [Text]
   , constraintJavaMajor :: Maybe Int
   , constraintSide :: Maybe Text
@@ -113,10 +129,10 @@ data ResolvedPackage = ResolvedPackage
   , resolvedPackageDisplayName :: Text
   , resolvedPackageVersionName :: Maybe Text
   , resolvedPackageFileName :: Maybe Text
-  , resolvedPackageTargetPath :: Maybe FilePath
+  , resolvedPackageTargetPath :: Maybe RelativePath
   , resolvedPackageHashes :: Map Text Text
   , resolvedPackageSize :: Maybe Int64
-  , resolvedPackageDownloadUrls :: [Text]
+  , resolvedPackageDownloadUrls :: [Url]
   , resolvedPackageGameVersions :: [Text]
   , resolvedPackageLoaders :: [Text]
   , resolvedPackageJavaMajor :: Maybe Int
@@ -185,10 +201,10 @@ instance FromJSON ResolvedPackage where
 data LockfileFile = LockfileFile
   { lockfileFilePackageId :: Text
   , lockfileFileName :: Text
-  , lockfileFileTargetPath :: FilePath
+  , lockfileFileTargetPath :: RelativePath
   , lockfileFileHashes :: Map Text Text
   , lockfileFileSize :: Maybe Int64
-  , lockfileFileDownloadUrls :: [Text]
+  , lockfileFileDownloadUrls :: [Url]
   , lockfileFileKind :: Text
   } deriving (Eq, Show)
 
@@ -221,8 +237,8 @@ packageCoordinateKey coordinate =
   Text.intercalate
     ":"
     [ Text.toLower (coordinateSource coordinate)
-    , fromMaybe "" (coordinateProjectId coordinate)
-    , fromMaybe "" (coordinateVersionId coordinate)
+    , fromMaybe "" (coordinateProjectIdText coordinate)
+    , fromMaybe "" (coordinateVersionIdText coordinate)
     , fromMaybe "" (coordinateFileId coordinate)
     , Text.toLower (coordinateKind coordinate)
     ]
@@ -234,7 +250,7 @@ resolvedPackageKey package =
     [ resolvedPackageId package
     , packageCoordinateKey (resolvedPackageCoordinate package)
     , fromMaybe "" (resolvedPackageFileName package)
-    , maybe "" Text.pack (resolvedPackageTargetPath package)
+    , maybe "" Text.pack (resolvedPackageTargetPathFilePath package)
     ]
 
 lockfileFileKey :: LockfileFile -> Text
@@ -242,6 +258,30 @@ lockfileFileKey file =
   Text.intercalate
     "|"
     [ lockfileFilePackageId file
-    , Text.pack (lockfileFileTargetPath file)
+    , Text.pack (lockfileFileTargetPathFilePath file)
     , Map.findWithDefault "" "sha1" (lockfileFileHashes file)
     ]
+
+coordinateProjectIdText :: PackageCoordinate -> Maybe Text
+coordinateProjectIdText =
+  fmap projectIdText . coordinateProjectId
+
+coordinateVersionIdText :: PackageCoordinate -> Maybe Text
+coordinateVersionIdText =
+  fmap versionIdText . coordinateVersionId
+
+resolvedPackageTargetPathFilePath :: ResolvedPackage -> Maybe FilePath
+resolvedPackageTargetPathFilePath =
+  fmap relativePathFilePath . resolvedPackageTargetPath
+
+resolvedPackageDownloadUrlTexts :: ResolvedPackage -> [Text]
+resolvedPackageDownloadUrlTexts =
+  map urlText . resolvedPackageDownloadUrls
+
+lockfileFileTargetPathFilePath :: LockfileFile -> FilePath
+lockfileFileTargetPathFilePath =
+  relativePathFilePath . lockfileFileTargetPath
+
+lockfileFileDownloadUrlTexts :: LockfileFile -> [Text]
+lockfileFileDownloadUrlTexts =
+  map urlText . lockfileFileDownloadUrls

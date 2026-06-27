@@ -59,6 +59,7 @@ library
     Panino.Api.Routes.Minecraft.InstallTask.Rollback
     Panino.Api.Routes.Minecraft.LaunchHooks
     Panino.Api.Routes.Minecraft.LaunchTask
+    Panino.Api.Routes.Minecraft.Phase
     Panino.Api.Routes.Minecraft.Progress
     Panino.Api.Routes.Network
     Panino.Api.Routes.Network.Config

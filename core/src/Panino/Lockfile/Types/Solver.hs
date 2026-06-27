@@ -12,6 +12,8 @@ module Panino.Lockfile.Types.Solver
   , SolverResult(..)
   , emptyChangeset
   , emptyLockfileExplain
+  , solveRequestMinecraftVersionText
+  , solveRequestTargetGameDirPath
   ) where
 
 import Data.Aeson
@@ -27,14 +29,20 @@ import Data.Aeson
   )
 import Data.Text (Text)
 import Panino.Diagnostics.Types (Diagnostic)
+import Panino.Core.Types
+  ( GameDir
+  , VersionId
+  , gameDirPath
+  , versionIdText
+  )
 import Panino.Install.Plan.Types (TypedInstallPlan)
 import Panino.Lockfile.Types.Document (PaninoLockfile)
 import Panino.Lockfile.Types.Package (ResolvedPackage)
 
 data LockfileSolveRequest = LockfileSolveRequest
   { solveRequestMode :: Text
-  , solveRequestTargetGameDir :: FilePath
-  , solveRequestMinecraftVersion :: Maybe Text
+  , solveRequestTargetGameDir :: GameDir
+  , solveRequestMinecraftVersion :: Maybe VersionId
   , solveRequestLoader :: Maybe Text
   , solveRequestLoaderVersion :: Maybe Text
   , solveRequestJavaPolicy :: Maybe Value
@@ -78,6 +86,14 @@ instance FromJSON LockfileSolveRequest where
         <*> obj .:? "ignoredDependencies" .!= []
         <*> obj .:? "pinnedPackages" .!= []
         <*> obj .:? "manualPackages" .!= []
+
+solveRequestTargetGameDirPath :: LockfileSolveRequest -> FilePath
+solveRequestTargetGameDirPath =
+  gameDirPath . solveRequestTargetGameDir
+
+solveRequestMinecraftVersionText :: LockfileSolveRequest -> Maybe Text
+solveRequestMinecraftVersionText =
+  fmap versionIdText . solveRequestMinecraftVersion
 
 data LockfileChange = LockfileChange
   { lockfileChangeAction :: Text

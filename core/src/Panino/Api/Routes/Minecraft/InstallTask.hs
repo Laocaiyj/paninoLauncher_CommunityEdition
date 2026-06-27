@@ -30,8 +30,12 @@ import Panino.Api.Routes.Minecraft.Common
   , resolveLoaderInstallerJavaPath
   )
 import Panino.Api.Routes.Minecraft.Progress
-  ( emitPhaseMarker
+  ( MinecraftTaskPhase(..)
+  , emitPhaseMarker
   , newInstallProgressSink
+  )
+import Panino.Api.Routes.Minecraft.Phase
+  ( minecraftTaskPhaseId
   )
 import Panino.Api.Routes.Minecraft.InstallTask.Rollback
   ( InstallRollbackOutcome(..)
@@ -81,7 +85,7 @@ runInstallTask state task request preflight = do
   writeInstallState layout task request "running" Nothing Nothing Nothing Nothing Nothing
   rollbackSnapshot <- prepareInstallRollbackSnapshot layout task
   outcome <- try $ do
-    emitPhaseMarker state task "prepare" "Prepare install plan" 1 5 0 "preparing install"
+    emitPhaseMarker state task MinecraftPhasePrepare "Prepare install plan" 1 5 0 "preparing install"
     emitProgress <- newInstallProgressSink state task request
     installerJava <-
       resolveLoaderInstallerJavaPath
@@ -170,7 +174,7 @@ isInstallCancellationException err =
         Just (_ :: SomeAsyncException) -> True
         Nothing -> False
 
-writeInstallState :: MinecraftLayout -> TaskSnapshot -> InstallRequest -> Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe FilePath -> IO ()
+writeInstallState :: MinecraftLayout -> TaskSnapshot -> InstallRequest -> Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe MinecraftTaskPhase -> Maybe FilePath -> IO ()
 writeInstallState layout task request installState errorCode errorDetail installedProfile failedPhase rollbackReportPath = do
   now <- getCurrentTime
   let payload =
@@ -183,7 +187,7 @@ writeInstallState layout task request installState errorCode errorDetail install
           , "installedProfile" .= installedProfile
           , "errorCode" .= errorCode
           , "errorDetail" .= errorDetail
-          , "failedPhase" .= failedPhase
+          , "failedPhase" .= fmap minecraftTaskPhaseId failedPhase
           , "rollbackReportPath" .= rollbackReportPath
           , "logPaths" .= installDiagnosticLogPaths layout
           , "startedAt" .= taskSnapshotCreatedAt task
@@ -206,16 +210,16 @@ installDiagnosticLogPaths layout =
     , "rollback" .= (minecraftRoot layout </> "downloads" </> "install-rollback.json")
     ]
 
-installFailurePhase :: Text -> Text
+installFailurePhase :: Text -> MinecraftTaskPhase
 installFailurePhase code
-  | "loader_" `Text.isPrefixOf` code = "loader"
-  | "shader_" `Text.isPrefixOf` code || code == "manual_install_required" = "content"
-  | code == "install_post_verify_failed" = "verify"
-  | "java_runtime_" `Text.isPrefixOf` code || code == "java_not_found" = "prepare"
-  | code `elem` ["network_error", "hash_mismatch", "manifest_parse_failed"] = "minecraft"
-  | otherwise = "install"
+  | "loader_" `Text.isPrefixOf` code = MinecraftPhaseLoader
+  | "shader_" `Text.isPrefixOf` code || code == "manual_install_required" = MinecraftPhaseContent
+  | code == "install_post_verify_failed" = MinecraftPhaseVerify
+  | "java_runtime_" `Text.isPrefixOf` code || code == "java_not_found" = MinecraftPhasePrepare
+  | code `elem` ["network_error", "hash_mismatch", "manifest_parse_failed"] = MinecraftPhaseMinecraft
+  | otherwise = MinecraftPhaseInstall
 
-installFailureDetail :: MinecraftLayout -> InstallRequest -> LoaderInstallPreflightResponse -> SomeException -> Text -> Text -> Text -> InstallRollbackOutcome -> IO Text
+installFailureDetail :: MinecraftLayout -> InstallRequest -> LoaderInstallPreflightResponse -> SomeException -> Text -> Text -> MinecraftTaskPhase -> InstallRollbackOutcome -> IO Text
 installFailureDetail layout request preflight err originalCode finalCode failedPhase rollback =
   do
     loaderLogTail <- readInstallLogTail (minecraftRoot layout </> "downloads" </> "loader-install.log")
@@ -231,7 +235,7 @@ installFailureDetail layout request preflight err originalCode finalCode failedP
         , "shaderProjects=" <> Text.intercalate "," (preflightResponseShaderProjects preflight)
         , "blockedReasons=" <> Text.intercalate "," (preflightResponseBlockedReasons preflight)
         , "originalErrorCode=" <> originalCode
-        , "failedPhase=" <> failedPhase
+        , "failedPhase=" <> minecraftTaskPhaseId failedPhase
         , "rollbackState=" <> installRollbackStatus rollback
         , "rollbackReport=" <> Text.pack (installRollbackReportPath rollback)
         , "loaderLog=" <> Text.pack (minecraftRoot layout </> "downloads" </> "loader-install.log")

@@ -111,6 +111,17 @@ assertInstallPlanExecutor = do
   assertEqual "executor blocked node result includes kind" True (all ((== Just "test") . installResultNodeKind) (installExecutionResults blockedResult))
   assertEqual "executor blocked node result includes phase" True (all (isJust . installResultPhase) (installExecutionResults blockedResult))
 
+  let nonReadyPlan =
+        finalizeTypedInstallPlan
+          plan
+            { typedPlanStatus = "staged"
+            }
+  case requireExecutableInstallPlan nonReadyPlan of
+    Left blocked ->
+      assertEqual "executor refuses non-ready plan status" ["non_executable_status:staged"] (blockedInstallPlanReasons blocked)
+    Right _ ->
+      fail "non-ready plan unexpectedly classified as executable"
+
   ranInvalid <- newMVar False
   let invalidPlan =
         finalizeTypedInstallPlan

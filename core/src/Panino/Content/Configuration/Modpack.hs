@@ -114,7 +114,7 @@ modpackImport manager request = do
       plan =
         Plan.finalizeTypedInstallPlan
           basePlan
-            { Plan.typedPlanTargetGameDir = Just targetGameDir
+            { Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (Just targetGameDir)
             , Plan.typedPlanBlockedReasons =
                 Plan.typedPlanBlockedReasons basePlan <> importBlockingReasons
             }

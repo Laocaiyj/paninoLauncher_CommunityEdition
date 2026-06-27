@@ -38,7 +38,8 @@ import Panino.Api.Routes.Minecraft.LaunchHooks
   , writeLaunchJvmDiagnostics
   )
 import Panino.Api.Routes.Minecraft.Progress
-  ( emitPhaseMarker
+  ( MinecraftTaskPhase(..)
+  , emitPhaseMarker
   , launchRepairProgressPhases
   , newAggregatedProgressSink
   )
@@ -219,7 +220,7 @@ observeStartedLaunchWithDelay delayMicros state task layout hooks launch = do
   case earlyExit of
     Nothing -> do
       _ <- async (monitorLaunchProcess layout hooks launch)
-      emitPhaseMarker state task "launch" "Start game process" 4 4 100 "game process started"
+      emitPhaseMarker state task MinecraftPhaseLaunch "Start game process" 4 4 100 "game process started"
       pure "java process started"
     Just _ ->
       waitJavaProcess launch >>= finalizeForegroundLaunch state task layout hooks
@@ -229,7 +230,7 @@ finalizeForegroundLaunch state task layout hooks result = do
   completeLaunchHookSession hooks result
   case javaExitCode result of
     ExitSuccess -> do
-      emitPhaseMarker state task "launch" "Start game process" 4 4 100 "java exited successfully"
+      emitPhaseMarker state task MinecraftPhaseLaunch "Start game process" 4 4 100 "java exited successfully"
       pure "java exited successfully"
     ExitFailure code ->
       throwIO . diagnosticException =<< launchFailureDiagnostic layout code result
