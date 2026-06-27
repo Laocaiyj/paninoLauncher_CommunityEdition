@@ -26,13 +26,16 @@ module Panino.Core.Types
 import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
-  , Value(..)
   , withText
   )
 import Data.Aeson.Types (Parser)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.WireText
+  ( WireText(..)
+  , toWireTextJSON
+  )
 
 newtype GameDir =
   GameDir FilePath
@@ -144,43 +147,67 @@ relativePathFromFilePath path =
 relativePathFilePath :: RelativePath -> FilePath
 relativePathFilePath (RelativePath path) = path
 
+instance WireText GameDir where
+  wireText = Text.pack . gameDirPath
+  parseWireText = fromString . Text.unpack
+
+instance WireText VersionId where
+  wireText = versionIdText
+  parseWireText = fromString . Text.unpack
+
+instance WireText ProjectId where
+  wireText = projectIdText
+  parseWireText = fromString . Text.unpack
+
+instance WireText Sha1 where
+  wireText = sha1Text
+  parseWireText = fromString . Text.unpack
+
+instance WireText Url where
+  wireText = urlText
+  parseWireText = urlFromText
+
+instance WireText RelativePath where
+  wireText = Text.pack . relativePathFilePath
+  parseWireText = fromString . Text.unpack
+
 instance ToJSON GameDir where
-  toJSON = String . Text.pack . gameDirPath
+  toJSON = toWireTextJSON
 
 instance FromJSON GameDir where
   parseJSON =
     withText "GameDir" (parseNonEmpty "GameDir" (gameDirFromPath . Text.unpack))
 
 instance ToJSON VersionId where
-  toJSON = String . versionIdText
+  toJSON = toWireTextJSON
 
 instance FromJSON VersionId where
   parseJSON =
     withText "VersionId" (parseNonEmpty "VersionId" versionIdFromText)
 
 instance ToJSON ProjectId where
-  toJSON = String . projectIdText
+  toJSON = toWireTextJSON
 
 instance FromJSON ProjectId where
   parseJSON =
     withText "ProjectId" (parseNonEmpty "ProjectId" projectIdFromText)
 
 instance ToJSON Sha1 where
-  toJSON = String . sha1Text
+  toJSON = toWireTextJSON
 
 instance FromJSON Sha1 where
   parseJSON =
     withText "Sha1" (parseNonEmpty "Sha1" sha1FromText)
 
 instance ToJSON Url where
-  toJSON = String . urlText
+  toJSON = toWireTextJSON
 
 instance FromJSON Url where
   parseJSON =
     withText "Url" (pure . urlFromText)
 
 instance ToJSON RelativePath where
-  toJSON = String . Text.pack . relativePathFilePath
+  toJSON = toWireTextJSON
 
 instance FromJSON RelativePath where
   parseJSON =

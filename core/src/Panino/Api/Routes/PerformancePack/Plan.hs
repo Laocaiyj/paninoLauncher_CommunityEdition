@@ -42,6 +42,7 @@ import Panino.Content.Online.Types
   , OnlineProject(..)
   , OnlineRelease(..)
   , OnlineSearchPage(..)
+  , onlineProjectIdText
   )
 import Panino.CoreLogic.Determinism
   ( stableFingerprint
@@ -50,7 +51,6 @@ import Panino.CoreLogic.Determinism
 import Panino.Core.Types
   ( sha1FromText
   , sha1Text
-  , urlFromText
   , urlText
   )
 import Panino.Download.Manager (DownloadJob(..))
@@ -226,7 +226,7 @@ resolveCurseForgeProject state layout request entry = do
         (stateHttpManager state)
         ContentProjectRequest
           { contentProjectSource = "curseForge"
-          , contentProjectId = projectId project
+          , contentProjectId = onlineProjectIdText project
           , contentProjectQuery = performancePackSearchRequest request entry
           , contentProjectCurseForgeApiKey = packInstallCurseForgeAPIKey request
           }
@@ -237,7 +237,7 @@ resolveCurseForgeProject state layout request entry = do
         job =
           DownloadJob
             { jobLabel = Text.unpack (projectTitle project <> " " <> fileName file)
-            , jobUrl = urlFromText downloadUrl
+            , jobUrl = downloadUrl
             , jobTargetPath = minecraftRoot layout </> "mods" </> safeFileName
             , jobSha1 = Map.lookup "sha1" (fileHashes file) >>= sha1FromText
             , jobSize = Just (fileSizeBytes file)
@@ -245,7 +245,7 @@ resolveCurseForgeProject state layout request entry = do
         planFile =
           PerformancePackPlanFile
             { packPlanFileSource = "curseForge"
-            , packPlanFileProjectId = projectId project
+            , packPlanFileProjectId = onlineProjectIdText project
             , packPlanFileName = safeFileName
             , packPlanFileTargetPath = jobTargetPath job
             , packPlanFileSha1 = sha1Text <$> jobSha1 job
@@ -279,7 +279,7 @@ selectCurseForgeProject entry page =
     wanted = normalizeLookupText (performanceModId entry)
     wantedTitle = normalizeLookupText (performanceModTitle entry)
     exactMatch project =
-      normalizeLookupText (projectId project) == wanted
+      normalizeLookupText (onlineProjectIdText project) == wanted
         || maybe False ((== wanted) . normalizeLookupText) (projectSlug project)
         || normalizeLookupText (projectTitle project) == wantedTitle
 

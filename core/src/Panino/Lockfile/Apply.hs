@@ -47,7 +47,7 @@ runLockfilePlanNode manager node
 rollbackLockfilePlanNode :: Plan.InstallPlanNode -> IO ()
 rollbackLockfilePlanNode node =
   case Plan.installRollbackAction rollback of
-    "removeCreatedFile" ->
+    Plan.InstallRollbackRemoveCreatedFile ->
       traverse_ removeFileIfExists (Plan.installRollbackTargetPath rollback)
     _ -> pure ()
   where

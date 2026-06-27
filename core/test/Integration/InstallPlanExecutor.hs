@@ -18,10 +18,12 @@ import Panino.Diagnostics.Types (Diagnostic(..))
 import Panino.Install.Plan.Executor
   ( InstallNodeResult(..)
   , InstallNodeStatus(..)
+  , InstallPlanExecutionStatus(..)
   , InstallPlanExecutionResult(..)
   , blockedInstallPlanExecutionResult
   , executeExecutableInstallPlan
   , installPlanExecutionBatches
+  , installPlanExecutionStatusText
   )
 import Panino.Install.Plan.State
   ( ExecutableInstallPlan
@@ -93,7 +95,8 @@ assertInstallPlanExecutor = do
       (\node -> modifyMVar_ events (pure . (<> ["rollback:" <> installNodeId node])))
       (\_ -> pure ())
   recordedEvents <- readMVar events
-  assertEqual "executor stops on failed node" "failed" (installExecutionStatus result)
+  assertEqual "executor stops on failed node" InstallExecutionFailed (installExecutionStatus result)
+  assertEqual "executor failed status keeps wire text" "failed" (installPlanExecutionStatusText (installExecutionStatus result))
   assertEqual "executor records failed node" (Just "b") (installExecutionFailedNodeId result)
   assertEqual "executor rolls back completed nodes in reverse" ["rollback:c", "rollback:a"] (filter ("rollback:" `Text.isPrefixOf`) recordedEvents)
   assertEqual "executor does not run successors after failure" True ("run:b" `elem` recordedEvents && not ("run:after" `elem` recordedEvents))
@@ -108,7 +111,8 @@ assertInstallPlanExecutor = do
     case requireExecutableInstallPlan blockedPlan of
       Left blocked -> blockedInstallPlanExecutionResult blocked (\_ -> pure ())
       Right _ -> fail "blocked plan unexpectedly classified as executable"
-  assertEqual "executor refuses blocked plan" "blocked" (installExecutionStatus blockedResult)
+  assertEqual "executor refuses blocked plan" InstallExecutionBlocked (installExecutionStatus blockedResult)
+  assertEqual "executor blocked status keeps wire text" "blocked" (installPlanExecutionStatusText (installExecutionStatus blockedResult))
   assertEqual "executor marks nodes blocked" True (all ((== InstallNodeBlocked) . installResultStatus) (installExecutionResults blockedResult))
   assertEqual "executor blocked nodes include diagnostics" True (all (maybe False ((== "blocked_by_test") . diagnosticCode) . installResultDiagnostic) (installExecutionResults blockedResult))
   assertEqual "executor blocked node result includes kind" True (all ((== Just "test") . installResultNodeKind) (installExecutionResults blockedResult))
@@ -147,7 +151,7 @@ assertInstallPlanExecutor = do
         (\_ -> pure ())
   invalidRan <- readMVar ranInvalid
   assertEqual "executor validates node before running" False invalidRan
-  assertEqual "executor marks verification error failed" "failed" (installExecutionStatus invalidResult)
+  assertEqual "executor marks verification error failed" InstallExecutionFailed (installExecutionStatus invalidResult)
   assertEqual "executor failed node includes diagnostic" True (any (maybe False ((== "task_failed") . diagnosticCode) . installResultDiagnostic) (installExecutionResults invalidResult))
   assertEqual "executor failed node result includes kind" True (any ((== Just "test") . installResultNodeKind) (installExecutionResults invalidResult))
   assertEqual "executor failed node result includes phase" True (any ((== Just "metadata") . installResultPhase) (installExecutionResults invalidResult))

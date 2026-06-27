@@ -18,6 +18,7 @@ import Panino.Install.Plan.Types
   ( InstallPlanNode(..)
   , InstallPlanRollbackAction(..)
   , TypedInstallPlan(..)
+  , installRollbackActionText
   )
 import TestSupport (assertEqual)
 
@@ -137,7 +138,7 @@ assertContentTypedInstallPlan = do
         , installNodeLabel node == "sodium.jar"
         ]
       replaceRollbacks =
-        [ installRollbackAction (installNodeRollback node)
+        [ installRollbackActionText (installRollbackAction (installNodeRollback node))
         | node <- mainNodes
         ]
       downloadJobs = ContentRoutes.contentDownloadJobsFromTypedPlan response

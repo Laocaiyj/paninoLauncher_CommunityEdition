@@ -46,7 +46,7 @@ import Panino.Core.Types
 import Panino.Install.Plan.Executor
   ( blockedInstallPlanExecutionResult
   , executeExecutableInstallPlan
-  , installExecutionStatus
+  , installPlanExecutionSucceeded
   )
 import qualified Panino.Install.Plan.State as PlanState
 import Panino.Lockfile.Apply
@@ -187,7 +187,7 @@ applyLockfileResult manager request =
                   (runLockfilePlanNode manager)
                   rollbackLockfilePlanNode
                   (\_ -> pure ())
-          if installExecutionStatus execution /= "succeeded"
+          if not (installPlanExecutionSucceeded execution)
             then
               pure
                 ( jsonResponse

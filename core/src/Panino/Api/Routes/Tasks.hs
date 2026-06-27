@@ -91,9 +91,11 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( ApiEvent(..)
   , TaskAccepted(..)
+  , TaskKind
   , TaskProgress(..)
   , TaskSnapshot(..)
   , TaskState(..)
+  , taskKindText
   )
 import qualified Panino.Diagnostics.Classify as Diagnostics
 import Panino.Diagnostics.Types
@@ -202,19 +204,19 @@ eventsResponse state =
         sendEvent send event
         flush
 
-startTask :: ServerState -> Text -> Text -> IO Text -> IO TaskSnapshot
+startTask :: ServerState -> TaskKind -> Text -> IO Text -> IO TaskSnapshot
 startTask state kind versionId =
   startTaskWithGameDir state kind versionId Nothing
 
-startTaskWithGameDir :: ServerState -> Text -> Text -> Maybe FilePath -> IO Text -> IO TaskSnapshot
+startTaskWithGameDir :: ServerState -> TaskKind -> Text -> Maybe FilePath -> IO Text -> IO TaskSnapshot
 startTaskWithGameDir state kind versionId gameDir action =
   startTaskWithGameDirContext state kind versionId gameDir (const action)
 
-startTaskWithGameDirContext :: ServerState -> Text -> Text -> Maybe FilePath -> (TaskSnapshot -> IO Text) -> IO TaskSnapshot
+startTaskWithGameDirContext :: ServerState -> TaskKind -> Text -> Maybe FilePath -> (TaskSnapshot -> IO Text) -> IO TaskSnapshot
 startTaskWithGameDirContext state kind versionId gameDir =
   startTaskWithGameDirContextAndComponents state kind versionId gameDir Nothing Nothing
 
-startTaskWithGameDirContextAndComponents :: ServerState -> Text -> Text -> Maybe FilePath -> Maybe Text -> Maybe Text -> (TaskSnapshot -> IO Text) -> IO TaskSnapshot
+startTaskWithGameDirContextAndComponents :: ServerState -> TaskKind -> Text -> Maybe FilePath -> Maybe Text -> Maybe Text -> (TaskSnapshot -> IO Text) -> IO TaskSnapshot
 startTaskWithGameDirContextAndComponents state kind versionId gameDir requestedLoader requestedShaderLoader action = do
   now <- getCurrentTime
   taskId <- nextTaskId state kind
@@ -285,7 +287,7 @@ runTask state task action =
               let diagnostic =
                     diagnosticWithTaskId
                       (taskSnapshotId task)
-                      (Diagnostics.classifyException (taskSnapshotKind task) (err :: SomeException))
+                      (Diagnostics.classifyException (taskKindText (taskSnapshotKind task)) (err :: SomeException))
               setTaskState
                 state
                 task
@@ -364,12 +366,12 @@ taskEventPayload taskState errorCode errorDetail diagnostic diagnostics =
       <> maybe [] (\item -> ["diagnostic" .= item]) diagnostic
       <> if null diagnostics then [] else ["diagnostics" .= diagnostics]
 
-nextTaskId :: ServerState -> Text -> IO Text
+nextTaskId :: ServerState -> TaskKind -> IO Text
 nextTaskId state kind =
   atomically $ do
     current <- readTVar (stateNextTaskId state)
     writeTVar (stateNextTaskId state) (current + 1)
-    pure (kind <> "-" <> Text.pack (show current))
+    pure (taskKindText kind <> "-" <> Text.pack (show current))
 
 stateEventSuffix :: TaskState -> Text
 stateEventSuffix TaskQueued = "queued"
@@ -377,6 +379,7 @@ stateEventSuffix TaskRunning = "started"
 stateEventSuffix TaskSucceeded = "succeeded"
 stateEventSuffix TaskFailed = "failed"
 stateEventSuffix TaskCancelled = "cancelled"
+stateEventSuffix (TaskStateOther rawState) = rawState
 
 isTerminalTaskState :: TaskState -> Bool
 isTerminalTaskState taskState =

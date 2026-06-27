@@ -19,6 +19,7 @@ import Panino.Install.Plan.Types
   , InstallPlanRollbackAction(..)
   , InstallPlanSummary(..)
   , TypedInstallPlan(..)
+  , installRollbackActionText
   )
 import Panino.Minecraft.Install
   ( classpathJars
@@ -127,13 +128,13 @@ assertMinecraftInstallPlanGraph = do
         , installNodeKind node == "loaderProfile"
         ]
       loaderProfileRollbacks =
-        [ installRollbackAction (installNodeRollback node)
+        [ installRollbackActionText (installRollbackAction (installNodeRollback node))
         | node <- typedPlanNodes loaderPlan
         , installNodeKind node == "loaderProfile"
         ]
       metadataPlan = installPlanGraphTypedPlan (addInstanceMetadataTypedPlan testLayout loaderGraph)
       metadataRollbacks =
-        [ installRollbackAction (installNodeRollback node)
+        [ installRollbackActionText (installRollbackAction (installNodeRollback node))
         | node <- typedPlanNodes metadataPlan
         , installNodeKind node == "instanceMetadata"
         ]

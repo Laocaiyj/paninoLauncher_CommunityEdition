@@ -9,8 +9,7 @@ import Data.List
   , isPrefixOf
   )
 import Data.Maybe
-  ( fromMaybe
-  , isNothing
+  ( isNothing
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -27,6 +26,10 @@ import Panino.Api.Types
   , ContentInstallFile(..)
   , ContentInstallPlanFile(..)
   , ContentInstallRequest(..)
+  )
+import Panino.Core.Types
+  ( projectIdText
+  , sha1Text
   )
 import Panino.CoreLogic.Determinism (stableSortPackages)
 import qualified Panino.Install.Plan.Types as Plan
@@ -91,8 +94,8 @@ contentFileTypedNode request targetDir isPrimaryFile sourceFile plannedFile requ
     , Plan.installNodePhase = "content"
     , Plan.installNodeLabel = contentPlanFileName plannedFile
     , Plan.installNodeTargetPath = Just (contentPlanTargetPath plannedFile)
-    , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts [contentFileUrl sourceFile | contentPlanFileAction plannedFile /= "keep"]
-    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (contentPlanFileSha1 plannedFile)
+    , Plan.installNodeSourceUrls = [contentFileUrl sourceFile | contentPlanFileAction plannedFile /= "keep"]
+    , Plan.installNodeSha1 = contentPlanFileSha1 plannedFile
     , Plan.installNodeSize = contentPlanFileSize plannedFile
     , Plan.installNodeRequired = True
     , Plan.installNodeDependsOn =
@@ -115,7 +118,7 @@ contentDependencyTypedNode request pairs dependency =
     , Plan.installNodeLabel = contentDependencyName dependency
     , Plan.installNodeTargetPath = contentPlanTargetPath <$> matchingPlannedFile
     , Plan.installNodeSourceUrls = []
-    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (contentDependencySha1 dependency)
+    , Plan.installNodeSha1 = contentDependencySha1 dependency
     , Plan.installNodeSize = matchingPlannedFile >>= contentPlanFileSize
     , Plan.installNodeRequired = contentDependencyRequired dependency
     , Plan.installNodeDependsOn = []
@@ -164,13 +167,13 @@ contentPlanPairKey (sourceFile, plannedFile) =
     [ contentFileKey sourceFile
     , contentPlanFileName plannedFile
     , Text.pack (contentPlanTargetPath plannedFile)
-    , fromMaybe "" (contentPlanFileSha1 plannedFile)
+    , maybe "" sha1Text (contentPlanFileSha1 plannedFile)
     ]
 
 dependencyMatchesPlannedFile :: ContentInstallDependency -> (ContentInstallFile, ContentInstallPlanFile) -> Bool
 dependencyMatchesPlannedFile dependency (sourceFile, plannedFile) =
-  maybe False ((==) (Text.toLower <$> contentDependencySha1 dependency) . Just . Text.toLower) (contentFileSha1 sourceFile)
-    || maybe False ((`Text.isInfixOf` normalizeLookupText (contentPlanFileName plannedFile)) . normalizeLookupText) (contentDependencyProjectId dependency)
+  contentDependencySha1 dependency /= Nothing && contentDependencySha1 dependency == contentFileSha1 sourceFile
+    || maybe False ((`Text.isInfixOf` normalizeLookupText (contentPlanFileName plannedFile)) . normalizeLookupText . projectIdText) (contentDependencyProjectId dependency)
     || normalizeLookupText (contentDependencyName dependency) `Text.isInfixOf` normalizeLookupText (contentPlanFileName plannedFile)
 
 contentFileVerifications :: FilePath -> ContentInstallFile -> ContentInstallPlanFile -> [Plan.InstallVerification]

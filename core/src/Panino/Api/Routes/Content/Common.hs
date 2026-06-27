@@ -37,6 +37,12 @@ import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 import Numeric (showHex)
 import Panino.Api.Types
+import Panino.Core.Types
+  ( Url
+  , projectIdText
+  , urlText
+  , versionIdText
+  )
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (dropExtension, takeDirectory, takeExtension, takeFileName, (</>))
 
@@ -52,8 +58,8 @@ contentDependencyKey dependency =
   Text.intercalate
     "|"
     [ Text.toLower (fromMaybe "" (contentDependencySource dependency))
-    , Text.toLower (fromMaybe "" (contentDependencyProjectId dependency))
-    , Text.toLower (fromMaybe "" (contentDependencyVersionId dependency))
+    , Text.toLower (maybe "" projectIdText (contentDependencyProjectId dependency))
+    , Text.toLower (maybe "" versionIdText (contentDependencyVersionId dependency))
     , Text.toLower (contentDependencyName dependency)
     ]
 
@@ -154,10 +160,10 @@ inferLoaderFromVersionIds versionIds
   | any (Text.isInfixOf "forge" . Text.toLower) versionIds = Just "forge"
   | otherwise = Nothing
 
-isAllowedContentUrl :: Text -> Bool
+isAllowedContentUrl :: Url -> Bool
 isAllowedContentUrl value =
-  "https://" `Text.isPrefixOf` Text.toLower value
-    || "http://" `Text.isPrefixOf` Text.toLower value
+  "https://" `Text.isPrefixOf` Text.toLower (urlText value)
+    || "http://" `Text.isPrefixOf` Text.toLower (urlText value)
 
 missingRequiredDependency :: ContentInstallDependency -> Bool
 missingRequiredDependency dependency =

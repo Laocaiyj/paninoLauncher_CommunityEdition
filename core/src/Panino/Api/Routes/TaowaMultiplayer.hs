@@ -67,6 +67,7 @@ import Panino.Api.Routes.TaowaMultiplayer.Support
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( ApiEvent(..)
+  , TaskKind(..)
   , TaskSnapshot(..)
   )
 import Panino.Diagnostics.Types
@@ -232,7 +233,7 @@ taowaRecommendationsResponse state =
             sortOn (Down . taskSnapshotUpdatedAt) $
               [ task
               | task <- Map.elems taskMap
-              , taskSnapshotKind task == "launch"
+              , taskSnapshotKind task == TaskKindLaunch
               , Just gameDir <- [taskSnapshotGameDir task]
               , not (null gameDir)
               ]

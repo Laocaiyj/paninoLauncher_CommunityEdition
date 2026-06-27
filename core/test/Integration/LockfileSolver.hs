@@ -29,6 +29,7 @@ import Panino.Core.Types
   )
 import Panino.Install.Plan.Executor
   ( InstallPlanExecutionResult(..)
+  , InstallPlanExecutionStatus(..)
   , executeExecutableInstallPlan
   )
 import Panino.Install.Plan.State (requireExecutableInstallPlan)
@@ -231,7 +232,7 @@ assertLockfileSolver = do
                   (runLockfilePlanNode manager)
                   rollbackLockfilePlanNode
                   (\_ -> pure ())
-          assertEqual "lockfile apply runner executes plan downloads" "succeeded" (installExecutionStatus execution)
+          assertEqual "lockfile apply runner executes plan downloads" InstallExecutionSucceeded (installExecutionStatus execution)
           written <- BS8.readFile (applyGameDir </> "mods" </> "downloaded.jar")
           assertEqual "lockfile apply runner writes downloaded file" "downloaded" written
           case solverResultLockfile applyResult of

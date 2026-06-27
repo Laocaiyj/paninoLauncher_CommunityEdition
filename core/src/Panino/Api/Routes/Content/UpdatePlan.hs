@@ -10,6 +10,11 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Api.Routes.Content.Common
 import Panino.Api.Types
+import Panino.Core.Types
+  ( projectIdText
+  , sha1Text
+  , versionIdText
+  )
 import Panino.CoreLogic.Determinism (stableSortPackages)
 import qualified Panino.Install.Plan.Types as Plan
 import System.FilePath ((</>))
@@ -17,7 +22,7 @@ import System.FilePath ((</>))
 resolveContentUpdatePlan :: ContentUpdatePlanRequest -> ContentUpdatePlanResponse
 resolveContentUpdatePlan request =
   ContentUpdatePlanResponse
-    { contentUpdateAction = if null blockedReasons then "update" else "blocked"
+    { contentUpdateAction = if null blockedReasons then ContentPlanUpdate else ContentPlanBlocked
     , contentUpdateMode = updatePlanMode request
     , contentUpdateLockfilePath = updatePlanGameDir request </> "downloads" </> "content-update-lock.json"
     , contentUpdateLockEntries = lockEntries
@@ -102,10 +107,10 @@ contentUpdateResourceKey resource =
   Text.intercalate
     "|"
     [ Text.pack (updateResourceCurrentTargetPath resource)
-    , fromMaybe "" (updateResourceProjectId resource)
+    , maybe "" projectIdText (updateResourceProjectId resource)
     , updateResourceProjectTitle resource
-    , fromMaybe "" (updateResourceRemoteReleaseId resource)
-    , fromMaybe "" (updateResourceRemoteSha1 resource)
+    , maybe "" versionIdText (updateResourceRemoteReleaseId resource)
+    , maybe "" sha1Text (updateResourceRemoteSha1 resource)
     ]
 
 contentUpdateLockEntryKey :: ContentUpdateLockEntry -> Text
@@ -113,17 +118,21 @@ contentUpdateLockEntryKey entry =
   Text.intercalate
     "|"
     [ Text.pack (updateLockTargetPath entry)
-    , fromMaybe "" (updateLockProjectId entry)
-    , fromMaybe "" (updateLockNewReleaseId entry)
-    , fromMaybe "" (updateLockNewSha1 entry)
+    , maybe "" projectIdText (updateLockProjectId entry)
+    , maybe "" versionIdText (updateLockNewReleaseId entry)
+    , maybe "" sha1Text (updateLockNewSha1 entry)
     ]
 
 contentUpdateResourceSelected :: ContentUpdatePlanRequest -> ContentUpdatePlanResource -> Bool
 contentUpdateResourceSelected request resource =
-  case normalizeLoader (updatePlanMode request) of
-    "updateone" -> updateResourceSelected resource == Just True
-    "updateselected" -> updateResourceSelected resource == Just True
-    "updateallsafe" -> True
+  case updatePlanMode request of
+    ContentUpdateSelected -> updateResourceSelected resource == Just True
+    ContentUpdateAllSafe -> True
+    ContentUpdateModeOther rawMode
+      | normalizeLoader rawMode == "updateone" -> updateResourceSelected resource == Just True
+      | normalizeLoader rawMode == "updateselected" -> updateResourceSelected resource == Just True
+      | normalizeLoader rawMode == "updateallsafe" -> True
+      | otherwise -> fromMaybe True (updateResourceSelected resource)
     _ -> fromMaybe True (updateResourceSelected resource)
 
 contentUpdateResourceNode :: ContentUpdatePlanResource -> Plan.InstallPlanNode
@@ -136,12 +145,11 @@ contentUpdateResourceNode resource =
     , Plan.installNodeLabel = updateResourceProjectTitle resource
     , Plan.installNodeTargetPath = Just (updateResourceCurrentTargetPath resource)
     , Plan.installNodeSourceUrls =
-        Plan.installNodeSourceUrlsFromTexts
-          [ url
-          | action `elem` ["replace", "download"]
-          , Just url <- [updateResourceRemoteUrl resource]
-          ]
-    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (updateResourceRemoteSha1 resource <|> updateResourceCurrentSha1 resource)
+        [ url
+        | action `elem` ["replace", "download"]
+        , Just url <- [updateResourceRemoteUrl resource]
+        ]
+    , Plan.installNodeSha1 = updateResourceRemoteSha1 resource <|> updateResourceCurrentSha1 resource
     , Plan.installNodeSize = updateResourceRemoteSize resource
     , Plan.installNodeRequired = True
     , Plan.installNodeDependsOn =
@@ -170,7 +178,7 @@ contentUpdateDependencyNode resource dependency =
     , Plan.installNodeLabel = contentDependencyName dependency
     , Plan.installNodeTargetPath = Nothing
     , Plan.installNodeSourceUrls = []
-    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (contentDependencySha1 dependency)
+    , Plan.installNodeSha1 = contentDependencySha1 dependency
     , Plan.installNodeSize = Nothing
     , Plan.installNodeRequired = contentDependencyRequired dependency
     , Plan.installNodeDependsOn = []
@@ -225,7 +233,7 @@ contentUpdateResourceVerifications resource =
   , Plan.InstallVerification
       "existingFileMatched"
       (if isNothing (updateResourceCurrentSha1 resource) then "warning" else "pending")
-      (updateResourceCurrentSha1 resource)
+      (sha1Text <$> updateResourceCurrentSha1 resource)
   , Plan.InstallVerification
       "backupWritable"
       (if action == "replace" then "pending" else "ok")
@@ -268,7 +276,7 @@ contentUpdateResourceBlockedReason resource
 
 contentUpdateResourceNodeId :: ContentUpdatePlanResource -> Text
 contentUpdateResourceNodeId resource =
-  "update-resource-" <> shortContentHash (Text.pack (updateResourceCurrentTargetPath resource) <> fromMaybe "" (updateResourceRemoteReleaseId resource))
+  "update-resource-" <> shortContentHash (Text.pack (updateResourceCurrentTargetPath resource) <> maybe "" versionIdText (updateResourceRemoteReleaseId resource))
 
 contentUpdateDependencyNodeId :: ContentUpdatePlanResource -> ContentInstallDependency -> Text
 contentUpdateDependencyNodeId resource dependency =

@@ -12,6 +12,9 @@ module Panino.Api.Routes.Minecraft.Phase
   ) where
 
 import Data.Text (Text)
+import Panino.Api.Types
+  ( TaskPhaseId
+  )
 
 data MinecraftTaskPhase
   = MinecraftPhasePrepare
@@ -27,7 +30,7 @@ data MinecraftTaskPhase
 data ProgressPhase = ProgressPhase MinecraftTaskPhase Text
   deriving (Eq, Show)
 
-minecraftTaskPhaseId :: MinecraftTaskPhase -> Text
+minecraftTaskPhaseId :: MinecraftTaskPhase -> TaskPhaseId
 minecraftTaskPhaseId phase =
   case phase of
     MinecraftPhasePrepare -> "prepare"
@@ -39,7 +42,7 @@ minecraftTaskPhaseId phase =
     MinecraftPhaseDownload -> "download"
     MinecraftPhaseInstall -> "install"
 
-progressPhaseId :: ProgressPhase -> Text
+progressPhaseId :: ProgressPhase -> TaskPhaseId
 progressPhaseId (ProgressPhase phase _) =
   minecraftTaskPhaseId phase
 

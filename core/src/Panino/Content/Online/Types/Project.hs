@@ -10,6 +10,12 @@ module Panino.Content.Online.Types.Project
   , OnlineRelease(..)
   , OnlineSearchPage(..)
   , mkContentProjectResponse
+  , onlineDependencyProjectIdText
+  , onlineDependencyVersionIdText
+  , onlineFileDownloadUrlText
+  , onlineProjectIdText
+  , onlineReleaseIdText
+  , onlineReleaseProjectIdText
   ) where
 
 import Control.Applicative ((<|>))
@@ -24,6 +30,15 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
+import Panino.Core.Types
+  ( ProjectId
+  , Url
+  , VersionId
+  , projectIdText
+  , urlFromText
+  , urlText
+  , versionIdText
+  )
 
 data OnlineSearchPage = OnlineSearchPage
   { pageSource :: Text
@@ -179,16 +194,16 @@ installabilityBlocks project maybeRelease maybeFile =
     ]
 
 data OnlineProject = OnlineProject
-  { projectId :: Text
+  { projectId :: ProjectId
   , projectSource :: Text
   , projectSlug :: Maybe Text
   , projectTitle :: Text
   , projectSummary :: Text
   , projectDescription :: Maybe Text
-  , projectIconUrl :: Maybe Text
-  , projectGalleryUrls :: [Text]
+  , projectIconUrl :: Maybe Url
+  , projectGalleryUrls :: [Url]
   , projectAuthors :: [Text]
-  , projectUrl :: Maybe Text
+  , projectUrl :: Maybe Url
   , projectType :: Text
   , projectDownloads :: Int
   , projectFollows :: Maybe Int
@@ -213,10 +228,10 @@ instance ToJSON OnlineProject where
       , "title" .= projectTitle project
       , "summary" .= projectSummary project
       , "description" .= projectDescription project
-      , "iconURL" .= cleanOptionalText (projectIconUrl project)
-      , "galleryURLs" .= cleanTextList (projectGalleryUrls project)
+      , "iconURL" .= cleanOptionalUrl (projectIconUrl project)
+      , "galleryURLs" .= cleanUrlList (projectGalleryUrls project)
       , "authors" .= projectAuthors project
-      , "projectURL" .= cleanOptionalText (projectUrl project)
+      , "projectURL" .= cleanOptionalUrl (projectUrl project)
       , "projectType" .= projectType project
       , "downloads" .= projectDownloads project
       , "follows" .= projectFollows project
@@ -233,8 +248,8 @@ instance ToJSON OnlineProject where
       ]
 
 data OnlineRelease = OnlineRelease
-  { releaseId :: Text
-  , releaseProjectId :: Text
+  { releaseId :: VersionId
+  , releaseProjectId :: ProjectId
   , releaseSource :: Text
   , releaseVersionName :: Text
   , releaseVersionNumber :: Text
@@ -270,7 +285,7 @@ data OnlineFile = OnlineFile
   { fileId :: Text
   , fileName :: Text
   , fileSizeBytes :: Int64
-  , fileDownloadUrl :: Maybe Text
+  , fileDownloadUrl :: Maybe Url
   , fileHashes :: Map Text Text
   , filePrimary :: Bool
   , fileDownloadCount :: Maybe Int
@@ -282,31 +297,47 @@ instance ToJSON OnlineFile where
       [ "id" .= fileId file
       , "fileName" .= fileName file
       , "sizeBytes" .= fileSizeBytes file
-      , "downloadURL" .= cleanOptionalText (fileDownloadUrl file)
+      , "downloadURL" .= cleanOptionalUrl (fileDownloadUrl file)
       , "hashes" .= fileHashes file
       , "isPrimary" .= filePrimary file
       , "downloadCount" .= fileDownloadCount file
       ]
 
-cleanOptionalText :: Maybe Text -> Maybe Text
-cleanOptionalText =
-  (>>= \value -> let trimmed = Text.strip value in if Text.null trimmed then Nothing else Just trimmed)
+onlineProjectIdText :: OnlineProject -> Text
+onlineProjectIdText =
+  projectIdText . projectId
 
-cleanTextList :: [Text] -> [Text]
-cleanTextList =
+onlineReleaseIdText :: OnlineRelease -> Text
+onlineReleaseIdText =
+  versionIdText . releaseId
+
+onlineReleaseProjectIdText :: OnlineRelease -> Text
+onlineReleaseProjectIdText =
+  projectIdText . releaseProjectId
+
+onlineFileDownloadUrlText :: OnlineFile -> Maybe Text
+onlineFileDownloadUrlText =
+  fmap urlText . fileDownloadUrl
+
+cleanOptionalUrl :: Maybe Url -> Maybe Url
+cleanOptionalUrl =
+  (>>= \value -> let trimmed = Text.strip (urlText value) in if Text.null trimmed then Nothing else Just (urlFromText trimmed))
+
+cleanUrlList :: [Url] -> [Url]
+cleanUrlList =
   mapMaybeClean
   where
     mapMaybeClean [] = []
     mapMaybeClean (value:values) =
-      let trimmed = Text.strip value
+      let trimmed = Text.strip (urlText value)
        in if Text.null trimmed
             then mapMaybeClean values
-            else trimmed : mapMaybeClean values
+            else urlFromText trimmed : mapMaybeClean values
 
 data OnlineDependency = OnlineDependency
   { dependencyId :: Text
-  , dependencyProjectId :: Maybe Text
-  , dependencyVersionId :: Maybe Text
+  , dependencyProjectId :: Maybe ProjectId
+  , dependencyVersionId :: Maybe VersionId
   , dependencySource :: Text
   , dependencyRelation :: Text
   } deriving (Eq, Show)
@@ -320,3 +351,11 @@ instance ToJSON OnlineDependency where
       , "source" .= dependencySource dependency
       , "relation" .= dependencyRelation dependency
       ]
+
+onlineDependencyProjectIdText :: OnlineDependency -> Maybe Text
+onlineDependencyProjectIdText =
+  fmap projectIdText . dependencyProjectId
+
+onlineDependencyVersionIdText :: OnlineDependency -> Maybe Text
+onlineDependencyVersionIdText =
+  fmap versionIdText . dependencyVersionId

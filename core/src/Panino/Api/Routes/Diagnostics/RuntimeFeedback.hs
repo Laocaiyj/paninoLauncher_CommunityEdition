@@ -31,7 +31,8 @@ import qualified Data.Text.Read as TextRead
 import Data.Time.Clock (diffUTCTime)
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
-  ( TaskSnapshot(..)
+  ( TaskKind(..)
+  , TaskSnapshot(..)
   , TaskState(..)
   , taskStateText
   )
@@ -93,7 +94,7 @@ latestLaunchTask state gameDir = do
         maybe True (\dir -> taskSnapshotGameDir task == Just dir) gameDir
       tasks =
         filter
-          (\task -> taskSnapshotKind task == "launch" && matchesGameDir task)
+          (\task -> taskSnapshotKind task == TaskKindLaunch && matchesGameDir task)
           (Map.elems taskMap)
   pure (listToMaybe (sortOn (Down . taskSnapshotUpdatedAt) tasks))
 

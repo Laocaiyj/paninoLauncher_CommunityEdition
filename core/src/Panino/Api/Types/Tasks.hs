@@ -2,18 +2,24 @@
 
 module Panino.Api.Types.Tasks
   ( TaskAccepted(..)
+  , TaskKind(..)
+  , TaskPhaseId
   , TaskProgressHost(..)
   , TaskProgressMultipart(..)
   , TaskProgress(..)
   , TaskSnapshot(..)
   , TaskState(..)
+  , taskKindFromText
+  , taskKindText
+  , taskPhaseIdFromText
+  , taskPhaseIdText
+  , taskStateFromText
   , taskStateText
   ) where
 
 import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
-  , Value(..)
   , object
   , withObject
   , (.:)
@@ -22,8 +28,15 @@ import Data.Aeson
   , (.=)
   )
 import Data.Int (Int64)
+import Data.String (IsString(..))
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Time (UTCTime)
+import Panino.Core.WireText
+  ( WireText(..)
+  , parseWireTextJSON
+  , toWireTextJSON
+  )
 import Panino.Diagnostics.Types (Diagnostic)
 
 data TaskState
@@ -32,29 +45,95 @@ data TaskState
   | TaskSucceeded
   | TaskFailed
   | TaskCancelled
+  | TaskStateOther Text
   deriving (Eq, Show)
 
+instance IsString TaskState where
+  fromString =
+    taskStateFromText . Text.pack
+
+taskStateFromText :: Text -> TaskState
+taskStateFromText =
+  parseWireText
+
 taskStateText :: TaskState -> Text
-taskStateText TaskQueued = "queued"
-taskStateText TaskRunning = "running"
-taskStateText TaskSucceeded = "succeeded"
-taskStateText TaskFailed = "failed"
-taskStateText TaskCancelled = "cancelled"
+taskStateText =
+  wireText
+
+instance WireText TaskState where
+  parseWireText value =
+    case value of
+      "queued" -> TaskQueued
+      "running" -> TaskRunning
+      "succeeded" -> TaskSucceeded
+      "failed" -> TaskFailed
+      "cancelled" -> TaskCancelled
+      _ -> TaskStateOther value
+
+  wireText taskState =
+    case taskState of
+      TaskQueued -> "queued"
+      TaskRunning -> "running"
+      TaskSucceeded -> "succeeded"
+      TaskFailed -> "failed"
+      TaskCancelled -> "cancelled"
+      TaskStateOther rawState -> rawState
 
 instance ToJSON TaskState where
-  toJSON = String . taskStateText
+  toJSON =
+    toWireTextJSON
 
 instance FromJSON TaskState where
-  parseJSON (String value) =
+  parseJSON =
+    parseWireTextJSON
+
+data TaskKind
+  = TaskKindInstall
+  | TaskKindLaunch
+  | TaskKindContentInstall
+  | TaskKindRuntimeInstall
+  | TaskKindPerformancePackInstall
+  | TaskKindOther Text
+  deriving (Eq, Show)
+
+instance IsString TaskKind where
+  fromString =
+    taskKindFromText . Text.pack
+
+taskKindFromText :: Text -> TaskKind
+taskKindFromText =
+  parseWireText
+
+taskKindText :: TaskKind -> Text
+taskKindText =
+  wireText
+
+instance WireText TaskKind where
+  parseWireText value =
     case value of
-      "queued" -> pure TaskQueued
-      "running" -> pure TaskRunning
-      "succeeded" -> pure TaskSucceeded
-      "failed" -> pure TaskFailed
-      "cancelled" -> pure TaskCancelled
-      _ -> fail ("unknown task state: " <> show value)
-  parseJSON _ =
-    fail "TaskState must be a string"
+      "install" -> TaskKindInstall
+      "launch" -> TaskKindLaunch
+      "content-install" -> TaskKindContentInstall
+      "runtime.install" -> TaskKindRuntimeInstall
+      "performance-pack-install" -> TaskKindPerformancePackInstall
+      _ -> TaskKindOther value
+
+  wireText taskKind =
+    case taskKind of
+      TaskKindInstall -> "install"
+      TaskKindLaunch -> "launch"
+      TaskKindContentInstall -> "content-install"
+      TaskKindRuntimeInstall -> "runtime.install"
+      TaskKindPerformancePackInstall -> "performance-pack-install"
+      TaskKindOther rawKind -> rawKind
+
+instance ToJSON TaskKind where
+  toJSON =
+    toWireTextJSON
+
+instance FromJSON TaskKind where
+  parseJSON =
+    parseWireTextJSON
 
 data TaskProgressHost = TaskProgressHost
   { taskProgressHostHost :: Text
@@ -130,9 +209,40 @@ instance FromJSON TaskProgressMultipart where
         <*> value .:? "totalBytes" .!= 0
         <*> value .:? "currentSegment"
 
+newtype TaskPhaseId =
+  TaskPhaseId Text
+  deriving (Eq, Ord, Show)
+
+instance IsString TaskPhaseId where
+  fromString =
+    taskPhaseIdFromText . Text.pack
+
+taskPhaseIdFromText :: Text -> TaskPhaseId
+taskPhaseIdFromText =
+  parseWireText
+
+taskPhaseIdText :: TaskPhaseId -> Text
+taskPhaseIdText =
+  wireText
+
+instance WireText TaskPhaseId where
+  parseWireText =
+    TaskPhaseId . Text.strip
+
+  wireText (TaskPhaseId value) =
+    value
+
+instance ToJSON TaskPhaseId where
+  toJSON =
+    toWireTextJSON
+
+instance FromJSON TaskPhaseId where
+  parseJSON =
+    parseWireTextJSON
+
 data TaskProgress = TaskProgress
   { taskProgressTaskId :: Text
-  , taskProgressPhaseId :: Text
+  , taskProgressPhaseId :: TaskPhaseId
   , taskProgressPhaseTitle :: Text
   , taskProgressPhaseIndex :: Int
   , taskProgressPhaseCount :: Int
@@ -208,7 +318,7 @@ instance FromJSON TaskProgress where
 
 data TaskSnapshot = TaskSnapshot
   { taskSnapshotId :: Text
-  , taskSnapshotKind :: Text
+  , taskSnapshotKind :: TaskKind
   , taskSnapshotVersion :: Text
   , taskSnapshotGameDir :: Maybe FilePath
   , taskSnapshotRequestedLoader :: Maybe Text

@@ -29,6 +29,8 @@ import Panino.Install.Plan.Executor
   , blockedInstallPlanExecutionResult
   , executeExecutableInstallPlan
   , installNodeStatusText
+  , installPlanExecutionStatusText
+  , installPlanExecutionSucceeded
   )
 import qualified Panino.Install.Plan.State as PlanState
 import Panino.Minecraft.InstallPlanGraph (dedupeInstallPlanJobs)
@@ -68,8 +70,8 @@ runContentInstallTask state task request planBundle = do
     let executionPath = contentInstallExecutionPath request plan
         lockfilePath = contentInstallLockfilePath request plan
     writeContentInstallExecution executionPath execution
-    unless (installExecutionStatus execution == "succeeded") $
-      fail ("install plan execution failed: " <> Text.unpack (installExecutionStatus execution) <> ". Execution: " <> executionPath)
+    unless (installPlanExecutionSucceeded execution) $
+      fail ("install plan execution failed: " <> Text.unpack (installPlanExecutionStatusText (installExecutionStatus execution)) <> ". Execution: " <> executionPath)
     writeContentInstallLockfile request plan typedPlan execution lockfilePath
     pure
       ( Text.pack
@@ -108,9 +110,9 @@ runContentPlanNode state task request node
 rollbackContentPlanNode :: Plan.InstallPlanNode -> IO ()
 rollbackContentPlanNode node =
   case Plan.installRollbackAction rollback of
-    "removeCreatedFile" ->
+    Plan.InstallRollbackRemoveCreatedFile ->
       traverse_ removeIfExists (Plan.installRollbackTargetPath rollback)
-    "restoreBackup" ->
+    Plan.InstallRollbackRestoreBackup ->
       case (Plan.installRollbackTargetPath rollback, Plan.installRollbackBackupPath rollback) of
         (Just target, Just backup) -> restoreBackup (target, backup)
         _ -> pure ()
@@ -255,7 +257,7 @@ emitDownloadProgress state task progress =
     task
     (taskProgressFromDownload task "content" "Download content" 1 1 progress)
 
-taskProgressFromDownload :: TaskSnapshot -> Text -> Text -> Int -> Int -> DownloadProgress -> TaskProgress
+taskProgressFromDownload :: TaskSnapshot -> TaskPhaseId -> Text -> Int -> Int -> DownloadProgress -> TaskProgress
 taskProgressFromDownload task phaseId phaseTitle phaseIndex phaseCount progress =
   TaskProgress
     { taskProgressTaskId = taskSnapshotId task

@@ -34,6 +34,7 @@ import Panino.Api.Routes.Minecraft.Phase
 import Panino.Api.Server.State (ServerState)
 import Panino.Api.Types
   ( InstallRequest(..)
+  , TaskPhaseId
   , TaskProgress(..)
   , TaskProgressHost(..)
   , TaskProgressMultipart(..)
@@ -186,7 +187,7 @@ clampPercent :: Double -> Double
 clampPercent =
   min 100 . max 0
 
-taskProgressFromDownloadWithOverall :: TaskSnapshot -> Text -> Text -> Int -> Int -> Double -> DownloadProgress -> TaskProgress
+taskProgressFromDownloadWithOverall :: TaskSnapshot -> TaskPhaseId -> Text -> Int -> Int -> Double -> DownloadProgress -> TaskProgress
 taskProgressFromDownloadWithOverall task phaseId phaseTitle phaseIndex phaseCount overallPercent progress =
   TaskProgress
     { taskProgressTaskId = taskSnapshotId task

@@ -7,17 +7,25 @@ module Panino.Api.Types
   , ContentInstallPlanFile(..)
   , ContentInstallPlanResponse(..)
   , ContentInstallRequest(..)
+  , ContentPlanAction(..)
   , ContentUpdateLockEntry(..)
+  , ContentUpdateMode(..)
   , ContentUpdatePlanRequest(..)
   , ContentUpdatePlanResource(..)
   , ContentUpdatePlanResponse(..)
   , ContentTargetCandidate(..)
   , ContentTargetInstance(..)
+  , contentPlanActionFromText
+  , contentPlanActionText
+  , contentUpdateModeFromText
+  , contentUpdateModeText
   , DownloadRuntimeOptions(..)
   , HealthResponse(..)
   , InstallRequest(..)
   , LaunchRequest(..)
   , TaskAccepted(..)
+  , TaskKind(..)
+  , TaskPhaseId
   , TaskProgressHost(..)
   , TaskProgressMultipart(..)
   , TaskProgress(..)
@@ -25,6 +33,11 @@ module Panino.Api.Types
   , TaskState(..)
   , emptyDownloadRuntimeOptions
   , mergeDownloadRuntimeOptions
+  , taskKindFromText
+  , taskKindText
+  , taskPhaseIdFromText
+  , taskPhaseIdText
+  , taskStateFromText
   , taskStateText
   ) where
 

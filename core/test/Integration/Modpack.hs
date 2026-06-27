@@ -26,6 +26,7 @@ import Panino.Install.Plan.Types
   , InstallPlanRollbackAction(..)
   , TypedInstallPlan(..)
   , installNodeActionText
+  , installRollbackActionText
   )
 import Panino.Lockfile.Solver
   ( solveLockfileWithServices
@@ -105,7 +106,7 @@ assertModpackTypedPlan = do
       mrpackShuffledPlan = modpackPreflightTypedPlan mrpackShuffledResponse
       mrpackKinds = map installNodeKind (typedPlanNodes mrpackPlan)
       mrpackOverrideActions =
-        [ (installNodeLabel node, installNodeActionText (installNodeAction node), installRollbackAction (installNodeRollback node))
+        [ (installNodeLabel node, installNodeActionText (installNodeAction node), installRollbackActionText (installRollbackAction (installNodeRollback node)))
         | node <- typedPlanNodes mrpackPlan
         , installNodeKind node == "overrideFile"
         ]

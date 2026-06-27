@@ -29,6 +29,7 @@ import Data.Maybe
   , fromMaybe
   , mapMaybe
   )
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
@@ -45,6 +46,14 @@ import Panino.Content.Online.Types
   , OnlineFile(..)
   , OnlineProject(..)
   , OnlineRelease(..)
+  )
+import Panino.Core.Types
+  ( ProjectId
+  , Url
+  , VersionId
+  , projectIdFromText
+  , urlFromText
+  , versionIdFromText
   )
 
 data ModrinthSearchResponse = ModrinthSearchResponse
@@ -117,16 +126,16 @@ instance FromJSON ModrinthProjectResponse where
 modrinthProjectToOnline :: ModrinthProjectResponse -> OnlineProject
 modrinthProjectToOnline project =
   OnlineProject
-    { projectId = modrinthProjectId project
+    { projectId = onlineProjectIdFromText (modrinthProjectId project)
     , projectSource = "modrinth"
     , projectSlug = modrinthSlug project
     , projectTitle = modrinthTitle project
     , projectSummary = fromMaybe "" (modrinthDescription project)
     , projectDescription = modrinthBody project
-    , projectIconUrl = modrinthIconUrl project
-    , projectGalleryUrls = mapMaybe galleryUrl (modrinthGallery project)
+    , projectIconUrl = fmap onlineUrlFromText (modrinthIconUrl project)
+    , projectGalleryUrls = map onlineUrlFromText (mapMaybe galleryUrl (modrinthGallery project))
     , projectAuthors = maybe [] (: []) (modrinthAuthor project)
-    , projectUrl = modrinthProjectUrl project
+    , projectUrl = fmap onlineUrlFromText (modrinthProjectUrl project)
     , projectType = onlineProjectType (fromMaybe "mod" (modrinthProjectKind project))
     , projectDownloads = fromMaybe 0 (modrinthDownloads project)
     , projectFollows = modrinthFollowers project <|> modrinthFollows project
@@ -204,8 +213,8 @@ instance FromJSON ModrinthVersionResponse where
 modrinthVersionToOnline :: ModrinthVersionResponse -> OnlineRelease
 modrinthVersionToOnline version =
   OnlineRelease
-    { releaseId = modrinthVersionId version
-    , releaseProjectId = modrinthVersionProjectId version
+    { releaseId = onlineVersionIdFromText (modrinthVersionId version)
+    , releaseProjectId = onlineProjectIdFromText (modrinthVersionProjectId version)
     , releaseSource = "modrinth"
     , releaseVersionName = modrinthVersionName version
     , releaseVersionNumber = modrinthVersionNumber version
@@ -243,7 +252,7 @@ modrinthFileToOnline downloads file =
     { fileId = fromMaybe (modrinthFileName file) (Map.lookup "sha1" (modrinthFileHashes file))
     , fileName = modrinthFileName file
     , fileSizeBytes = fromMaybe 0 (modrinthFileSize file)
-    , fileDownloadUrl = modrinthFileUrl file
+    , fileDownloadUrl = fmap onlineUrlFromText (modrinthFileUrl file)
     , fileHashes = modrinthFileHashes file
     , filePrimary = modrinthFilePrimary file
     , fileDownloadCount = downloads
@@ -267,11 +276,23 @@ modrinthDependencyToOnline :: ModrinthDependency -> OnlineDependency
 modrinthDependencyToOnline dependency =
   OnlineDependency
     { dependencyId = Text.intercalate ":" (catMaybes [modrinthDependencyProjectId dependency, modrinthDependencyVersionId dependency, Just (modrinthDependencyType dependency)])
-    , dependencyProjectId = modrinthDependencyProjectId dependency
-    , dependencyVersionId = modrinthDependencyVersionId dependency
+    , dependencyProjectId = fmap onlineProjectIdFromText (modrinthDependencyProjectId dependency)
+    , dependencyVersionId = fmap onlineVersionIdFromText (modrinthDependencyVersionId dependency)
     , dependencySource = "modrinth"
     , dependencyRelation = relationText (modrinthDependencyType dependency)
     }
+
+onlineProjectIdFromText :: Text -> ProjectId
+onlineProjectIdFromText value =
+  fromMaybe (fromString (Text.unpack value)) (projectIdFromText value)
+
+onlineVersionIdFromText :: Text -> VersionId
+onlineVersionIdFromText value =
+  fromMaybe (fromString (Text.unpack value)) (versionIdFromText value)
+
+onlineUrlFromText :: Text -> Url
+onlineUrlFromText =
+  urlFromText
 
 modrinthProjectType :: Text -> Text
 modrinthProjectType "resourcePack" = "resourcepack"

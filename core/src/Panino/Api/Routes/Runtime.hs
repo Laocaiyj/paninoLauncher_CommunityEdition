@@ -43,6 +43,7 @@ import Panino.Api.Routes.Tasks
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( TaskAccepted(..)
+  , TaskPhaseId
   , TaskProgress(..)
   , TaskSnapshot(..)
   )
@@ -229,7 +230,7 @@ emitRuntimeDownloadProgress state task progress =
       , taskProgressMultipart = Nothing
       }
 
-emitRuntimePhase :: ServerState -> TaskSnapshot -> Text -> Text -> Int -> Int -> Double -> Text -> IO ()
+emitRuntimePhase :: ServerState -> TaskSnapshot -> TaskPhaseId -> Text -> Int -> Int -> Double -> Text -> IO ()
 emitRuntimePhase state task phaseId phaseTitle phaseIndex phaseCount overall label =
   emitTaskProgress
     state

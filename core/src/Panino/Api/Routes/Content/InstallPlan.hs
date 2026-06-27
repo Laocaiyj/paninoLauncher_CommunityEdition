@@ -20,7 +20,21 @@ import Panino.Api.Routes.Content.InstallPlan.Typed (contentTypedInstallPlan)
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
 import Panino.Content.Online.Modrinth (modrinthRequiredDependencyReleases)
-import Panino.Content.Online.Types (ContentSearchRequest(..), OnlineDependency(..), OnlineFile(..), OnlineRelease(..))
+import Panino.Content.Online.Types
+  ( ContentSearchRequest(..)
+  , OnlineDependency(..)
+  , OnlineFile(..)
+  , OnlineRelease(..)
+  )
+import Panino.Core.Types
+  ( Sha1
+  , projectIdText
+  , sha1FromText
+  , sha1Text
+  , urlFromText
+  , urlText
+  , versionIdText
+  )
 import Panino.Download.Manager (sha1HexFile)
 import qualified Panino.Install.Plan.Types as Plan
 import System.Directory (doesDirectoryExist, doesFileExist)
@@ -88,7 +102,7 @@ buildContentInstallPlanBundle state request = do
       blockedReasons = Plan.typedPlanBlockedReasons typedPlan
       response =
         ContentInstallPlanResponse
-          { contentPlanAction = if null blockedReasons then "install" else "blocked"
+          { contentPlanAction = if null blockedReasons then ContentPlanInstall else ContentPlanBlocked
           , contentPlanSource = contentInstallSource request
           , contentPlanProjectId = contentInstallProjectId request
           , contentPlanProjectTitle = contentInstallProjectTitle request
@@ -185,7 +199,7 @@ isFabricApiContentRequest request =
   any
     ((== "fabricapi") . normalizeLookupText)
     [ contentInstallProjectTitle request
-    , fromMaybe "" (contentInstallProjectId request)
+    , maybe "" projectIdText (contentInstallProjectId request)
     ]
 
 baseDependencyExpansion :: [ContentInstallDependency] -> ContentDependencyExpansion
@@ -219,8 +233,8 @@ contentDependencyToOnlineDependency request dependency =
     { dependencyId =
         Text.intercalate
           ":"
-          [ fromMaybe "" (contentDependencyProjectId dependency)
-          , fromMaybe "" (contentDependencyVersionId dependency)
+          [ maybe "" projectIdText (contentDependencyProjectId dependency)
+          , maybe "" versionIdText (contentDependencyVersionId dependency)
           , contentDependencyName dependency
           ]
     , dependencyProjectId = contentDependencyProjectId dependency
@@ -237,8 +251,8 @@ onlineFileToContentInstallFile :: OnlineFile -> ContentInstallFile
 onlineFileToContentInstallFile file =
   ContentInstallFile
     { contentFileName = fileName file
-    , contentFileUrl = fromMaybe "" (fileDownloadUrl file)
-    , contentFileSha1 = Map.lookup "sha1" (fileHashes file)
+    , contentFileUrl = fromMaybe (urlFromText "") (fileDownloadUrl file)
+    , contentFileSha1 = Map.lookup "sha1" (fileHashes file) >>= sha1FromText
     , contentFileSize = Just (fileSizeBytes file)
     , contentFilePrimary = Just (filePrimary file)
     }
@@ -254,7 +268,7 @@ contentInstallDependencyFromRelease release = do
       , contentDependencyName = releaseVersionName release
       , contentDependencyRequired = True
       , contentDependencyInstalled = Just True
-      , contentDependencySha1 = Map.lookup "sha1" (fileHashes file)
+      , contentDependencySha1 = Map.lookup "sha1" (fileHashes file) >>= sha1FromText
       }
 
 preferredOnlineFile :: [OnlineFile] -> Maybe OnlineFile
@@ -265,7 +279,7 @@ releaseMissingDownload :: OnlineRelease -> Bool
 releaseMissingDownload release =
   case preferredOnlineFile (releaseFiles release) of
     Nothing -> True
-    Just file -> maybe True Text.null (fileDownloadUrl file)
+    Just file -> maybe True (Text.null . urlText) (fileDownloadUrl file)
 
 markResolvedContentDependencies :: [OnlineRelease] -> [ContentInstallDependency] -> [ContentInstallDependency]
 markResolvedContentDependencies releases =
@@ -282,9 +296,11 @@ markResolvedContentDependencies releases =
             , contentDependencySha1 = contentDependencySha1 dependency <|> releaseSha1 release
             }
 
-releaseSha1 :: OnlineRelease -> Maybe Text
+releaseSha1 :: OnlineRelease -> Maybe Sha1
 releaseSha1 release =
-  preferredOnlineFile (releaseFiles release) >>= Map.lookup "sha1" . fileHashes
+  case preferredOnlineFile (releaseFiles release) >>= Map.lookup "sha1" . fileHashes of
+    Nothing -> Nothing
+    Just value -> sha1FromText value
 
 dependencyMatchesRelease :: ContentInstallDependency -> OnlineRelease -> Bool
 dependencyMatchesRelease dependency release =
@@ -361,7 +377,7 @@ resolveInstallDependencies :: FilePath -> [ContentInstallDependency] -> IO [Cont
 resolveInstallDependencies targetDir dependencies = do
   entries <- safeListDirectory targetDir
   let normalizedEntries = map (normalizeLookupText . Text.pack) entries
-      dependencyHashes = [Text.toLower hashValue | Just hashValue <- map contentDependencySha1 dependencies]
+      dependencyHashes = [sha1Text hashValue | Just hashValue <- map contentDependencySha1 dependencies]
   entryHashes <-
     if null dependencyHashes
       then pure []
@@ -390,11 +406,11 @@ resolveDependency normalizedEntries entryHashes dependency =
     keys =
       filter
         ((>= 4) . Text.length)
-        (map normalizeLookupText (contentDependencyName dependency : maybe [] (: []) (contentDependencyProjectId dependency)))
+        (map normalizeLookupText (contentDependencyName dependency : maybe [] ((: []) . projectIdText) (contentDependencyProjectId dependency)))
     hasDependencyFile =
       any (\key -> any (Text.isInfixOf key) normalizedEntries) keys
     hasDependencySha1 =
-      case Text.toLower <$> contentDependencySha1 dependency of
+      case sha1Text <$> contentDependencySha1 dependency of
         Nothing -> False
         Just expected -> Just expected `elem` entryHashes
 
@@ -404,7 +420,7 @@ planContentFile targetDir file = do
   exists <- doesFileExist targetPath
   matchingHash <-
     case (exists, contentFileSha1 file) of
-      (True, Just expected) -> (== Text.toLower expected) <$> sha1HexFile targetPath
+      (True, Just expected) -> (== sha1Text expected) <$> sha1HexFile targetPath
       _ -> pure False
   pure
     ContentInstallPlanFile

@@ -47,6 +47,7 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( InstallRequest(..)
   , TaskSnapshot(..)
+  , taskPhaseIdText
   )
 import Panino.Download.Manager
   ( DownloadException(..)
@@ -235,7 +236,7 @@ installFailureDetail layout request preflight err originalCode finalCode failedP
         , "shaderProjects=" <> Text.intercalate "," (preflightResponseShaderProjects preflight)
         , "blockedReasons=" <> Text.intercalate "," (preflightResponseBlockedReasons preflight)
         , "originalErrorCode=" <> originalCode
-        , "failedPhase=" <> minecraftTaskPhaseId failedPhase
+        , "failedPhase=" <> taskPhaseIdText (minecraftTaskPhaseId failedPhase)
         , "rollbackState=" <> installRollbackStatus rollback
         , "rollbackReport=" <> Text.pack (installRollbackReportPath rollback)
         , "loaderLog=" <> Text.pack (minecraftRoot layout </> "downloads" </> "loader-install.log")

@@ -54,6 +54,8 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( TaskSnapshot(..)
   , TaskState(..)
+  , taskKindText
+  , taskStateText
   )
 import qualified Panino.Diagnostics.Classify as Diagnostics
 
@@ -112,12 +114,12 @@ clearTaskHistoryResponse state request = do
           keepFailed = fromMaybe False (clearKeepFailed clearRequest)
           maxAgeDays = clearOlderThanDays clearRequest
           shouldClear task =
-            taskStateTextLocal (taskSnapshotState task) `elem` statusFilters
+            taskStateText (taskSnapshotState task) `elem` statusFilters
               && maybe True (isOlderThanDays now task) maxAgeDays
               && not (keepFailed && taskSnapshotState task == TaskFailed)
           isActiveClearCandidate task =
             taskSnapshotState task `elem` [TaskQueued, TaskRunning]
-              && taskStateTextLocal (taskSnapshotState task) `elem` statusFilters
+              && taskStateText (taskSnapshotState task) `elem` statusFilters
               && maybe True (isOlderThanDays now task) maxAgeDays
       (deletedCount, keptCount, skippedActiveCount) <- atomically $ do
         taskMap <- readTVar (stateTasks state)
@@ -156,10 +158,10 @@ matchesFilters statusFilters kindFilters task =
   where
     statusMatches =
       null statusFilters
-        || taskStateTextLocal (taskSnapshotState task) `elem` statusFilters
+        || taskStateText (taskSnapshotState task) `elem` statusFilters
     kindMatches =
       null kindFilters
-        || taskSnapshotKind task `elem` kindFilters
+        || taskKindText (taskSnapshotKind task) `elem` kindFilters
 
 queryTextList :: BS.ByteString -> [(BS.ByteString, Maybe BS.ByteString)] -> [Text]
 queryTextList key query =
@@ -182,13 +184,6 @@ queryInt key fallback query =
 terminalStatusTexts :: [Text]
 terminalStatusTexts =
   ["succeeded", "failed", "cancelled"]
-
-taskStateTextLocal :: TaskState -> Text
-taskStateTextLocal TaskQueued = "queued"
-taskStateTextLocal TaskRunning = "running"
-taskStateTextLocal TaskSucceeded = "succeeded"
-taskStateTextLocal TaskFailed = "failed"
-taskStateTextLocal TaskCancelled = "cancelled"
 
 isOlderThanDays :: UTCTime -> TaskSnapshot -> Int -> Bool
 isOlderThanDays now task days =

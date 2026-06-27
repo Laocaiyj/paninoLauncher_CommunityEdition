@@ -38,6 +38,11 @@ import Panino.Content.Online.Types
   , OnlineDependency(..)
   , OnlineFile(..)
   , OnlineRelease(..)
+  , onlineDependencyProjectIdText
+  , onlineDependencyVersionIdText
+  , onlineFileDownloadUrlText
+  , onlineReleaseIdText
+  , onlineReleaseProjectIdText
   )
 import Panino.CoreLogic.Determinism
   ( stableSortPackages
@@ -46,9 +51,8 @@ import Panino.CoreLogic.Determinism
 import Panino.Core.Types
   ( RelativePath
   , projectIdFromText
+  , projectIdText
   , relativePathFromFilePath
-  , urlFromText
-  , versionIdFromText
   )
 import Panino.Lockfile.Normalize
   ( dedupePackages
@@ -183,19 +187,20 @@ curseForgeRequiredDependencyPackages manager request =
           case dependencyProjectId dependency of
             Nothing -> fail "CurseForge required dependency is missing projectId"
             Just projectIdValue -> do
+              let projectIdTextValue = projectIdText projectIdValue
               response <-
                 curseForgeProject
                   manager
                   ContentProjectRequest
                     { contentProjectSource = "curseForge"
-                    , contentProjectId = projectIdValue
+                    , contentProjectId = projectIdTextValue
                     , contentProjectQuery = onlineContentQuery "curseForge" "mod" request
                     , contentProjectCurseForgeApiKey = solveRequestCurseForgeApiKey request
                     }
               release <-
                 case preferredContentRelease response of
                   Just value -> pure value
-                  Nothing -> fail ("no compatible CurseForge dependency release found for " <> Text.unpack projectIdValue)
+                  Nothing -> fail ("no compatible CurseForge dependency release found for " <> Text.unpack projectIdTextValue)
               let package = onlineReleaseToPackage release
                   visited' = dependencyVisitKeysLocal dependency <> [resolvedPackageId package] <> visited
               nested <- concat <$> mapM (resolveDependency visited') (requiredCurseForgeDependenciesForPackage package)
@@ -216,6 +221,7 @@ requiredCurseForgeDependenciesForPackage package =
             , "required"
             ]
       , dependencyProjectId = constraintTargetPackageId constraint
+          >>= projectIdFromText
       , dependencyVersionId = Nothing
       , dependencySource = "curseForge"
       , dependencyRelation = "required"
@@ -231,8 +237,8 @@ dependencyVisitKeysLocal :: OnlineDependency -> [Text]
 dependencyVisitKeysLocal dependency =
   catMaybes
     [ Just (dependencyId dependency)
-    , dependencyProjectId dependency
-    , dependencyVersionId dependency
+    , onlineDependencyProjectIdText dependency
+    , onlineDependencyVersionIdText dependency
     ]
 
 onlineContentQuery :: Text -> Text -> LockfileSolveRequest -> ContentSearchRequest
@@ -271,6 +277,7 @@ requiredModrinthDependencies request =
               , "required"
               ]
         , dependencyProjectId = constraintTargetPackageId constraint
+            >>= projectIdFromText
         , dependencyVersionId = Nothing
         , dependencySource = "modrinth"
         , dependencyRelation = "required"
@@ -303,24 +310,24 @@ modrinthDependencyQuery request =
 onlineReleaseToPackage :: OnlineRelease -> ResolvedPackage
 onlineReleaseToPackage release =
   ResolvedPackage
-    { resolvedPackageId = releaseProjectId release
+    { resolvedPackageId = releaseProjectIdValue
     , resolvedPackageCoordinate =
         PackageCoordinate
           { coordinateSource = packageSourceFromText (releaseSource release)
-          , coordinateProjectId = projectIdFromText (releaseProjectId release)
-          , coordinateVersionId = versionIdFromText (releaseId release)
+          , coordinateProjectId = Just (releaseProjectId release)
+          , coordinateVersionId = Just (releaseId release)
           , coordinateFileId = fileId <$> selectedFile
-          , coordinateSlug = Just (releaseProjectId release)
-          , coordinateName = Just (releaseProjectId release)
+          , coordinateSlug = Just releaseProjectIdValue
+          , coordinateName = Just releaseProjectIdValue
           , coordinateKind = "mod"
           }
-    , resolvedPackageDisplayName = releaseProjectId release
+    , resolvedPackageDisplayName = releaseProjectIdValue
     , resolvedPackageVersionName = Just (releaseVersionName release)
     , resolvedPackageFileName = fileName <$> selectedFile
     , resolvedPackageTargetPath = selectedFile >>= targetPathForOnlineFile "mod"
     , resolvedPackageHashes = maybe Map.empty fileHashes selectedFile
     , resolvedPackageSize = fileSizeBytes <$> selectedFile
-    , resolvedPackageDownloadUrls = maybe [] (maybe [] ((: []) . urlFromText) . fileDownloadUrl) selectedFile
+    , resolvedPackageDownloadUrls = maybe [] (maybe [] (: []) . fileDownloadUrl) selectedFile
     , resolvedPackageGameVersions = stableTextSet (releaseGameVersions release)
     , resolvedPackageLoaders = stableTextSet (map normalizeLoader (releaseLoaders release))
     , resolvedPackageJavaMajor = Nothing
@@ -328,12 +335,14 @@ onlineReleaseToPackage release =
     , resolvedPackageSelectedBecause = [normalizeSource (releaseSource release) <> " release resolver"]
     , resolvedPackageLocked = False
     , resolvedPackagePinReason = Nothing
-    , resolvedPackageDependencies = map (onlineDependencyToConstraint (releaseProjectId release)) (releaseDependencies release)
+    , resolvedPackageDependencies = map (onlineDependencyToConstraint releaseProjectIdValue) (releaseDependencies release)
     , resolvedPackageConflicts = []
-    , resolvedPackageSourceSnapshot = Just (normalizeSource (releaseSource release) <> ":" <> releaseId release)
+    , resolvedPackageSourceSnapshot = Just (normalizeSource (releaseSource release) <> ":" <> releaseIdValue)
     }
   where
     selectedFile = preferredOnlineFile (releaseFiles release)
+    releaseProjectIdValue = onlineReleaseProjectIdText release
+    releaseIdValue = onlineReleaseIdText release
 
 onlineReleaseToPackageForRoot :: ResolvedPackage -> OnlineRelease -> ResolvedPackage
 onlineReleaseToPackageForRoot root release =
@@ -381,10 +390,10 @@ onlineDependencyToConstraint sourcePackage dependency =
           ":"
           [ sourcePackage
           , normalizeRelation (dependencyRelation dependency)
-          , fromMaybe (dependencyId dependency) (dependencyProjectId dependency <|> dependencyVersionId dependency)
+          , fromMaybe (dependencyId dependency) (dependencyTargetIdText dependency)
           ]
     , constraintSourcePackage = Just sourcePackage
-    , constraintTargetPackageId = dependencyProjectId dependency <|> dependencyVersionId dependency
+    , constraintTargetPackageId = dependencyTargetIdText dependency
     , constraintTargetKind = "mod"
     , constraintRelation = normalizeRelation (dependencyRelation dependency)
     , constraintMinecraftVersions = []
@@ -392,8 +401,12 @@ onlineDependencyToConstraint sourcePackage dependency =
     , constraintJavaMajor = Nothing
     , constraintSide = Just "client"
     , constraintRequired = Text.toLower (dependencyRelation dependency) == "required"
-    , constraintReason = sourcePackage <> " " <> dependencyRelation dependency <> " " <> fromMaybe (dependencyId dependency) (dependencyProjectId dependency <|> dependencyVersionId dependency) <> " from " <> dependencySource dependency <> " metadata."
+    , constraintReason = sourcePackage <> " " <> dependencyRelation dependency <> " " <> fromMaybe (dependencyId dependency) (dependencyTargetIdText dependency) <> " from " <> dependencySource dependency <> " metadata."
     }
+
+dependencyTargetIdText :: OnlineDependency -> Maybe Text
+dependencyTargetIdText dependency =
+  onlineDependencyProjectIdText dependency <|> onlineDependencyVersionIdText dependency
 
 preferredOnlineFile :: [OnlineFile] -> Maybe OnlineFile
 preferredOnlineFile files =
@@ -406,8 +419,8 @@ onlineDependencyKey dependency =
   Text.intercalate
     "|"
     [ dependencyId dependency
-    , fromMaybe "" (dependencyProjectId dependency)
-    , fromMaybe "" (dependencyVersionId dependency)
+    , fromMaybe "" (onlineDependencyProjectIdText dependency)
+    , fromMaybe "" (onlineDependencyVersionIdText dependency)
     , dependencySource dependency
     , dependencyRelation dependency
     ]
@@ -418,5 +431,5 @@ onlineFileKey file =
     "|"
     [ fileId file
     , fileName file
-    , fromMaybe "" (fileDownloadUrl file)
+    , fromMaybe "" (onlineFileDownloadUrlText file)
     ]

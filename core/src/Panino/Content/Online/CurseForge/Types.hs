@@ -29,6 +29,7 @@ import Data.Maybe
   ( fromMaybe
   , mapMaybe
   )
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
@@ -41,6 +42,14 @@ import Panino.Content.Online.Types
   , OnlineFile(..)
   , OnlineProject(..)
   , OnlineRelease(..)
+  )
+import Panino.Core.Types
+  ( ProjectId
+  , Url
+  , VersionId
+  , projectIdFromText
+  , urlFromText
+  , versionIdFromText
   )
 
 data CurseEnvelope value = CurseEnvelope
@@ -108,16 +117,16 @@ instance FromJSON CurseModResponse where
 curseProjectToOnline :: CurseModResponse -> OnlineProject
 curseProjectToOnline project =
   OnlineProject
-    { projectId = Text.pack (show (curseModId project))
+    { projectId = onlineProjectIdFromText (Text.pack (show (curseModId project)))
     , projectSource = "curseForge"
     , projectSlug = curseSlug project
     , projectTitle = curseName project
     , projectSummary = fromMaybe "" (curseSummary project)
     , projectDescription = Nothing
-    , projectIconUrl = curseLogo project >>= curseAssetUrl
-    , projectGalleryUrls = mapMaybe curseAssetUrl (curseScreenshots project)
+    , projectIconUrl = fmap onlineUrlFromText (curseLogo project >>= curseAssetUrl)
+    , projectGalleryUrls = map onlineUrlFromText (mapMaybe curseAssetUrl (curseScreenshots project))
     , projectAuthors = map curseAuthorName (curseAuthors project)
-    , projectUrl = curseLinks project >>= curseWebsiteUrl
+    , projectUrl = fmap onlineUrlFromText (curseLinks project >>= curseWebsiteUrl)
     , projectType = curseProjectType (curseClassId project)
     , projectDownloads = fromMaybe 0 (curseDownloadCount project)
     , projectFollows = Nothing
@@ -233,8 +242,8 @@ instance FromJSON CurseFileResponse where
 curseFileToOnline :: Text -> CurseFileResponse -> OnlineRelease
 curseFileToOnline projectIdValue file =
   OnlineRelease
-    { releaseId = Text.pack (show (curseFileId file))
-    , releaseProjectId = projectIdValue
+    { releaseId = onlineVersionIdFromText (Text.pack (show (curseFileId file)))
+    , releaseProjectId = onlineProjectIdFromText projectIdValue
     , releaseSource = "curseForge"
     , releaseVersionName = fromMaybe (curseFileName file) (curseFileDisplayName file)
     , releaseVersionNumber = fromMaybe (Text.pack (show (curseFileId file))) (curseFileDisplayName file)
@@ -247,7 +256,7 @@ curseFileToOnline projectIdValue file =
             { fileId = Text.pack (show (curseFileId file))
             , fileName = curseFileName file
             , fileSizeBytes = fromMaybe 0 (curseFileLength file)
-            , fileDownloadUrl = curseFileDownloadUrl file
+            , fileDownloadUrl = fmap onlineUrlFromText (curseFileDownloadUrl file)
             , fileHashes = Map.fromList (map curseHashPair (curseFileHashes file))
             , filePrimary = True
             , fileDownloadCount = curseFileDownloadCount file
@@ -295,11 +304,23 @@ curseDependencyToOnline :: CurseDependency -> OnlineDependency
 curseDependencyToOnline dependency =
   OnlineDependency
     { dependencyId = Text.pack (show (curseDependencyModId dependency) <> ":" <> show (curseDependencyRelationType dependency))
-    , dependencyProjectId = Just (Text.pack (show (curseDependencyModId dependency)))
+    , dependencyProjectId = Just (onlineProjectIdFromText (Text.pack (show (curseDependencyModId dependency))))
     , dependencyVersionId = Nothing
     , dependencySource = "curseForge"
     , dependencyRelation = curseRelation (curseDependencyRelationType dependency)
     }
+
+onlineProjectIdFromText :: Text -> ProjectId
+onlineProjectIdFromText value =
+  fromMaybe (fromString (Text.unpack value)) (projectIdFromText value)
+
+onlineVersionIdFromText :: Text -> VersionId
+onlineVersionIdFromText value =
+  fromMaybe (fromString (Text.unpack value)) (versionIdFromText value)
+
+onlineUrlFromText :: Text -> Url
+onlineUrlFromText =
+  urlFromText
 
 curseProjectType :: Maybe Int -> Text
 curseProjectType (Just 4471) = "modpack"

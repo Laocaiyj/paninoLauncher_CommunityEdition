@@ -4,12 +4,15 @@
 module Panino.Install.Plan.Executor
   ( InstallNodeResult(..)
   , InstallNodeStatus(..)
+  , InstallPlanExecutionStatus(..)
   , InstallPlanExecutionResult(..)
   , blockedInstallPlanExecutionResult
   , executeExecutableInstallPlan
   , executeInstallPlan
   , installPlanExecutionBatches
   , installNodeStatusText
+  , installPlanExecutionStatusText
+  , installPlanExecutionSucceeded
   ) where
 
 import Control.Applicative ((<|>))
@@ -43,6 +46,7 @@ import Panino.Install.Plan.Types
   , TypedInstallPlan(..)
   , installNodeActionText
   , installNodePhaseText
+  , installVerificationStatusIsError
   )
 import Panino.Install.Plan.State
   ( BlockedInstallPlan
@@ -91,6 +95,29 @@ instance ToJSON InstallNodeStatus where
   toJSON =
     toJSON . installNodeStatusText
 
+data InstallPlanExecutionStatus
+  = InstallExecutionBlocked
+  | InstallExecutionSucceeded
+  | InstallExecutionFailed
+  | InstallExecutionRollbackFailed
+  deriving (Eq, Show)
+
+installPlanExecutionStatusText :: InstallPlanExecutionStatus -> Text
+installPlanExecutionStatusText status =
+  case status of
+    InstallExecutionBlocked -> "blocked"
+    InstallExecutionSucceeded -> "succeeded"
+    InstallExecutionFailed -> "failed"
+    InstallExecutionRollbackFailed -> "rollbackFailed"
+
+installPlanExecutionSucceeded :: InstallPlanExecutionResult -> Bool
+installPlanExecutionSucceeded result =
+  installExecutionStatus result == InstallExecutionSucceeded
+
+instance ToJSON InstallPlanExecutionStatus where
+  toJSON =
+    toJSON . installPlanExecutionStatusText
+
 data InstallNodeResult = InstallNodeResult
   { installResultNodeId :: Text
   , installResultNodeKind :: Maybe Text
@@ -115,7 +142,7 @@ instance ToJSON InstallNodeResult where
 
 data InstallPlanExecutionResult = InstallPlanExecutionResult
   { installExecutionPlanId :: Text
-  , installExecutionStatus :: Text
+  , installExecutionStatus :: InstallPlanExecutionStatus
   , installExecutionResults :: [InstallNodeResult]
   , installExecutionCompletedNodeIds :: [Text]
   , installExecutionFailedNodeId :: Maybe Text
@@ -210,7 +237,7 @@ blockedInstallPlanExecutionResult blocked emitResult = do
   pure
     InstallPlanExecutionResult
       { installExecutionPlanId = typedPlanId plan
-      , installExecutionStatus = "blocked"
+      , installExecutionStatus = InstallExecutionBlocked
       , installExecutionResults = results
       , installExecutionCompletedNodeIds = []
       , installExecutionFailedNodeId = Nothing
@@ -239,7 +266,7 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
           pure
             InstallPlanExecutionResult
               { installExecutionPlanId = typedPlanId plan
-              , installExecutionStatus = "blocked"
+              , installExecutionStatus = InstallExecutionBlocked
               , installExecutionResults = [result]
               , installExecutionCompletedNodeIds = []
               , installExecutionFailedNodeId = Nothing
@@ -253,7 +280,7 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
       pure
         InstallPlanExecutionResult
           { installExecutionPlanId = typedPlanId plan
-          , installExecutionStatus = "succeeded"
+          , installExecutionStatus = InstallExecutionSucceeded
           , installExecutionResults = results
           , installExecutionCompletedNodeIds = map installNodeId completed
           , installExecutionFailedNodeId = Nothing
@@ -284,8 +311,8 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
               { installExecutionPlanId = typedPlanId plan
               , installExecutionStatus =
                   if any ((== InstallNodeRollbackFailed) . installResultStatus) rollbackResults
-                    then "rollbackFailed"
-                    else "failed"
+                    then InstallExecutionRollbackFailed
+                    else InstallExecutionFailed
               , installExecutionResults = nextResults <> skippedResults <> rollbackResults
               , installExecutionCompletedNodeIds = map installNodeId (completed <> succeededNodes)
               , installExecutionFailedNodeId = Just (installNodeId node)
@@ -363,7 +390,7 @@ nodeVerificationError node =
   listToMaybe
     [ installVerificationKind verification <> maybe "" ((": " <>) ) (installVerificationMessage verification)
     | verification <- installNodeVerifications node
-    , installVerificationStatus verification == "error"
+    , installVerificationStatusIsError (installVerificationStatus verification)
     ]
 
 executionNodeKey :: InstallPlanNode -> Text

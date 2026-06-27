@@ -6,9 +6,11 @@ module Panino.Install.Plan.Types
   , InstallNodePhase(..)
   , InstallPlanNode(..)
   , InstallPlanRollbackAction(..)
+  , InstallRollbackActionKind(..)
   , InstallPlanStatus(..)
   , InstallPlanSummary(..)
   , InstallVerification(..)
+  , InstallVerificationStatus(..)
   , TypedInstallPlan(..)
   , finalizeTypedInstallPlan
   , installPlanFingerprint
@@ -23,8 +25,13 @@ module Panino.Install.Plan.Types
   , installNodeSha1Text
   , installNodeSourceUrlsFromTexts
   , installNodeSourceUrlTexts
+  , installRollbackActionFromText
+  , installRollbackActionText
   , installPlanStatusFromText
   , installPlanStatusText
+  , installVerificationStatusFromText
+  , installVerificationStatusIsError
+  , installVerificationStatusText
   , summarizeInstallPlanNodes
   , typedPlanTargetGameDirFromPath
   , typedPlanTargetGameDirPath
@@ -461,9 +468,59 @@ instance FromJSON InstallPlanEdge where
 
 data InstallVerification = InstallVerification
   { installVerificationKind :: Text
-  , installVerificationStatus :: Text
+  , installVerificationStatus :: InstallVerificationStatus
   , installVerificationMessage :: Maybe Text
   } deriving (Eq, Show)
+
+data InstallVerificationStatus
+  = InstallVerificationPending
+  | InstallVerificationOk
+  | InstallVerificationWarning
+  | InstallVerificationError
+  | InstallVerificationStatusOther Text
+  deriving (Eq, Show)
+
+instance IsString InstallVerificationStatus where
+  fromString =
+    installVerificationStatusFromText . Text.pack
+
+installVerificationStatusFromText :: Text -> InstallVerificationStatus
+installVerificationStatusFromText =
+  parseWireText
+
+installVerificationStatusText :: InstallVerificationStatus -> Text
+installVerificationStatusText =
+  wireText
+
+installVerificationStatusIsError :: InstallVerificationStatus -> Bool
+installVerificationStatusIsError =
+  (== InstallVerificationError)
+
+instance WireText InstallVerificationStatus where
+  parseWireText status =
+    case Text.toLower status of
+      "" -> InstallVerificationPending
+      "pending" -> InstallVerificationPending
+      "ok" -> InstallVerificationOk
+      "warning" -> InstallVerificationWarning
+      "error" -> InstallVerificationError
+      _ -> InstallVerificationStatusOther status
+
+  wireText status =
+    case status of
+      InstallVerificationPending -> "pending"
+      InstallVerificationOk -> "ok"
+      InstallVerificationWarning -> "warning"
+      InstallVerificationError -> "error"
+      InstallVerificationStatusOther rawStatus -> rawStatus
+
+instance ToJSON InstallVerificationStatus where
+  toJSON =
+    toWireTextJSON
+
+instance FromJSON InstallVerificationStatus where
+  parseJSON =
+    parseWireTextJSON
 
 instance ToJSON InstallVerification where
   toJSON verification =
@@ -482,11 +539,60 @@ instance FromJSON InstallVerification where
         <*> obj .:? "message"
 
 data InstallPlanRollbackAction = InstallPlanRollbackAction
-  { installRollbackAction :: Text
+  { installRollbackAction :: InstallRollbackActionKind
   , installRollbackTargetPath :: Maybe FilePath
   , installRollbackBackupPath :: Maybe FilePath
   , installRollbackReason :: Maybe Text
   } deriving (Eq, Show)
+
+data InstallRollbackActionKind
+  = InstallRollbackNone
+  | InstallRollbackNoneWithReason
+  | InstallRollbackRemoveCreatedFile
+  | InstallRollbackRestoreBackup
+  | InstallRollbackDeleteEmptyDirectory
+  | InstallRollbackActionOther Text
+  deriving (Eq, Show)
+
+instance IsString InstallRollbackActionKind where
+  fromString =
+    installRollbackActionFromText . Text.pack
+
+installRollbackActionFromText :: Text -> InstallRollbackActionKind
+installRollbackActionFromText =
+  parseWireText
+
+installRollbackActionText :: InstallRollbackActionKind -> Text
+installRollbackActionText =
+  wireText
+
+instance WireText InstallRollbackActionKind where
+  parseWireText action =
+    case Text.toLower action of
+      "" -> InstallRollbackNoneWithReason
+      "none" -> InstallRollbackNone
+      "nonewithreason" -> InstallRollbackNoneWithReason
+      "removecreatedfile" -> InstallRollbackRemoveCreatedFile
+      "restorebackup" -> InstallRollbackRestoreBackup
+      "deleteemptydirectory" -> InstallRollbackDeleteEmptyDirectory
+      _ -> InstallRollbackActionOther action
+
+  wireText action =
+    case action of
+      InstallRollbackNone -> "none"
+      InstallRollbackNoneWithReason -> "noneWithReason"
+      InstallRollbackRemoveCreatedFile -> "removeCreatedFile"
+      InstallRollbackRestoreBackup -> "restoreBackup"
+      InstallRollbackDeleteEmptyDirectory -> "deleteEmptyDirectory"
+      InstallRollbackActionOther rawAction -> rawAction
+
+instance ToJSON InstallRollbackActionKind where
+  toJSON =
+    toWireTextJSON
+
+instance FromJSON InstallRollbackActionKind where
+  parseJSON =
+    parseWireTextJSON
 
 instance ToJSON InstallPlanRollbackAction where
   toJSON rollback =
@@ -642,7 +748,7 @@ verificationFingerprint verification =
   Text.intercalate
     "|"
     [ installVerificationKind verification
-    , installVerificationStatus verification
+    , installVerificationStatusText (installVerificationStatus verification)
     , fromMaybe "" (installVerificationMessage verification)
     ]
 
@@ -650,7 +756,7 @@ rollbackFingerprint :: InstallPlanRollbackAction -> Text
 rollbackFingerprint rollback =
   Text.intercalate
     "|"
-    [ installRollbackAction rollback
+    [ installRollbackActionText (installRollbackAction rollback)
     , Text.pack (fromMaybe "" (installRollbackTargetPath rollback))
     , Text.pack (fromMaybe "" (installRollbackBackupPath rollback))
     , fromMaybe "" (installRollbackReason rollback)

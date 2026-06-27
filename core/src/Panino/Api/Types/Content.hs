@@ -8,18 +8,25 @@ module Panino.Api.Types.Content
   , ContentInstallPlanFile(..)
   , ContentInstallPlanResponse(..)
   , ContentInstallRequest(..)
+  , ContentPlanAction(..)
   , ContentUpdateLockEntry(..)
+  , ContentUpdateMode(..)
   , ContentUpdatePlanRequest(..)
   , ContentUpdatePlanResource(..)
   , ContentUpdatePlanResponse(..)
   , ContentTargetCandidate(..)
   , ContentTargetInstance(..)
+  , contentPlanActionFromText
+  , contentPlanActionText
+  , contentUpdateModeFromText
+  , contentUpdateModeText
   ) where
 
 import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
   , object
+  , withText
   , withObject
   , (.:)
   , (.:?)
@@ -28,17 +35,110 @@ import Data.Aeson
   )
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
+import Data.String (IsString(..))
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Panino.Api.Types.Download
   ( DownloadRuntimeOptions
   , mergeDownloadRuntimeOptions
   )
+import Panino.Core.Types
+  ( ProjectId
+  , Sha1
+  , Url
+  , VersionId
+  )
+import Panino.Core.WireText
+  ( WireText(..)
+  , toWireTextJSON
+  )
 import Panino.Install.Plan.Types (TypedInstallPlan)
+
+data ContentPlanAction
+  = ContentPlanInstall
+  | ContentPlanUpdate
+  | ContentPlanBlocked
+  | ContentPlanActionOther Text
+  deriving (Eq, Show)
+
+contentPlanActionFromText :: Text -> ContentPlanAction
+contentPlanActionFromText value =
+  case Text.toLower value of
+    "install" -> ContentPlanInstall
+    "update" -> ContentPlanUpdate
+    "blocked" -> ContentPlanBlocked
+    _ -> ContentPlanActionOther value
+
+contentPlanActionText :: ContentPlanAction -> Text
+contentPlanActionText action =
+  case action of
+    ContentPlanInstall -> "install"
+    ContentPlanUpdate -> "update"
+    ContentPlanBlocked -> "blocked"
+    ContentPlanActionOther value -> value
+
+instance IsString ContentPlanAction where
+  fromString = contentPlanActionFromText . Text.pack
+
+instance WireText ContentPlanAction where
+  wireText = contentPlanActionText
+  parseWireText = contentPlanActionFromText
+
+instance ToJSON ContentPlanAction where
+  toJSON = toWireTextJSON
+
+instance FromJSON ContentPlanAction where
+  parseJSON =
+    withText "ContentPlanAction" (pure . contentPlanActionFromText)
+
+data ContentUpdateMode
+  = ContentUpdateKeepLocked
+  | ContentUpdateSelected
+  | ContentUpdateAllSafe
+  | ContentRelock
+  | ContentUpdateModeOther Text
+  deriving (Eq, Show)
+
+contentUpdateModeFromText :: Text -> ContentUpdateMode
+contentUpdateModeFromText value =
+  case normalizeContentMode value of
+    "keeplocked" -> ContentUpdateKeepLocked
+    "updateselected" -> ContentUpdateSelected
+    "updateallsafe" -> ContentUpdateAllSafe
+    "relock" -> ContentRelock
+    _ -> ContentUpdateModeOther value
+
+contentUpdateModeText :: ContentUpdateMode -> Text
+contentUpdateModeText mode =
+  case mode of
+    ContentUpdateKeepLocked -> "keepLocked"
+    ContentUpdateSelected -> "updateSelected"
+    ContentUpdateAllSafe -> "updateAllSafe"
+    ContentRelock -> "relock"
+    ContentUpdateModeOther value -> value
+
+instance IsString ContentUpdateMode where
+  fromString = contentUpdateModeFromText . Text.pack
+
+instance WireText ContentUpdateMode where
+  wireText = contentUpdateModeText
+  parseWireText = contentUpdateModeFromText
+
+instance ToJSON ContentUpdateMode where
+  toJSON = toWireTextJSON
+
+instance FromJSON ContentUpdateMode where
+  parseJSON =
+    withText "ContentUpdateMode" (pure . contentUpdateModeFromText)
+
+normalizeContentMode :: Text -> Text
+normalizeContentMode =
+  Text.toLower . Text.replace "-" "" . Text.replace "_" ""
 
 data ContentInstallFile = ContentInstallFile
   { contentFileName :: Text
-  , contentFileUrl :: Text
-  , contentFileSha1 :: Maybe Text
+  , contentFileUrl :: Url
+  , contentFileSha1 :: Maybe Sha1
   , contentFileSize :: Maybe Int64
   , contentFilePrimary :: Maybe Bool
   } deriving (Eq, Show)
@@ -64,13 +164,13 @@ instance ToJSON ContentInstallFile where
       ]
 
 data ContentInstallDependency = ContentInstallDependency
-  { contentDependencyProjectId :: Maybe Text
-  , contentDependencyVersionId :: Maybe Text
+  { contentDependencyProjectId :: Maybe ProjectId
+  , contentDependencyVersionId :: Maybe VersionId
   , contentDependencySource :: Maybe Text
   , contentDependencyName :: Text
   , contentDependencyRequired :: Bool
   , contentDependencyInstalled :: Maybe Bool
-  , contentDependencySha1 :: Maybe Text
+  , contentDependencySha1 :: Maybe Sha1
   } deriving (Eq, Show)
 
 instance FromJSON ContentInstallDependency where
@@ -99,10 +199,10 @@ instance ToJSON ContentInstallDependency where
 
 data ContentInstallRequest = ContentInstallRequest
   { contentInstallSource :: Text
-  , contentInstallProjectId :: Maybe Text
+  , contentInstallProjectId :: Maybe ProjectId
   , contentInstallProjectTitle :: Text
   , contentInstallProjectType :: Maybe Text
-  , contentInstallReleaseId :: Text
+  , contentInstallReleaseId :: VersionId
   , contentInstallGameDir :: Maybe FilePath
   , contentInstallTargetSubdir :: Text
   , contentInstallFiles :: [ContentInstallFile]
@@ -139,7 +239,7 @@ data ContentInstallPlanFile = ContentInstallPlanFile
   { contentPlanFileName :: Text
   , contentPlanTargetPath :: FilePath
   , contentPlanFileSize :: Maybe Int64
-  , contentPlanFileSha1 :: Maybe Text
+  , contentPlanFileSha1 :: Maybe Sha1
   , contentPlanFileAction :: Text
   , contentPlanFilePrimary :: Bool
   } deriving (Eq, Show)
@@ -156,11 +256,11 @@ instance ToJSON ContentInstallPlanFile where
       ]
 
 data ContentInstallPlanResponse = ContentInstallPlanResponse
-  { contentPlanAction :: Text
+  { contentPlanAction :: ContentPlanAction
   , contentPlanSource :: Text
-  , contentPlanProjectId :: Maybe Text
+  , contentPlanProjectId :: Maybe ProjectId
   , contentPlanProjectTitle :: Text
-  , contentPlanReleaseId :: Text
+  , contentPlanReleaseId :: VersionId
   , contentPlanTargetDir :: FilePath
   , contentPlanFiles :: [ContentInstallPlanFile]
   , contentPlanDependencies :: [ContentInstallDependency]
@@ -188,16 +288,16 @@ instance ToJSON ContentInstallPlanResponse where
       ]
 
 data ContentUpdatePlanResource = ContentUpdatePlanResource
-  { updateResourceProjectId :: Maybe Text
+  { updateResourceProjectId :: Maybe ProjectId
   , updateResourceProjectTitle :: Text
-  , updateResourceCurrentReleaseId :: Maybe Text
+  , updateResourceCurrentReleaseId :: Maybe VersionId
   , updateResourceCurrentFileName :: Text
-  , updateResourceCurrentSha1 :: Maybe Text
+  , updateResourceCurrentSha1 :: Maybe Sha1
   , updateResourceCurrentTargetPath :: FilePath
-  , updateResourceRemoteReleaseId :: Maybe Text
+  , updateResourceRemoteReleaseId :: Maybe VersionId
   , updateResourceRemoteFileName :: Maybe Text
-  , updateResourceRemoteUrl :: Maybe Text
-  , updateResourceRemoteSha1 :: Maybe Text
+  , updateResourceRemoteUrl :: Maybe Url
+  , updateResourceRemoteSha1 :: Maybe Sha1
   , updateResourceRemoteSize :: Maybe Int64
   , updateResourceSelected :: Maybe Bool
   , updateResourceDependencies :: [ContentInstallDependency]
@@ -240,7 +340,7 @@ instance ToJSON ContentUpdatePlanResource where
       ]
 
 data ContentUpdatePlanRequest = ContentUpdatePlanRequest
-  { updatePlanMode :: Text
+  { updatePlanMode :: ContentUpdateMode
   , updatePlanGameDir :: FilePath
   , updatePlanSource :: Text
   , updatePlanResources :: [ContentUpdatePlanResource]
@@ -265,12 +365,12 @@ instance ToJSON ContentUpdatePlanRequest where
       ]
 
 data ContentUpdateLockEntry = ContentUpdateLockEntry
-  { updateLockProjectId :: Maybe Text
+  { updateLockProjectId :: Maybe ProjectId
   , updateLockProjectTitle :: Text
-  , updateLockOldReleaseId :: Maybe Text
-  , updateLockNewReleaseId :: Maybe Text
-  , updateLockOldSha1 :: Maybe Text
-  , updateLockNewSha1 :: Maybe Text
+  , updateLockOldReleaseId :: Maybe VersionId
+  , updateLockNewReleaseId :: Maybe VersionId
+  , updateLockOldSha1 :: Maybe Sha1
+  , updateLockNewSha1 :: Maybe Sha1
   , updateLockTargetPath :: FilePath
   , updateLockBackupPath :: Maybe FilePath
   } deriving (Eq, Show)
@@ -289,8 +389,8 @@ instance ToJSON ContentUpdateLockEntry where
       ]
 
 data ContentUpdatePlanResponse = ContentUpdatePlanResponse
-  { contentUpdateAction :: Text
-  , contentUpdateMode :: Text
+  { contentUpdateAction :: ContentPlanAction
+  , contentUpdateMode :: ContentUpdateMode
   , contentUpdateLockfilePath :: FilePath
   , contentUpdateLockEntries :: [ContentUpdateLockEntry]
   , contentUpdateWarnings :: [Text]

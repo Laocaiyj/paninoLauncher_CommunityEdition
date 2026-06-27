@@ -37,6 +37,7 @@ import Panino.Content.Online.Types
   , OnlineDependency(..)
   , OnlineFile(..)
   , OnlineRelease(..)
+  , onlineReleaseIdText
   )
 import Panino.Lockfile.Solver
   ( solveLockfileWithServices
@@ -112,7 +113,7 @@ assertModrinthDependencyResolver = do
           setEnv "PANINO_MOJANG_META_BASE" ("http://127.0.0.1:" <> show port)
           setEnv "PANINO_DISABLE_OFFICIAL_FALLBACK" "true"
           releases <- modrinthRequiredDependencyReleases manager dependencyQuery [fabricApiDependency]
-          assertEqual "modrinth dependency resolver release" ["fabric-api-version"] (map releaseId releases)
+          assertEqual "modrinth dependency resolver release" ["fabric-api-version"] (map onlineReleaseIdText releases)
           assertEqual "modrinth dependency resolver file" ["fabric-api-1.0.0.jar"] (concatMap (map fileName . releaseFiles) releases)
           let irisRoot =
                 (testLockfilePackage "iris" "Iris" "iris-version" "iris.jar" "mods/iris.jar" "2222222222222222222222222222222222222222" [testPackageConstraint "iris" "fabric-api" "requires" True])

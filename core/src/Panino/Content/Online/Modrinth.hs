@@ -55,6 +55,16 @@ import Panino.Content.Online.Types
   , OnlineRelease(..)
   , OnlineSearchPage(..)
   , mkContentProjectResponse
+  , onlineDependencyProjectIdText
+  , onlineDependencyVersionIdText
+  , onlineReleaseIdText
+  , onlineReleaseProjectIdText
+  )
+import Panino.Core.Types
+  ( ProjectId
+  , VersionId
+  , projectIdText
+  , versionIdText
   )
 
 modrinthSearch :: Manager -> ContentSearchRequest -> IO OnlineSearchPage
@@ -113,7 +123,7 @@ modrinthRequiredDependencyReleases manager request dependencies =
           let release = modrinthVersionToOnline version
               visited' =
                 dependencyVisitKeys dependency
-                  <> [releaseId release, releaseProjectId release]
+                  <> [onlineReleaseIdText release, onlineReleaseProjectIdText release]
                   <> visited
           nested <-
             concat
@@ -134,23 +144,23 @@ modrinthRequiredDependencyReleases manager request dependencies =
                 [] ->
                   fail
                     ( "no compatible Modrinth dependency release found for "
-                        <> Text.unpack project
+                        <> Text.unpack (projectIdText project)
                     )
             Nothing ->
               fail "Modrinth required dependency is missing projectId and versionId"
 
-modrinthProjectVersions :: Manager -> ContentSearchRequest -> Text -> IO [ModrinthVersionResponse]
+modrinthProjectVersions :: Manager -> ContentSearchRequest -> ProjectId -> IO [ModrinthVersionResponse]
 modrinthProjectVersions manager request projectIdValue =
   fetchJson manager
     =<< coreRequest
-      ("https://api.modrinth.com/v2/project/" <> Text.unpack projectIdValue <> "/version" <> modrinthVersionQuery request)
+      ("https://api.modrinth.com/v2/project/" <> Text.unpack (projectIdText projectIdValue) <> "/version" <> modrinthVersionQuery request)
       []
 
-modrinthVersionById :: Manager -> Text -> IO ModrinthVersionResponse
+modrinthVersionById :: Manager -> VersionId -> IO ModrinthVersionResponse
 modrinthVersionById manager versionId =
   fetchJson manager
     =<< coreRequest
-      ("https://api.modrinth.com/v2/version/" <> Text.unpack versionId)
+      ("https://api.modrinth.com/v2/version/" <> Text.unpack (versionIdText versionId))
       []
 
 isRequiredModrinthDependency :: OnlineDependency -> Bool
@@ -162,8 +172,8 @@ dependencyVisitKeys :: OnlineDependency -> [Text]
 dependencyVisitKeys dependency =
   catMaybes
     [ Just (dependencyId dependency)
-    , dependencyProjectId dependency
-    , dependencyVersionId dependency
+    , onlineDependencyProjectIdText dependency
+    , onlineDependencyVersionIdText dependency
     ]
 
 dedupeOnlineReleases :: [OnlineRelease] -> [OnlineRelease]
@@ -171,7 +181,7 @@ dedupeOnlineReleases =
   foldl' insertRelease []
   where
     insertRelease releases release
-      | any ((== releaseId release) . releaseId) releases = releases
+      | any ((== onlineReleaseIdText release) . onlineReleaseIdText) releases = releases
       | otherwise = releases <> [release]
 
 prefetchModrinthDependencies :: Manager -> [ModrinthVersionResponse] -> IO ()
