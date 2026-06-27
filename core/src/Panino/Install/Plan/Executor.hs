@@ -176,7 +176,7 @@ installPlanExecutionBatches executablePlan
         blocked = stableSortPlanNodes executionNodeKey blockedUnsorted
 
 executeInstallPlan :: TypedInstallPlan -> (InstallPlanNode -> IO ()) -> (InstallPlanNode -> IO ()) -> (InstallNodeResult -> IO ()) -> IO InstallPlanExecutionResult
-executeInstallPlan plan runNode rollbackNode emitResult
+executeInstallPlan plan runNode rollbackNode emitResult =
   case classifyTypedInstallPlan plan of
     InstallPlanBlocked blocked ->
       blockedInstallPlanExecutionResult blocked emitResult
@@ -327,9 +327,6 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
       emitResult result
       pure result
 
-    nodeDiagnostic node =
-      listToMaybe (installNodeDiagnostics node)
-
     diagnosticForNodeMessage node message =
       let base =
             classifyFailure
@@ -352,6 +349,10 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
 findFirstFailed :: [(InstallPlanNode, InstallNodeResult)] -> Maybe (InstallPlanNode, InstallNodeResult)
 findFirstFailed =
   listToMaybe . filter ((== InstallNodeFailed) . installResultStatus . snd)
+
+nodeDiagnostic :: InstallPlanNode -> Maybe Diagnostic
+nodeDiagnostic node =
+  listToMaybe (installNodeDiagnostics node)
 
 nodeVerificationError :: InstallPlanNode -> Maybe Text
 nodeVerificationError node =

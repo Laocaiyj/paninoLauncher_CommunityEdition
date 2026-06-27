@@ -26,7 +26,15 @@ import Panino.Core.Types
   , urlFromText
   )
 import Panino.Download.Manager (DownloadHostTelemetry(..), DownloadJob(..), DownloadMultipartTelemetry(..), DownloadOptions, DownloadProgress(..), downloadOptionsWithOverrides, runDownloadJobsWithOptionsAndProgressAndCancel)
-import Panino.Install.Plan.Executor (InstallNodeResult(..), InstallNodeStatus(..), InstallPlanExecutionResult(..), executeInstallPlan, installNodeStatusText)
+import Panino.Install.Plan.Executor
+  ( InstallNodeResult(..)
+  , InstallNodeStatus(..)
+  , InstallPlanExecutionResult(..)
+  , blockedInstallPlanExecutionResult
+  , executeExecutableInstallPlan
+  , installNodeStatusText
+  )
+import qualified Panino.Install.Plan.State as PlanState
 import Panino.Minecraft.InstallPlanGraph (dedupeInstallPlanJobs)
 import qualified Panino.Install.Plan.Types as Plan
 import System.Directory (createDirectoryIfMissing, doesFileExist, removeFile, renameFile)
@@ -35,8 +43,6 @@ import System.FilePath (takeDirectory, (</>))
 runContentInstallTask :: ServerState -> TaskSnapshot -> ContentInstallRequest -> ContentInstallPlanBundle -> IO Text
 runContentInstallTask state task request planBundle = do
   let plan = contentPlanBundleResponse planBundle
-  unless (null (contentPlanBlockedReasons plan)) $
-    fail ("install plan blocked: " <> Text.unpack (Text.intercalate ", " (contentPlanBlockedReasons plan)))
   createDirectoryIfMissing True (contentPlanTargetDir plan)
   withContentBackups (contentPlanFiles plan) $ do
     let typedPlan = contentPlanTypedPlan plan
@@ -52,11 +58,17 @@ runContentInstallTask state task request planBundle = do
           <> " phase=content"
       )
     execution <-
-      executeInstallPlan
-        typedPlan
-        (runContentPlanNode state task request)
-        rollbackContentPlanNode
-        (emitContentPlanNodeProgress state task typedPlan)
+      case PlanState.requireExecutableInstallPlan typedPlan of
+        Left blocked ->
+          blockedInstallPlanExecutionResult
+            blocked
+            (emitContentPlanNodeProgress state task typedPlan)
+        Right executablePlan ->
+          executeExecutableInstallPlan
+            executablePlan
+            (runContentPlanNode state task request)
+            rollbackContentPlanNode
+            (emitContentPlanNodeProgress state task typedPlan)
     let executionPath = contentInstallExecutionPath request plan
         lockfilePath = contentInstallLockfilePath request plan
     writeContentInstallExecution executionPath execution
