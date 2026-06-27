@@ -25,8 +25,9 @@ import Network.Wai.Handler.Warp (testWithApplication)
 import Panino.CoreLogic.Determinism (canonicalJson)
 import Panino.Install.Plan.Executor
   ( InstallPlanExecutionResult(..)
-  , executeInstallPlan
+  , executeExecutableInstallPlan
   )
+import Panino.Install.Plan.State (requireExecutableInstallPlan)
 import Panino.Install.Plan.Types
   ( TypedInstallPlan(..)
   )
@@ -213,11 +214,15 @@ assertLockfileSolver = do
                   }
               applyResult = solveLockfile (testLockfileSolveRequest applyGameDir [downloadedPackage] Nothing)
           execution <-
-            executeInstallPlan
-              (solverResultTypedPlan applyResult)
-              (runLockfilePlanNode manager)
-              rollbackLockfilePlanNode
-              (\_ -> pure ())
+            case requireExecutableInstallPlan (solverResultTypedPlan applyResult) of
+              Left blocked ->
+                fail ("lockfile apply test expected executable plan: " <> show blocked)
+              Right executablePlan ->
+                executeExecutableInstallPlan
+                  executablePlan
+                  (runLockfilePlanNode manager)
+                  rollbackLockfilePlanNode
+                  (\_ -> pure ())
           assertEqual "lockfile apply runner executes plan downloads" "succeeded" (installExecutionStatus execution)
           written <- BS8.readFile (applyGameDir </> "mods" </> "downloaded.jar")
           assertEqual "lockfile apply runner writes downloaded file" "downloaded" written

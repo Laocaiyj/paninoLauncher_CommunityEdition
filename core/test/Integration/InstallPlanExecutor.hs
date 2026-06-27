@@ -25,6 +25,7 @@ import Panino.Install.Plan.Executor
   )
 import Panino.Install.Plan.State
   ( ExecutableInstallPlan
+  , blockedInstallPlanReasons
   , requireExecutableInstallPlan
   )
 import Panino.Install.Plan.Types
@@ -167,11 +168,7 @@ requireTestExecutable :: TypedInstallPlan -> IO ExecutableInstallPlan
 requireTestExecutable plan =
   case requireExecutableInstallPlan plan of
     Right executablePlan -> pure executablePlan
-    Left blocked -> fail ("expected executable install plan, got blocked: " <> Text.unpack (Text.intercalate ", " (typedPlanBlockedReasons blockedPlan)))
-      where
-        blockedPlan = case requireExecutableInstallPlan plan of
-          Left blockedAgain -> blockedTypedPlanFallback blockedAgain
-          Right _ -> plan
+    Left blocked -> fail ("expected executable install plan, got blocked: " <> Text.unpack (Text.intercalate ", " (blockedInstallPlanReasons blocked)))
 
 executorTestNode :: Text -> Text -> [Text] -> Text -> InstallPlanNode
 executorTestNode nodeId phase dependencies action =
