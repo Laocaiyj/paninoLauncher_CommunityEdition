@@ -3,19 +3,34 @@
 module Panino.Api.Types.Minecraft
   ( InstallRequest(..)
   , LaunchRequest(..)
+  , installRequestGameDirPath
+  , installRequestVersionText
+  , launchRequestGameDirPath
+  , launchRequestVersionText
   ) where
 
 import Data.Aeson
   ( FromJSON(..)
+  , Object
   , withObject
   , (.:)
   , (.:?)
   )
+import qualified Data.Aeson.Key as Key
+import Data.Aeson.Types (Parser)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Panino.Api.Types.Download
   ( DownloadRuntimeOptions
   , mergeDownloadRuntimeOptions
+  )
+import Panino.Core.Types
+  ( GameDir
+  , VersionId
+  , gameDirFromPath
+  , gameDirPath
+  , versionIdText
   )
 import Panino.Launch.Tuning.Types
   ( JvmTuningPolicy
@@ -23,8 +38,8 @@ import Panino.Launch.Tuning.Types
   )
 
 data InstallRequest = InstallRequest
-  { installRequestVersion :: Text
-  , installRequestGameDir :: Maybe FilePath
+  { installRequestVersion :: VersionId
+  , installRequestGameDir :: Maybe GameDir
   , installRequestLoader :: Maybe Text
   , installRequestLoaderVersion :: Maybe Text
   , installRequestShaderLoader :: Maybe Text
@@ -42,7 +57,7 @@ instance FromJSON InstallRequest where
       nestedDownload <- objectValue .:? "download"
       InstallRequest
         <$> objectValue .: "version"
-        <*> objectValue .:? "gameDir"
+        <*> parseOptionalGameDir objectValue "gameDir"
         <*> objectValue .:? "loader"
         <*> objectValue .:? "loaderVersion"
         <*> objectValue .:? "shaderLoader"
@@ -51,8 +66,8 @@ instance FromJSON InstallRequest where
         <*> pure (mergeDownloadRuntimeOptions legacyConcurrency legacyRetryCount legacyStrategy nestedDownload)
 
 data LaunchRequest = LaunchRequest
-  { launchRequestVersion :: Text
-  , launchRequestGameDir :: Maybe FilePath
+  { launchRequestVersion :: VersionId
+  , launchRequestGameDir :: Maybe GameDir
   , launchRequestMemoryMb :: Maybe Int
   , launchRequestJavaPath :: Maybe FilePath
   , launchRequestInstanceId :: Maybe Text
@@ -85,7 +100,7 @@ instance FromJSON LaunchRequest where
       customJvmArgs <- fromMaybe [] <$> objectValue .:? "customJvmArgs"
       LaunchRequest
         <$> objectValue .: "version"
-        <*> objectValue .:? "gameDir"
+        <*> parseOptionalGameDir objectValue "gameDir"
         <*> objectValue .:? "memoryMb"
         <*> objectValue .:? "java"
         <*> objectValue .:? "instanceId"
@@ -105,3 +120,24 @@ instance FromJSON LaunchRequest where
         <*> objectValue .:? "windowHeight"
         <*> pure (mergeDownloadRuntimeOptions legacyConcurrency legacyRetryCount legacyStrategy nestedDownload)
         <*> objectValue .:? "install"
+
+installRequestVersionText :: InstallRequest -> Text
+installRequestVersionText =
+  versionIdText . installRequestVersion
+
+installRequestGameDirPath :: InstallRequest -> Maybe FilePath
+installRequestGameDirPath =
+  fmap gameDirPath . installRequestGameDir
+
+launchRequestVersionText :: LaunchRequest -> Text
+launchRequestVersionText =
+  versionIdText . launchRequestVersion
+
+launchRequestGameDirPath :: LaunchRequest -> Maybe FilePath
+launchRequestGameDirPath =
+  fmap gameDirPath . launchRequestGameDir
+
+parseOptionalGameDir :: Object -> Text -> Parser (Maybe GameDir)
+parseOptionalGameDir objectValue key = do
+  raw <- objectValue .:? Key.fromText key
+  pure (raw >>= gameDirFromPath . Text.unpack)

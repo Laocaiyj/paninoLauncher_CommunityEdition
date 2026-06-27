@@ -48,6 +48,8 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( LaunchRequest(..)
   , TaskSnapshot
+  , launchRequestGameDirPath
+  , launchRequestVersionText
   )
 import Panino.Diagnostics.Types
   ( Diagnostic(..)
@@ -111,7 +113,7 @@ runLaunchTask state task request = do
     if fromMaybe True (launchRequestInstallBefore request)
       then
         installVersionJson <$> runLaunchInstallTask state task layout request
-      else loadVersionJson (stateHttpManager state) layout (launchRequestVersion request)
+      else loadVersionJson (stateHttpManager state) layout (launchRequestVersionText request)
   javaProgress <- newAggregatedProgressSink state task launchRepairProgressPhases
   javaPath <- resolveLaunchJavaPath state task layout request javaProgress
   tuning <- resolveLaunchJvmTuning layout versionJson request
@@ -136,7 +138,7 @@ resolveLaunchJavaPath state task layout request onProgress =
       resolveAutoJavaPath
         state
         layout
-        (launchRequestVersion request)
+        (launchRequestVersionText request)
         (launchRequestDownload request)
         (taskIsCancelled state task)
         onProgress
@@ -159,7 +161,7 @@ resolveLaunchJvmTuning layout versionJson request = do
       tuningRequest =
         JvmTuningRequest
           { tuningRequestInstanceId = launchRequestInstanceId request
-          , tuningRequestGameDir = launchRequestGameDir request
+          , tuningRequestGameDir = launchRequestGameDirPath request
           , tuningRequestPolicy = fromMaybe JvmTuningAuto (launchRequestJvmProfile request)
           , tuningRequestMemoryPolicy = memoryPolicy
           , tuningRequestSystemMemoryBytes = systemMemory
@@ -255,7 +257,7 @@ monitorLaunchProcess layout hooks launch = do
 
 runLaunchInstallTask :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchRequest -> IO InstallResult
 runLaunchInstallTask state task layout request = do
-  metadata <- readInstanceMetadata (minecraftRoot layout) (launchRequestVersion request)
+  metadata <- readInstanceMetadata (minecraftRoot layout) (launchRequestVersionText request)
   let downloadOptions = downloadOptionsFromRuntime (launchRequestDownload request)
       requestedLoader = launchRequestedLoader request
       repairShaderLoader = launchRepairShaderLoader metadata
@@ -263,7 +265,7 @@ runLaunchInstallTask state task layout request = do
   when (launchRepairShouldRemoveTrackedShaderFiles metadata requestedLoader repairShaderLoader) $ do
     removeTrackedShaderInstallFiles layout
     putStrLn "launch_repair_shader_cleanup:quilt_tracked_shader_files"
-  if metadataLaunchVersion metadata == launchRequestVersion request && metadataHasExtendedInstall metadata
+  if metadataLaunchVersion metadata == launchRequestVersionText request && metadataHasExtendedInstall metadata
     then do
       installerJava <-
         resolveLoaderInstallerJavaPath
@@ -300,7 +302,7 @@ runLaunchInstallTask state task layout request = do
             resolveLoaderInstallerJavaPath
               state
               layout
-              (launchRequestVersion request)
+              (launchRequestVersionText request)
               (Just loader)
               (launchRequestDownload request)
               (taskIsCancelled state task)
@@ -309,7 +311,7 @@ runLaunchInstallTask state task layout request = do
             <$> installMinecraftProfileWithOptionsAndProgressAndCancel
               (stateHttpManager state)
               layout
-              (launchRequestVersion request)
+              (launchRequestVersionText request)
               downloadOptions
               (taskIsCancelled state task)
               emitProgress
@@ -326,7 +328,7 @@ runLaunchInstallTask state task layout request = do
           installMinecraftVersionWithOptionsAndProgressAndCancel
             (stateHttpManager state)
             layout
-            (launchRequestVersion request)
+            (launchRequestVersionText request)
             downloadOptions
             (taskIsCancelled state task)
             emitProgress

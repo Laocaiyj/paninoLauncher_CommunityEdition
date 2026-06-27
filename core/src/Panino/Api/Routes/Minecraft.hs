@@ -51,6 +51,10 @@ import Panino.Api.Types
   ( InstallRequest(..)
   , LaunchRequest(..)
   , TaskAccepted(..)
+  , installRequestGameDirPath
+  , installRequestVersionText
+  , launchRequestGameDirPath
+  , launchRequestVersionText
   )
 import Panino.Diagnostics.Classify
   ( classifyFailure
@@ -93,8 +97,8 @@ installResponse state request = do
                     startTaskWithGameDirContextAndComponents
                       state
                       "install"
-                      (installRequestVersion installRequest)
-                      (installRequestGameDir installRequest)
+                      (installRequestVersionText installRequest)
+                      (installRequestGameDirPath installRequest)
                       (installRequestLoader installRequest)
                       (installRequestShaderLoader installRequest)
                       $ \taskSnapshot ->
@@ -158,7 +162,7 @@ preflightFailureResponse installRequest err =
           { failurePhase = "preflight"
           , failureOperation = "minecraft install preflight"
           , failureExceptionText = detail
-          , failureContext = [("minecraftVersion", installRequestVersion installRequest)]
+          , failureContext = [("minecraftVersion", installRequestVersionText installRequest)]
           , failureTaskId = Nothing
           , failurePlanId = Nothing
           , failureSource = Just "core"
@@ -167,7 +171,7 @@ preflightFailureResponse installRequest err =
 resolvePreflightLayout :: InstallRequest -> IO (Maybe MinecraftLayout)
 resolvePreflightLayout installRequest =
   case installRequestGameDir installRequest of
-    Just gameDir | not (null gameDir) -> Just <$> mkLayout (Just gameDir)
+    Just _ -> Just <$> mkLayout (installRequestGameDirPath installRequest)
     _ -> pure Nothing
 
 resolvePreviewPreflightLayout :: ServerState -> IO MinecraftLayout
@@ -184,7 +188,7 @@ resolvePreflightInstallerJava state installRequest (Just layout) = do
       ( resolveReadyLoaderInstallerJavaPath
           state
           layout
-          (installRequestVersion installRequest)
+          (installRequestVersionText installRequest)
           (installRequestLoader installRequest)
       )
   pure $ case outcome of
@@ -197,7 +201,7 @@ resolvePreflightJavaRuntime _ _ Nothing =
 resolvePreflightJavaRuntime state installRequest (Just layout) = do
   outcome <- try $ do
     appRoot <- appSupportRoot state
-    resolveJavaRuntimeForVersion (stateHttpManager state) appRoot layout (installRequestVersion installRequest)
+    resolveJavaRuntimeForVersion (stateHttpManager state) appRoot layout (installRequestVersionText installRequest)
   pure $ case outcome of
     Right response -> Just response
     Left (_ :: SomeException) -> Nothing
@@ -217,6 +221,6 @@ launchResponse state request = do
           pure (jsonResponse status400 (object ["error" .= ("game_dir_required" :: Text)]))
       | otherwise -> do
           task <-
-            startTaskWithGameDirContext state "launch" (launchRequestVersion launchRequest) (launchRequestGameDir launchRequest) $ \taskSnapshot ->
+            startTaskWithGameDirContext state "launch" (launchRequestVersionText launchRequest) (launchRequestGameDirPath launchRequest) $ \taskSnapshot ->
               runLaunchTask state taskSnapshot launchRequest
           pure (jsonResponse status202 (TaskAccepted task))

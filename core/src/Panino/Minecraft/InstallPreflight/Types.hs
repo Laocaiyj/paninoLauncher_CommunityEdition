@@ -17,7 +17,11 @@ import Data.Aeson
   , (.=)
   )
 import Data.Text (Text)
-import Panino.Api.Types (InstallRequest(..))
+import Panino.Api.Types
+  ( InstallRequest(..)
+  , installRequestGameDirPath
+  , installRequestVersionText
+  )
 import Panino.Content.Online.Minecraft (LoaderMetadataSourceResult)
 import Panino.Diagnostics.Types (Diagnostic)
 import qualified Panino.Install.Plan.Types as Plan
@@ -129,12 +133,12 @@ instance ToJSON LoaderInstallPreflightResponse where
 preflightFromInstallRequest :: InstallRequest -> Maybe FilePath -> LoaderInstallPreflightRequest
 preflightFromInstallRequest request javaExecutable =
   LoaderInstallPreflightRequest
-    { preflightMinecraftVersion = installRequestVersion request
+    { preflightMinecraftVersion = installRequestVersionText request
     , preflightLoader = installRequestLoader request
     , preflightLoaderVersion = installRequestLoaderVersion request
     , preflightShaderLoader = installRequestShaderLoader request
     , preflightShaderVersion = installRequestShaderVersion request
-    , preflightGameDir = installRequestGameDir request
+    , preflightGameDir = installRequestGameDirPath request
     , preflightJavaExecutable = javaExecutable
     , preflightSourceProfile = Nothing
     }

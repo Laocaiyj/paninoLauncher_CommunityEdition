@@ -26,6 +26,7 @@ import Panino.Core.Types
   , Sha1
   , Url
   , VersionId
+  , gameDirPath
   , projectIdText
   , sha1FromText
   , sha1Text
@@ -45,11 +46,17 @@ import Panino.Api.Types
   , ContentUpdateMode(..)
   , ContentUpdatePlanResource(..)
   , DownloadRuntimeOptions(..)
+  , InstallRequest(..)
+  , LaunchRequest(..)
   , TaskKind(..)
   , contentPlanActionFromText
   , contentPlanActionText
   , contentUpdateModeFromText
   , contentUpdateModeText
+  , installRequestGameDirPath
+  , installRequestVersionText
+  , launchRequestGameDirPath
+  , launchRequestVersionText
   , TaskPhaseId
   , TaskState(..)
   , taskKindFromText
@@ -165,6 +172,7 @@ assertCoreTypes = do
   assertEqual "package source parses curseforge alias" PackageSourceCurseForge (packageSourceFromText "curse-forge")
   assertEqual "package source unknown preserves wire text" "customSource" (packageSourceText (packageSourceFromText "customSource"))
   assertLockfileWireShape
+  assertMinecraftRequestWireShape
   assertContentApiWireShape
   assertEqual
     "core typed toml escapes strings"
@@ -309,6 +317,29 @@ assertContentApiWireShape = do
       assertEqual "content update resource project id decodes from JSON string" (Just "sodium") (projectIdText <$> (updateResourceProjectId resource :: Maybe ProjectId))
       assertEqual "content update resource remote release id decodes from JSON string" (Just "new-release") (versionIdText <$> (updateResourceRemoteReleaseId resource :: Maybe VersionId))
       assertEqual "content update resource remote url decodes from JSON string" (Just "https://cdn.example.com/sodium-new.jar") (urlText <$> updateResourceRemoteUrl resource)
+
+assertMinecraftRequestWireShape :: IO ()
+assertMinecraftRequestWireShape = do
+  case eitherDecode "{\"version\":\"1.21.5\",\"gameDir\":\"/tmp/mc\",\"loader\":\"fabric\"}" :: Either String InstallRequest of
+    Left err ->
+      assertEqual ("install request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "install request version decodes from JSON string" "1.21.5" (installRequestVersionText request)
+      assertEqual "install request game dir decodes from JSON string" (Just "/tmp/mc") (installRequestGameDirPath request)
+      assertEqual "install request typed game dir remains inspectable" (Just "/tmp/mc") (gameDirPath <$> installRequestGameDir request)
+  case eitherDecode "{\"version\":\"1.21.5\",\"gameDir\":\"\"}" :: Either String InstallRequest of
+    Left err ->
+      assertEqual ("install request empty gameDir decodes as missing: " <> err) True False
+    Right request ->
+      assertEqual "install request empty gameDir remains missing for route validation" Nothing (installRequestGameDirPath request)
+  assertEqual "install request empty version is rejected" True (isLeft (eitherDecode "{\"version\":\"\"}" :: Either String InstallRequest))
+  case eitherDecode "{\"version\":\"1.21.5\",\"gameDir\":\"/tmp/mc\",\"java\":\"/usr/bin/java\",\"install\":true}" :: Either String LaunchRequest of
+    Left err ->
+      assertEqual ("launch request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "launch request version decodes from JSON string" "1.21.5" (launchRequestVersionText request)
+      assertEqual "launch request game dir decodes from JSON string" (Just "/tmp/mc") (launchRequestGameDirPath request)
+      assertEqual "launch request java path wire field remains FilePath" (Just "/usr/bin/java") (launchRequestJavaPath request)
 
 assertContains :: String -> String -> String -> IO ()
 assertContains label expected actual =

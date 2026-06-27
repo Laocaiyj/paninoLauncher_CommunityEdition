@@ -47,6 +47,8 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( InstallRequest(..)
   , TaskSnapshot(..)
+  , installRequestGameDirPath
+  , installRequestVersionText
   , taskPhaseIdText
   )
 import Panino.Download.Manager
@@ -92,7 +94,7 @@ runInstallTask state task request preflight = do
       resolveLoaderInstallerJavaPath
         state
         layout
-        (installRequestVersion request)
+        (installRequestVersionText request)
         (installRequestLoader request)
         (installRequestDownload request)
         (taskIsCancelled state task)
@@ -101,7 +103,7 @@ runInstallTask state task request preflight = do
       installMinecraftProfileWithOptionsAndProgressAndCancel
         (stateHttpManager state)
         layout
-        (installRequestVersion request)
+        (installRequestVersionText request)
         downloadOptions
         (taskIsCancelled state task)
         emitProgress
@@ -182,7 +184,7 @@ writeInstallState layout task request installState errorCode errorDetail install
         object
           [ "state" .= installState
           , "taskId" .= taskSnapshotId task
-          , "requestedMinecraftVersion" .= installRequestVersion request
+          , "requestedMinecraftVersion" .= installRequestVersionText request
           , "requestedLoader" .= installRequestLoader request
           , "requestedShaderLoader" .= installRequestShaderLoader request
           , "installedProfile" .= installedProfile
@@ -227,8 +229,8 @@ installFailureDetail layout request preflight err originalCode finalCode failedP
     pure $
       Text.unlines $
         [ finalCode <> ": install task failed"
-        , "requestedMinecraftVersion=" <> installRequestVersion request
-        , "requestedGameDir=" <> Text.pack (fromMaybe "-" (installRequestGameDir request))
+        , "requestedMinecraftVersion=" <> installRequestVersionText request
+        , "requestedGameDir=" <> Text.pack (fromMaybe "-" (installRequestGameDirPath request))
         , "requestedLoader=" <> fromMaybe "-" (installRequestLoader request)
         , "requestedShaderLoader=" <> fromMaybe "-" (installRequestShaderLoader request)
         , "loaderVersion=" <> fromMaybe "-" (preflightResponseLoaderVersion preflight)

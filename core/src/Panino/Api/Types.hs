@@ -33,6 +33,10 @@ module Panino.Api.Types
   , TaskState(..)
   , emptyDownloadRuntimeOptions
   , mergeDownloadRuntimeOptions
+  , installRequestGameDirPath
+  , installRequestVersionText
+  , launchRequestGameDirPath
+  , launchRequestVersionText
   , taskKindFromText
   , taskKindText
   , taskPhaseIdFromText

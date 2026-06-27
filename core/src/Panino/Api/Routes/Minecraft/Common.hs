@@ -32,6 +32,11 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( DownloadRuntimeOptions(..)
   , LaunchRequest(..)
+  , launchRequestVersionText
+  )
+import Panino.Core.Types
+  ( GameDir
+  , gameDirPath
   )
 import Panino.Diagnostics.Classify (classifyFailure)
 import Panino.Diagnostics.Types
@@ -73,20 +78,20 @@ import System.FilePath
   , (</>)
   )
 
-requestLayout :: ServerState -> Maybe FilePath -> IO MinecraftLayout
+requestLayout :: ServerState -> Maybe GameDir -> IO MinecraftLayout
 requestLayout _ requestedGameDir =
   case requestedGameDir of
-    Just gameDir | not (null gameDir) -> mkLayout (Just gameDir)
+    Just gameDir | not (null (gameDirPath gameDir)) -> mkLayout (Just (gameDirPath gameDir))
     _ -> fail "gameDir is required for isolated Minecraft operations"
 
-missingGameDir :: Maybe FilePath -> Bool
+missingGameDir :: Maybe GameDir -> Bool
 missingGameDir Nothing = True
-missingGameDir (Just value) = null value
+missingGameDir (Just value) = null (gameDirPath value)
 
 launchProfile :: LaunchRequest -> LaunchProfile
 launchProfile request =
   LaunchProfile
-    { profileVersion = launchRequestVersion request
+    { profileVersion = launchRequestVersionText request
     , profileMemoryMb = fromMaybe 4096 (launchRequestMemoryMb request)
     , profileJavaPath = fromMaybe "java" (launchRequestJavaPath request)
     , profileUsername = fromMaybe "Steve" (launchRequestUsername request)
