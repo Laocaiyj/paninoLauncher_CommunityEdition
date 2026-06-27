@@ -42,6 +42,9 @@ import Panino.Minecraft.Types
   , VersionJson(..)
   )
 import Panino.Net.Http (makeHttpManager)
+import Panino.Core.Types
+  ( versionIdFromText
+  )
 import System.Directory
   ( createDirectoryIfMissing
   , doesDirectoryExist
@@ -110,6 +113,10 @@ assertInstallPostVerifyMissingClientJar = do
   tempDir <- getTemporaryDirectory
   let root = tempDir </> "panino-post-verify-missing-client"
       fixtureLaunchVersion = "fabric-loader-0.16.0-26.1.2"
+      fixtureLaunchVersionId =
+        case versionIdFromText fixtureLaunchVersion of
+          Just parsed -> parsed
+          Nothing -> "invalid-fixture-version"
   exists <- doesDirectoryExist root
   when exists (removeDirectoryRecursive root `catchAny` \_ -> pure ())
   layout <- mkLayout (Just root)
@@ -119,7 +126,7 @@ assertInstallPostVerifyMissingClientJar = do
         InstallResult
           { installVersionJson =
               VersionJson
-                { versionId = fixtureLaunchVersion
+                { versionId = fixtureLaunchVersionId
                 , versionType = Nothing
                 , versionJavaVersion = Nothing
                 , versionDownloads = mempty

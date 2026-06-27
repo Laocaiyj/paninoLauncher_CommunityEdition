@@ -54,6 +54,9 @@ import Panino.Api.Routes.Network.Probe
   , selectedManifestVersionUrl
   )
 import Panino.Api.Server.State (ServerState(..))
+import Panino.Core.Types
+  ( urlText
+  )
 import Panino.Minecraft.Types
   ( DownloadInfo(..)
   , VersionJson(..)
@@ -152,7 +155,7 @@ discoverSpeedTargets manager categories = do
   assetIndexPair <-
     case versionJson >>= downloadUrl . versionAssetIndex of
       Just assetIndexUrl | wants "mojang-asset" ->
-        Just <$> fetchJsonProbe manager (ProbeTarget "Mojang asset index" (Text.unpack assetIndexUrl) False)
+        Just <$> fetchJsonProbe manager (ProbeTarget "Mojang asset index" (Text.unpack (urlText assetIndexUrl)) False)
       _ -> pure Nothing
   let assetIndex = assetIndexPair >>= snd
       manifestTargets = [SpeedTestTarget "mojang-manifest" manifestUrl | wants "mojang-manifest"]

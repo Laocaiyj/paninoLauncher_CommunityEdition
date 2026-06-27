@@ -22,6 +22,9 @@ import Panino.Core
   , selectServeSessionToken
   , sessionTokenString
   )
+import Panino.Core.Types
+  ( versionIdText
+  )
 import Panino.Launch.Arguments
   ( LaunchProfile(..)
   , buildJavaArguments
@@ -180,4 +183,4 @@ usesModLoader versionJson =
     ]
   where
     normalized =
-      Text.toLower (versionId versionJson <> " " <> versionMainClass versionJson)
+      Text.toLower (versionIdText (versionId versionJson) <> " " <> versionMainClass versionJson)

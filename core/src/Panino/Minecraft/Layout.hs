@@ -15,6 +15,9 @@ module Panino.Minecraft.Layout
 
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( relativePathFilePath
+  )
 import Panino.Minecraft.Types (DownloadInfo(..))
 import System.Directory
   ( createDirectoryIfMissing
@@ -74,7 +77,7 @@ clientJarPath layout version =
 
 libraryPathFromDownload :: MinecraftLayout -> DownloadInfo -> Maybe FilePath
 libraryPathFromDownload layout info =
-  fmap ((librariesDir layout </>) . normaliseManifestPath) (downloadPath info)
+  fmap ((librariesDir layout </>) . normaliseManifestPath . relativePathFilePath) (downloadPath info)
 
 assetIndexPath :: MinecraftLayout -> Text -> FilePath
 assetIndexPath layout indexId =

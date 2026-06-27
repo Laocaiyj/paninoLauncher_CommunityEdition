@@ -28,6 +28,7 @@ import Panino.Core.Types
   , VersionId
   , gameDirPath
   , projectIdText
+  , relativePathFilePath
   , sha1FromText
   , sha1Text
   , urlFromText
@@ -123,6 +124,12 @@ import Panino.Api.Routes.Minecraft.Phase
   , minecraftTaskPhaseId
   , progressPhaseId
   )
+import Panino.Minecraft.Types
+  ( DownloadInfo(..)
+  , VersionJson(..)
+  , VersionManifest(..)
+  , VersionSummary(..)
+  )
 import TestSupport (assertEqual)
 
 assertCoreTypes :: IO ()
@@ -174,6 +181,7 @@ assertCoreTypes = do
   assertLockfileWireShape
   assertMinecraftRequestWireShape
   assertContentApiWireShape
+  assertMojangManifestWireShape
   assertEqual
     "core typed toml escapes strings"
     ("serverAddr = \"host\\\"\\\\\\nname\"\nserverPort = 7000\n\n[[proxies]]\n" :: Text)
@@ -340,6 +348,35 @@ assertMinecraftRequestWireShape = do
       assertEqual "launch request version decodes from JSON string" "1.21.5" (launchRequestVersionText request)
       assertEqual "launch request game dir decodes from JSON string" (Just "/tmp/mc") (launchRequestGameDirPath request)
       assertEqual "launch request java path wire field remains FilePath" (Just "/usr/bin/java") (launchRequestJavaPath request)
+
+assertMojangManifestWireShape :: IO ()
+assertMojangManifestWireShape = do
+  case eitherDecode "{\"versions\":[{\"id\":\"1.21.5\",\"url\":\"https://piston-meta.example/1.21.5.json\",\"sha1\":\"ABCDEF\"}]}" :: Either String VersionManifest of
+    Left err ->
+      assertEqual ("version manifest json decodes: " <> err) True False
+    Right manifest ->
+      case manifestVersions manifest of
+        [summary] -> do
+          assertEqual "manifest version id decodes from JSON string" "1.21.5" (versionIdText (versionSummaryId summary))
+          assertEqual "manifest version url decodes from JSON string" "https://piston-meta.example/1.21.5.json" (urlText (versionSummaryUrl summary))
+          assertEqual "manifest version sha1 normalizes from JSON string" (Just "abcdef") (sha1Text <$> versionSummarySha1 summary)
+        _ ->
+          assertEqual "version manifest keeps one summary" 1 (length (manifestVersions manifest))
+  assertEqual "manifest empty version id is rejected" True (isLeft (eitherDecode "{\"versions\":[{\"id\":\"\",\"url\":\"https://example.com/v.json\"}]}" :: Either String VersionManifest))
+  case eitherDecode "{\"id\":\"1.21.5\",\"type\":\"release\",\"downloads\":{\"client\":{\"sha1\":\"ABCDEF\",\"size\":1,\"url\":\"https://cdn.example/client.jar\",\"path\":\"client.jar\"}},\"assetIndex\":{\"id\":\"17\",\"sha1\":\"AABBCC\",\"size\":2,\"url\":\"https://cdn.example/assets.json\",\"path\":\"indexes/17.json\"},\"libraries\":[],\"mainClass\":\"net.minecraft.client.main.Main\"}" :: Either String VersionJson of
+    Left err ->
+      assertEqual ("version json decodes: " <> err) True False
+    Right versionJson -> do
+      assertEqual "version json id decodes from JSON string" "1.21.5" (versionIdText (versionId versionJson))
+      case Map.lookup "client" (versionDownloads versionJson) of
+        Nothing ->
+          assertEqual "version json keeps client download" True False
+        Just client -> do
+          assertEqual "version json client url decodes from JSON string" (Just "https://cdn.example/client.jar") (urlText <$> downloadUrl client)
+          assertEqual "version json client sha1 normalizes from JSON string" (Just "abcdef") (sha1Text <$> downloadSha1 client)
+          assertEqual "version json client path decodes from JSON string" (Just "client.jar") (relativePathFilePath <$> downloadPath client)
+      assertEqual "version json asset index sha1 normalizes from JSON string" (Just "aabbcc") (sha1Text <$> downloadSha1 (versionAssetIndex versionJson))
+  assertEqual "download info empty sha1 is rejected" True (isLeft (eitherDecode "{\"sha1\":\"\"}" :: Either String DownloadInfo))
 
 assertContains :: String -> String -> String -> IO ()
 assertContains label expected actual =

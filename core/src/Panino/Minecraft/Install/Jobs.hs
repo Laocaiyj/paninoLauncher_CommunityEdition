@@ -36,9 +36,12 @@ import Panino.Download.Manager
   ( DownloadJob(..)
   )
 import Panino.Core.Types
-  ( sha1FromText
+  ( relativePathFilePath
+  , sha1Text
   , urlFromString
+  , urlText
   , urlFromText
+  , versionIdText
   )
 import Panino.Minecraft.Layout
   ( MinecraftLayout(..)
@@ -61,7 +64,7 @@ import System.FilePath ((</>))
 
 baseJobs :: MinecraftLayout -> VersionJson -> DownloadInfo -> IO [DownloadJob]
 baseJobs layout versionJson clientInfo =
-  (: []) <$> downloadJob "client jar" (clientJarPath layout (versionId versionJson)) clientInfo
+  (: []) <$> downloadJob "client jar" (clientJarPath layout (versionIdText (versionId versionJson))) clientInfo
 
 assetIndexJob :: MinecraftLayout -> VersionJson -> IO DownloadJob
 assetIndexJob layout versionJson =
@@ -72,8 +75,8 @@ assetJobs layout index =
   [ DownloadJob
       { jobLabel = "asset " <> Text.unpack name
       , jobUrl = urlFromString (assetObjectUrl objectInfo)
-      , jobTargetPath = assetObjectPath layout (assetHash objectInfo)
-      , jobSha1 = sha1FromText (assetHash objectInfo)
+      , jobTargetPath = assetObjectPath layout (sha1Text (assetHash objectInfo))
+      , jobSha1 = Just (assetHash objectInfo)
       , jobSize = Just (assetSize objectInfo)
       }
   | (name, objectInfo) <- sortOn (Down . assetSize . snd) (Map.toList (assetObjects index))
@@ -132,7 +135,7 @@ nativeArchivePaths layout versionJson =
 classpathJars :: MinecraftLayout -> VersionJson -> [FilePath]
 classpathJars layout versionJson =
   mapMaybe (libraryClasspathJar layout) (classpathLibraries versionJson)
-    <> [clientJarPath layout (versionId versionJson)]
+    <> [clientJarPath layout (versionIdText (versionId versionJson))]
 
 assetIndexId :: VersionJson -> Text
 assetIndexId versionJson =
@@ -145,9 +148,9 @@ downloadInfoSummary info =
   Map.fromList
     ( catMaybes
         [ pair "id" <$> downloadId info
-        , pair "url" <$> downloadUrl info
-        , pair "sha1" <$> downloadSha1 info
-        , pair "path" . Text.pack <$> downloadPath info
+        , pair "url" . urlText <$> downloadUrl info
+        , pair "sha1" . sha1Text <$> downloadSha1 info
+        , pair "path" . Text.pack . relativePathFilePath <$> downloadPath info
         ]
     )
   where
@@ -161,7 +164,7 @@ downloadJob label target info = do
       { jobLabel = label
       , jobUrl = urlFromString url
       , jobTargetPath = target
-      , jobSha1 = downloadSha1 info >>= sha1FromText
+      , jobSha1 = downloadSha1 info
       , jobSize = downloadSize info
       }
 
@@ -204,7 +207,7 @@ libraryMavenJob layout library = do
   pure
     DownloadJob
       { jobLabel = "library " <> Text.unpack (libraryName library)
-      , jobUrl = urlFromText (ensureTrailingSlash baseUrl <> Text.pack (mavenArtifactPath (libraryName library) Nothing))
+      , jobUrl = urlFromText (ensureTrailingSlash (urlText baseUrl) <> Text.pack (mavenArtifactPath (libraryName library) Nothing))
       , jobTargetPath = librariesDir layout </> mavenArtifactPath (libraryName library) Nothing
       , jobSha1 = Nothing
       , jobSize = Nothing
@@ -273,12 +276,12 @@ artifactClassifier library =
 assetObjectUrl :: AssetObject -> String
 assetObjectUrl objectInfo =
   "https://resources.download.minecraft.net/"
-    <> Text.unpack (Text.take 2 (assetHash objectInfo))
+    <> Text.unpack (Text.take 2 (sha1Text (assetHash objectInfo)))
     <> "/"
-    <> Text.unpack (assetHash objectInfo)
+    <> Text.unpack (sha1Text (assetHash objectInfo))
 
 requireUrl :: String -> DownloadInfo -> IO String
 requireUrl label info =
   case downloadUrl info of
-    Just url -> pure (Text.unpack url)
+    Just url -> pure (Text.unpack (urlText url))
     Nothing -> fail ("metadata_parse_failed: download is missing url: " <> label)

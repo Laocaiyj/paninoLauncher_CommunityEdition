@@ -40,6 +40,12 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( RelativePath
+  , Sha1
+  , Url
+  , VersionId
+  )
 import System.Info (arch, os)
 
 data VersionManifest = VersionManifest
@@ -51,9 +57,9 @@ instance FromJSON VersionManifest where
     VersionManifest <$> obj .: "versions"
 
 data VersionSummary = VersionSummary
-  { versionSummaryId :: Text
-  , versionSummaryUrl :: Text
-  , versionSummarySha1 :: Maybe Text
+  { versionSummaryId :: VersionId
+  , versionSummaryUrl :: Url
+  , versionSummarySha1 :: Maybe Sha1
   } deriving (Eq, Show)
 
 instance FromJSON VersionSummary where
@@ -64,7 +70,7 @@ instance FromJSON VersionSummary where
       <*> obj .:? "sha1"
 
 data VersionJson = VersionJson
-  { versionId :: Text
+  { versionId :: VersionId
   , versionType :: Maybe Text
   , versionJavaVersion :: Maybe JavaVersion
   , versionDownloads :: Map Text DownloadInfo
@@ -131,10 +137,10 @@ parseArgValue = \case
 
 data DownloadInfo = DownloadInfo
   { downloadId :: Maybe Text
-  , downloadSha1 :: Maybe Text
+  , downloadSha1 :: Maybe Sha1
   , downloadSize :: Maybe Int64
-  , downloadUrl :: Maybe Text
-  , downloadPath :: Maybe FilePath
+  , downloadUrl :: Maybe Url
+  , downloadPath :: Maybe RelativePath
   } deriving (Eq, Show)
 
 instance FromJSON DownloadInfo where
@@ -149,7 +155,7 @@ instance FromJSON DownloadInfo where
 data Library = Library
   { libraryName :: Text
   , libraryDownloads :: Maybe LibraryDownloads
-  , libraryUrl :: Maybe Text
+  , libraryUrl :: Maybe Url
   , libraryRules :: [Rule]
   , libraryNatives :: Map Text Text
   } deriving (Eq, Show)
@@ -183,7 +189,7 @@ instance FromJSON AssetIndex where
     AssetIndex <$> obj .: "objects"
 
 data AssetObject = AssetObject
-  { assetHash :: Text
+  { assetHash :: Sha1
   , assetSize :: Int64
   } deriving (Eq, Show)
 

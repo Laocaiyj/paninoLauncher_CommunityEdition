@@ -26,6 +26,9 @@ import qualified Data.Text as Text
 import Panino.Api.Routes.LaunchTuning (systemMemoryBytes)
 import Panino.Api.Routes.Minecraft.Common (versionJsonJavaMajor)
 import Panino.Api.Types (LaunchRequest(..))
+import Panino.Core.Types
+  ( versionIdText
+  )
 import Panino.Launch.Java (JavaRunResult(..))
 import Panino.Launch.Tuning.Types (ResolvedJvmTuning(..))
 import Panino.Lockfile.Solver
@@ -193,7 +196,7 @@ recordLaunchHookWarning layout hookName message = do
 launchInstanceFingerprint :: VersionJson -> LaunchRequest -> InstanceFingerprint
 launchInstanceFingerprint versionJson request =
   defaultInstanceFingerprint
-    { fingerprintMinecraftVersion = Just (versionId versionJson)
+    { fingerprintMinecraftVersion = Just (versionIdText (versionId versionJson))
     , fingerprintJavaRequirement = Text.pack . show <$> versionJsonJavaMajor versionJson
     , fingerprintLoaderFamily = launchRequestLoader request
     , fingerprintRendererCapability = Just "java_renderer_unknown"
@@ -233,7 +236,7 @@ usesModLoader versionJson =
     ]
   where
     normalized =
-      Text.toLower (versionId versionJson <> " " <> versionMainClass versionJson)
+      Text.toLower (versionIdText (versionId versionJson) <> " " <> versionMainClass versionJson)
 
 readTextFileIfExists :: FilePath -> IO (Maybe String)
 readTextFileIfExists path = do

@@ -25,6 +25,9 @@ import Network.Wai.Handler.Warp (testWithApplication)
 import Panino.Download.Manager
   ( downloadOptionsWithOverrides
   )
+import Panino.Core.Types
+  ( versionIdText
+  )
 import Panino.Launch.Arguments
   ( LaunchProfile(..)
   , buildJavaArguments
@@ -217,7 +220,7 @@ assertLoaderShaderInstallFixtures = do
       assertEqual "Quilt fixture install creates loader profile" True quiltProfileExists
       assertEqual "Quilt fixture install keeps base client jar" True quiltClientExists
       assertEqual "Quilt fixture install downloads intermediary mappings" True quiltIntermediaryExists
-      assertEqual "Quilt fixture launch version is loader profile" "quilt-loader-0.29.1-26.1.2" (versionId quiltVersionJson)
+      assertEqual "Quilt fixture launch version is loader profile" "quilt-loader-0.29.1-26.1.2" (versionIdText (versionId quiltVersionJson))
       assertEqual "Quilt fixture launch main class is Quilt KnotClient" "org.quiltmc.loader.impl.launch.knot.KnotClient" (versionMainClass quiltVersionJson)
       assertEqual "Quilt fixture launch args include Quilt main class" True ("org.quiltmc.loader.impl.launch.knot.KnotClient" `elem` quiltLaunchArgs)
       assertEqual "Quilt fixture launch classpath includes loader profile client jar" True (any ("quilt-loader-0.29.1-26.1.2.jar" `isInfixOf`) quiltLaunchArgs)

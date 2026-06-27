@@ -56,6 +56,9 @@ import Panino.Diagnostics.Types
   , diagnosticException
   )
 import Panino.Download.Manager (DownloadProgress)
+import Panino.Core.Types
+  ( versionIdText
+  )
 import Panino.Launch.Arguments
   ( LaunchProfile(..)
   , buildJavaArguments
@@ -165,7 +168,7 @@ resolveLaunchJvmTuning layout versionJson request = do
           , tuningRequestPolicy = fromMaybe JvmTuningAuto (launchRequestJvmProfile request)
           , tuningRequestMemoryPolicy = memoryPolicy
           , tuningRequestSystemMemoryBytes = systemMemory
-          , tuningRequestMinecraftVersion = Just (versionId versionJson)
+          , tuningRequestMinecraftVersion = Just (versionIdText (versionId versionJson))
           , tuningRequestJavaMajorVersion = versionJsonJavaMajor versionJson
           , tuningRequestLoader = launchRequestLoader request
           , tuningRequestModCount = launchRequestModCount request <|> Just (contentMods counts)

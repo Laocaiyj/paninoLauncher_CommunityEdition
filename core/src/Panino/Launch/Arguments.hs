@@ -12,6 +12,9 @@ import Data.Maybe (fromMaybe)
 import Data.List (intercalate)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( versionIdText
+  )
 import Panino.Minecraft.Layout
   ( MinecraftLayout(..)
   , clientJarPath
@@ -69,7 +72,7 @@ jvmArguments layout versionJson classpathJars profile =
             <$> allowedArgValues (versionJvmArguments args)
         )
     Nothing ->
-      [ "-Djava.library.path=" <> nativesDir layout (versionId versionJson)
+      [ "-Djava.library.path=" <> nativesDir layout (versionIdText (versionId versionJson))
       , "-cp"
       , classpathString classpathJars
       ]
@@ -106,7 +109,7 @@ variableMap :: MinecraftLayout -> VersionJson -> [FilePath] -> LaunchProfile -> 
 variableMap layout versionJson classpathJars profile =
   Map.fromList
     [ ("auth_player_name", profileUsername profile)
-    , ("version_name", versionId versionJson)
+    , ("version_name", versionIdText (versionId versionJson))
     , ("game_directory", Text.pack (minecraftRoot layout))
     , ("assets_root", Text.pack (assetsDir layout))
     , ("assets_index_name", assetIndexName versionJson)
@@ -114,7 +117,7 @@ variableMap layout versionJson classpathJars profile =
     , ("auth_access_token", profileAccessToken profile)
     , ("user_type", "msa")
     , ("version_type", fromMaybe "release" (versionType versionJson))
-    , ("natives_directory", Text.pack (nativesDir layout (versionId versionJson)))
+    , ("natives_directory", Text.pack (nativesDir layout (versionIdText (versionId versionJson))))
     , ("library_directory", Text.pack (librariesDir layout))
     , ("launcher_name", "PaninoLauncher")
     , ("launcher_version", "0.1.0.0")
@@ -134,7 +137,7 @@ classpathString =
 
 defaultClasspath :: MinecraftLayout -> VersionJson -> [FilePath]
 defaultClasspath layout versionJson =
-  [clientJarPath layout (versionId versionJson)]
+  [clientJarPath layout (versionIdText (versionId versionJson))]
 
 substituteVariables :: Map Text Text -> Text -> Text
 substituteVariables variables raw =

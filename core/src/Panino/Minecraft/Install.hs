@@ -35,6 +35,9 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( versionIdText
+  )
 import Data.Time.Clock (UTCTime)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (Manager)
@@ -153,7 +156,7 @@ installMinecraftVersionWithOptionsAndProgressAndCancel manager layout requestedV
   versionJson <- loadVersionJson manager layout requestedVersion
   throwIfCancelled isCancelled
 
-  putStrLn ("installing Minecraft " <> Text.unpack (versionId versionJson))
+  putStrLn ("installing Minecraft " <> Text.unpack (versionIdText (versionId versionJson)))
   clientInfo <- requireClientDownload versionJson
   assetIndexDownload <- assetIndexJob layout versionJson
   let metadataJobs = [assetIndexDownload]
@@ -169,7 +172,7 @@ installMinecraftVersionWithOptionsAndProgressAndCancel manager layout requestedV
   let payloadJobs =
         dedupeInstallPlanJobs
           (baseDownloadJobs <> libraryDownloadJobs <> nativeDownloadJobs <> assetJobs layout assetIndex)
-      fullGraph = downloadJobsInstallPlanGraph "minecraft" (versionId versionJson) (metadataJobs <> payloadJobs)
+      fullGraph = downloadJobsInstallPlanGraph "minecraft" (versionIdText (versionId versionJson)) (metadataJobs <> payloadJobs)
   writeInstallPlanGraph (installPlanGraphPath layout) fullGraph
   putStrLn
     ( "install_plan_graph"
@@ -207,7 +210,7 @@ installMinecraftInheritedProfileWithOptionsAndProgressAndCancel manager layout i
   profileValue <- decodeJsonFile (versionJsonPath layout profileId) :: IO Value
   profileLibraries <- profileLibrariesFromValue profileId profileValue
   versionJson <- loadVersionJson manager layout profileId
-  ensureProfileClientJar layout inheritedVersion (versionId versionJson)
+  ensureProfileClientJar layout inheritedVersion (versionIdText (versionId versionJson))
   throwIfCancelled isCancelled
   libraryDownloadJobs <- libraryArtifactJobsForLibraries layout profileLibraries
   nativeDownloadJobs <- nativeLibraryJobsForLibraries layout profileLibraries
@@ -286,12 +289,13 @@ resolveVersionSummaryJson versionJson =
 extractNatives :: MinecraftLayout -> VersionJson -> [FilePath] -> IO ()
 extractNatives _ _ [] = pure ()
 extractNatives layout versionJson archivePaths = do
-  let targetDir = nativesDir layout (versionId versionJson)
+  let versionText = versionIdText (versionId versionJson)
+      targetDir = nativesDir layout versionText
   createDirectoryIfMissing True targetDir
-  marker <- nativeExtractionMarker (versionId versionJson) archivePaths
+  marker <- nativeExtractionMarker versionText archivePaths
   current <- readNativeMarker targetDir
   if current == Just marker
-    then putStrLn ("skipped natives for " <> Text.unpack (versionId versionJson))
+    then putStrLn ("skipped natives for " <> Text.unpack versionText)
     else do
       forM_ archivePaths $ \archivePath -> do
         (exitCode, _stdout, stderrText) <-
@@ -339,7 +343,7 @@ requireClientDownload versionJson =
     Nothing ->
       fail
         ( "manifest_parse_failed: version JSON is missing downloads.client for "
-            <> Text.unpack (versionId versionJson)
+            <> Text.unpack (versionIdText (versionId versionJson))
         )
 
 clientDownload :: VersionJson -> Maybe DownloadInfo

@@ -43,6 +43,10 @@ import Network.HTTP.Client
   )
 import Network.HTTP.Types.Status (statusCode)
 import Panino.Api.Server.State (ServerState(..))
+import Panino.Core.Types
+  ( sha1Text
+  , urlText
+  )
 import Panino.Minecraft.Types
   ( AssetIndex(..)
   , AssetObject(..)
@@ -108,7 +112,7 @@ sourceTestValue state = do
     case versionJson >>= downloadUrl . versionAssetIndex of
       Just assetIndexUrl ->
         fetchJsonProbe manager $
-          ProbeTarget "Mojang asset index" (Text.unpack assetIndexUrl) False
+          ProbeTarget "Mojang asset index" (Text.unpack (urlText assetIndexUrl)) False
       Nothing ->
         pure (blockedReport "Mojang asset index" "version:assetIndex" "Version metadata did not provide an asset index URL.", Nothing)
   (assetReport, _assetBytes) <-
@@ -316,7 +320,7 @@ attemptJson attempt =
 
 selectedManifestVersionUrl :: VersionManifest -> Maybe Text
 selectedManifestVersionUrl manifest =
-  versionSummaryUrl <$> listToMaybe (manifestVersions manifest)
+  urlText . versionSummaryUrl <$> listToMaybe (manifestVersions manifest)
 
 selectedLibraryUrl :: VersionJson -> Maybe String
 selectedLibraryUrl versionJson =
@@ -327,19 +331,19 @@ selectedLibraryUrl versionJson =
       , isAllowedByRules (libraryRules library)
       , Just downloads <- [libraryDownloads library]
       , Just artifact <- [libraryArtifact downloads]
-      , Just url <- [downloadUrl artifact]
+      , Just url <- [urlText <$> downloadUrl artifact]
       ]
 
 selectedClientDownloadUrl :: VersionJson -> Maybe Text
 selectedClientDownloadUrl versionJson =
-  Map.lookup "client" (versionDownloads versionJson) >>= downloadUrl
+  urlText <$> (Map.lookup "client" (versionDownloads versionJson) >>= downloadUrl)
 
 selectedAssetObjectUrl :: AssetIndex -> Maybe String
 selectedAssetObjectUrl assetIndex =
   case sortOn (assetSize . snd) (Map.toList (assetObjects assetIndex)) of
     [] -> Nothing
     (_, asset):_ ->
-      let hash = assetHash asset
+      let hash = sha1Text (assetHash asset)
           prefix = Text.take 2 hash
        in Just $
             Text.unpack $

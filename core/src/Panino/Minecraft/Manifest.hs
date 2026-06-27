@@ -25,8 +25,7 @@ import Panino.Download.Manager
   , downloadSingle
   )
 import Panino.Core.Types
-  ( sha1FromText
-  , urlFromText
+  ( versionIdFromText
   )
 import Panino.Net.Http
   ( fetchJsonUrl
@@ -51,9 +50,13 @@ versionManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2
 findVersion :: Manager -> Text -> IO VersionSummary
 findVersion manager requestedVersion = do
   manifest <- fetchJson manager versionManifestUrl
-  case filter ((== requestedVersion) . versionSummaryId) (manifestVersions manifest) of
-    summary:_ -> pure summary
-    [] -> fail ("Minecraft version not found in manifest: " <> Text.unpack requestedVersion)
+  case versionIdFromText requestedVersion of
+    Nothing ->
+      fail ("Minecraft version not found in manifest: " <> Text.unpack requestedVersion)
+    Just requestedVersionId ->
+      case filter ((== requestedVersionId) . versionSummaryId) (manifestVersions manifest) of
+        summary:_ -> pure summary
+        [] -> fail ("Minecraft version not found in manifest: " <> Text.unpack requestedVersion)
 
 loadVersionJson :: Manager -> MinecraftLayout -> Text -> IO VersionJson
 loadVersionJson manager layout requestedVersion = do
@@ -74,9 +77,9 @@ loadRemoteVersionValue manager _ requestedVersion target = do
   createDirectoryIfMissing True (takeDirectory target)
   _ <- downloadSingle manager DownloadJob
     { jobLabel = "version json " <> Text.unpack requestedVersion
-    , jobUrl = urlFromText (versionSummaryUrl summary)
+    , jobUrl = versionSummaryUrl summary
     , jobTargetPath = target
-    , jobSha1 = versionSummarySha1 summary >>= sha1FromText
+    , jobSha1 = versionSummarySha1 summary
     , jobSize = Nothing
     }
   decodeJsonFile target
