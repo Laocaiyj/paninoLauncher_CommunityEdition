@@ -16,7 +16,6 @@ import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Data.Time.Clock
   ( UTCTime
   , diffUTCTime
@@ -42,6 +41,9 @@ import Panino.Download.Types
   , DownloadMultipartTelemetry
   , DownloadProgress(..)
   , DownloadResult(..)
+  )
+import Panino.Core.Types
+  ( urlText
   )
 
 incompleteProgressPercentCap :: Double
@@ -115,7 +117,7 @@ progressContext job activeWorkers retryCount selectedHost hostTelemetry throttle
     , contextLane = Just (renderLane (laneForJob (schedulerJob job)))
     , contextActiveWorkers = activeWorkers
     , contextRetryCount = retryCount
-    , contextSource = Just (Text.pack (jobUrl job))
+    , contextSource = Just (urlText (jobUrl job))
     , contextHostTelemetry = hostTelemetry
     , contextThrottleReason = throttleReason
     , contextMultipartTelemetry = multipartTelemetry

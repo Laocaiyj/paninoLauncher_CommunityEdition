@@ -9,6 +9,10 @@ import Data.Aeson
   , encode
   )
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( sha1FromText
+  , urlFromString
+  )
 import Panino.Download.Manager (DownloadJob(..))
 import Panino.Install.Plan.Types
   ( InstallPlanNode(..)
@@ -93,9 +97,9 @@ assertMinecraftInstallPlanGraph = do
   let largeJobs =
         [ DownloadJob
             ("asset minecraft/large/" <> show index <> ".ogg")
-            ("https://example.com/assets/" <> show index)
+            (urlFromString ("https://example.com/assets/" <> show index))
             ("/tmp/mc/assets/objects/large/" <> show index)
-            (Just (Text.pack ("sha" <> show index)))
+            (sha1FromText (Text.pack ("sha" <> show index)))
             (Just (fromIntegral index))
         | index <- [1 :: Int .. 600]
         ]

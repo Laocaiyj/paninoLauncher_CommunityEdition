@@ -31,6 +31,7 @@ import Panino.Download.Manager
   , DownloadResult(..)
   , downloadSingle
   )
+import Panino.Core.Types (urlFromString)
 import Panino.Net.Http (makeHttpManager)
 import System.Directory
   ( doesFileExist
@@ -99,7 +100,7 @@ assertMultipartDownload tempDir = do
                 job =
                   DownloadJob
                     { jobLabel = "multipart-test"
-                    , jobUrl = targetUrl
+                    , jobUrl = urlFromString targetUrl
                     , jobTargetPath = target
                     , jobSha1 = Nothing
                     , jobSize = Just expectedSize
@@ -158,7 +159,7 @@ assertMultipartRangeGetFallback tempDir = do
             let job =
                   DownloadJob
                     { jobLabel = "multipart-range-fallback"
-                    , jobUrl = "http://127.0.0.1:" <> show port <> "/range.bin"
+                    , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/range.bin")
                     , jobTargetPath = target
                     , jobSha1 = Nothing
                     , jobSize = Just expectedSize
@@ -210,7 +211,7 @@ assertMultipartRangeIgnoredFallsBack tempDir = do
             let job =
                   DownloadJob
                     { jobLabel = "multipart-range-ignored"
-                    , jobUrl = "http://127.0.0.1:" <> show port <> "/ignored.bin"
+                    , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/ignored.bin")
                     , jobTargetPath = target
                     , jobSha1 = Nothing
                     , jobSize = Just expectedSize

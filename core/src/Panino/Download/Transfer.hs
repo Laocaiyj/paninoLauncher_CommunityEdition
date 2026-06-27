@@ -78,6 +78,11 @@ import Panino.Download.Types
   , DownloadMultipartTelemetry(..)
   , DownloadResult(..)
   )
+import Panino.Core.Types
+  ( sha1Text
+  , urlFromString
+  , urlString
+  )
 import Panino.Download.VerificationIndex
   ( lookupVerifiedFile
   , recordVerifiedFile
@@ -170,7 +175,7 @@ downloadOnce manager multipartConcurrency multipartProgress isCancelled onChunk 
     else do
       throwIfCancelled isCancelled
       createDirectoryIfMissing True (takeDirectory (jobTargetPath job))
-      resolvedUrls <- resolveSourceUrls (jobUrl job)
+      resolvedUrls <- resolveSourceUrls (urlString (jobUrl job))
       throwIfCancelled isCancelled
       orderedUrls <- preferFastestUrls manager resolvedUrls
       throwIfCancelled isCancelled
@@ -237,7 +242,7 @@ downloadOnce manager multipartConcurrency multipartProgress isCancelled onChunk 
                   (throwIfCancelled isCancelled)
                   MultipartJob
                     { multipartJobLabel = jobLabel job
-                    , multipartJobUrl = resolvedUrl
+                    , multipartJobUrl = urlFromString resolvedUrl
                     , multipartJobTargetPartPath = partPath job
                     , multipartJobSize = fromMaybe 0 (jobSize job)
                     }
@@ -410,7 +415,7 @@ verifyDownloadedFile job path digest = do
       shaOk =
         case jobSha1 job of
           Nothing -> True
-          Just expected -> fileDigestSha1 digest == Text.toLower expected
+          Just expected -> fileDigestSha1 digest == sha1Text expected
       valid = sizeOk && shaOk
   if valid
     then pure ()
@@ -429,7 +434,7 @@ verifyFile job path = do
         Just expected -> (== expected) . fromIntegral <$> getFileSize path
       shaOk <- case jobSha1 job of
         Nothing -> pure True
-        Just expected -> (== Text.toLower expected) <$> sha1HexFile path
+        Just expected -> (== sha1Text expected) <$> sha1HexFile path
       let valid = sizeOk && shaOk
       if valid
         then recordVerifiedFile path (jobSha1 job)

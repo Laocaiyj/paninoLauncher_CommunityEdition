@@ -32,6 +32,9 @@ import Panino.Content.Local.Types
   ( JavaCheckRequest(..)
   , JavaCheckResponse(..)
   )
+import Panino.Core.Types
+  ( urlFromText
+  )
 import Panino.Download.Manager
   ( DownloadJob(..)
   , DownloadProgress
@@ -205,7 +208,7 @@ downloadRuntimeArchive manager appRoot request spec sha256 isCancelled onProgres
       isCancelled
       [ DownloadJob
           { jobLabel = "Java " <> show (runtimeDownloadFeatureVersion spec) <> " runtime"
-          , jobUrl = Text.unpack (runtimeDownloadUrl spec)
+          , jobUrl = urlFromText (runtimeDownloadUrl spec)
           , jobTargetPath = archivePath
           , jobSha1 = Nothing
           , jobSize = Nothing

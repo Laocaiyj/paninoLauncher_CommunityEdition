@@ -57,6 +57,7 @@ import Panino.Download.Manager
   , runDownloadJobsWithOptionsAndProgressAndCancel
   , runDownloadJobsWithProgressAndCancel
   )
+import Panino.Core.Types (urlFromString)
 import Panino.Net.Http (makeHttpManager)
 import System.Directory
   ( doesFileExist
@@ -90,7 +91,7 @@ assertDownloadRejects404 tempDir = do
               _ <-
                 downloadSingle manager DownloadJob
                   { jobLabel = "404-test"
-                  , jobUrl = "http://127.0.0.1:" <> show port <> "/missing.jar"
+                  , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/missing.jar")
                   , jobTargetPath = target
                   , jobSha1 = Nothing
                   , jobSize = Nothing
@@ -136,7 +137,7 @@ assertDownloadRetryOptions tempDir = do
           else respond (responseLBS status200 [("Content-Length", "2")] payload)
     )
     $ \port -> do
-      let job = baseJob { jobUrl = "http://127.0.0.1:" <> show port <> "/retry.bin" }
+      let job = baseJob { jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/retry.bin") }
       summary <-
         runDownloadJobsWithOptionsAndProgressAndCancel
           manager
@@ -157,7 +158,7 @@ assertDownloadConcurrencyOptions tempDir = do
       makeJobs port label =
         [ DownloadJob
             { jobLabel = label <> "-" <> show index
-            , jobUrl = "http://127.0.0.1:" <> show port <> "/" <> label <> "/" <> show index <> ".bin"
+            , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/" <> label <> "/" <> show index <> ".bin")
             , jobTargetPath = tempDir </> ("panino-core-" <> label <> "-" <> show index <> ".bin")
             , jobSha1 = Nothing
             , jobSize = Just expectedSize
@@ -228,7 +229,7 @@ assertDownloadCancellation tempDir = do
       let job =
             DownloadJob
               { jobLabel = "cancel-test"
-              , jobUrl = "http://127.0.0.1:" <> show port <> "/cancel.bin"
+              , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/cancel.bin")
               , jobTargetPath = target
               , jobSha1 = Nothing
               , jobSize = Just expectedSize

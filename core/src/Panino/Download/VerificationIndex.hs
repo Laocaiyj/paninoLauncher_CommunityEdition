@@ -34,6 +34,10 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time.Clock (UTCTime)
+import Panino.Core.Types
+  ( Sha1
+  , sha1Text
+  )
 import System.Directory
   ( createDirectoryIfMissing
   , doesFileExist
@@ -89,7 +93,7 @@ verificationIndexLock :: MVar VerificationIndexState
 verificationIndexLock =
   unsafePerformIO (newMVar (VerificationIndexState Nothing Map.empty False))
 
-lookupVerifiedFile :: FilePath -> Maybe Text -> IO Bool
+lookupVerifiedFile :: FilePath -> Maybe Sha1 -> IO Bool
 lookupVerifiedFile _ Nothing =
   pure False
 lookupVerifiedFile path (Just expectedSha1) = do
@@ -106,10 +110,10 @@ lookupVerifiedFile path (Just expectedSha1) = do
             Just record ->
               recordSize record == size
                 && recordModifiedAt record == modifiedAt
-                && recordSha1 record == Text.toLower expectedSha1
+                && recordSha1 record == sha1Text expectedSha1
             Nothing -> False
 
-recordVerifiedFile :: FilePath -> Maybe Text -> IO ()
+recordVerifiedFile :: FilePath -> Maybe Sha1 -> IO ()
 recordVerifiedFile _ Nothing =
   pure ()
 recordVerifiedFile path (Just sha1) = do
@@ -127,7 +131,7 @@ recordVerifiedFile path (Just sha1) = do
                   VerificationRecord
                     { recordSize = size
                     , recordModifiedAt = modifiedAt
-                    , recordSha1 = Text.toLower sha1
+                    , recordSha1 = sha1Text sha1
                     }
                   (indexStateRecords state)
           pure (state { indexStateRecords = records, indexStateDirty = True }, ())

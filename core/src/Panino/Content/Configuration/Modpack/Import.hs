@@ -29,6 +29,10 @@ import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
 import Panino.Content.Configuration.Modpack.Plan (safeRelativePath)
 import Panino.Content.Configuration.Types
+import Panino.Core.Types
+  ( sha1FromText
+  , urlFromText
+  )
 import Panino.CoreLogic.Determinism (stableSortPackages)
 import Panino.Download.Manager
   ( DownloadJob(..)
@@ -84,9 +88,9 @@ modpackDownloadJob stagingPath node =
           pure
             DownloadJob
               { jobLabel = Text.unpack (Plan.installNodeLabel node)
-              , jobUrl = Text.unpack url
+              , jobUrl = urlFromText url
               , jobTargetPath = stagingPath </> normalise relativePath
-              , jobSha1 = Plan.installNodeSha1 node
+              , jobSha1 = Plan.installNodeSha1 node >>= sha1FromText
               , jobSize = Plan.installNodeSize node
               }
     _ ->

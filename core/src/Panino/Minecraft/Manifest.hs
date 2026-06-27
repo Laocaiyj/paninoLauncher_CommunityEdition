@@ -24,6 +24,10 @@ import Panino.Download.Manager
   ( DownloadJob(..)
   , downloadSingle
   )
+import Panino.Core.Types
+  ( sha1FromText
+  , urlFromText
+  )
 import Panino.Net.Http
   ( fetchJsonUrl
   , makeHttpManager
@@ -70,9 +74,9 @@ loadRemoteVersionValue manager _ requestedVersion target = do
   createDirectoryIfMissing True (takeDirectory target)
   _ <- downloadSingle manager DownloadJob
     { jobLabel = "version json " <> Text.unpack requestedVersion
-    , jobUrl = Text.unpack (versionSummaryUrl summary)
+    , jobUrl = urlFromText (versionSummaryUrl summary)
     , jobTargetPath = target
-    , jobSha1 = versionSummarySha1 summary
+    , jobSha1 = versionSummarySha1 summary >>= sha1FromText
     , jobSize = Nothing
     }
   decodeJsonFile target

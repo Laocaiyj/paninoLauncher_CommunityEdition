@@ -28,6 +28,11 @@ import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
+import Panino.Core.Types
+  ( sha1FromText
+  , sha1Text
+  , urlFromText
+  )
 import Panino.CoreLogic.Determinism (stableTextSet)
 import Panino.Download.Manager
   ( DownloadJob(..)
@@ -149,9 +154,9 @@ modrinthDownloadJob :: MinecraftLayout -> ResolvedModrinthMod -> DownloadJob
 modrinthDownloadJob layout resolved =
   DownloadJob
     { jobLabel = "modrinth mod " <> Text.unpack (resolvedModrinthProject resolved)
-    , jobUrl = Text.unpack (modrinthFileUrl selectedFile)
+    , jobUrl = urlFromText (modrinthFileUrl selectedFile)
     , jobTargetPath = minecraftRoot layout </> "mods" </> Text.unpack (safeFileName (modrinthFileName selectedFile))
-    , jobSha1 = Map.lookup "sha1" (modrinthFileHashes selectedFile)
+    , jobSha1 = Map.lookup "sha1" (modrinthFileHashes selectedFile) >>= sha1FromText
     , jobSize = modrinthFileSize selectedFile
     }
   where
@@ -238,7 +243,7 @@ validateShaderDownloadJobs jobs =
           ]
       | otherwise = []
       where
-        distinctSha1s = stableTextSet (map (fromMaybe "missing" . jobSha1) targetJobs)
+        distinctSha1s = stableTextSet (map (maybe "missing" sha1Text . jobSha1) targetJobs)
 
 emptyDownloadSummary :: DownloadSummary
 emptyDownloadSummary =

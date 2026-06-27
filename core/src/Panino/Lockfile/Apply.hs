@@ -20,6 +20,10 @@ import qualified Data.Text as Text
 import Network.HTTP.Client
   ( Manager
   )
+import Panino.Core.Types
+  ( sha1FromText
+  , urlFromText
+  )
 import Panino.Download.Manager
   ( DownloadJob(..)
   , downloadSingle
@@ -60,9 +64,9 @@ downloadJobFromLockfileNode node = do
   pure
     DownloadJob
       { jobLabel = Text.unpack (Plan.installNodeLabel node)
-      , jobUrl = Text.unpack url
+      , jobUrl = urlFromText url
       , jobTargetPath = targetPath
-      , jobSha1 = Plan.installNodeSha1 node
+      , jobSha1 = Plan.installNodeSha1 node >>= sha1FromText
       , jobSize = Plan.installNodeSize node
       }
 

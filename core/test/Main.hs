@@ -17,6 +17,9 @@ import Integration.ContentPlan
 import Integration.CoreCli
   ( assertCoreCli
   )
+import Integration.CoreTypes
+  ( assertCoreTypes
+  )
 import Integration.DownloadManager
   ( assertDownloadCancellation
   , assertDownloadConcurrencyOptions
@@ -126,6 +129,7 @@ import System.Directory
 main :: IO ()
 main = do
   assertCoreCli
+  assertCoreTypes
   assertApiServerRouting
   tempRoot <- getTemporaryDirectory
   testTaowaP0 tempRoot

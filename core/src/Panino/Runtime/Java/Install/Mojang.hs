@@ -23,6 +23,10 @@ import Data.Int (Int64)
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( sha1FromText
+  , urlFromText
+  )
 import Panino.Download.Manager (DownloadJob(..))
 import Panino.Runtime.Java.Install.Archive (runProcessChecked)
 import System.FilePath ((</>))
@@ -91,9 +95,9 @@ mojangDownloadJobs staging =
       download <- mojangFileRawDownload file
       pure DownloadJob
         { jobLabel = path
-        , jobUrl = Text.unpack (mojangDownloadUrl download)
+        , jobUrl = urlFromText (mojangDownloadUrl download)
         , jobTargetPath = staging </> path
-        , jobSha1 = Just (mojangDownloadSha1 download)
+        , jobSha1 = sha1FromText (mojangDownloadSha1 download)
         , jobSize = mojangDownloadSize download
         }
 

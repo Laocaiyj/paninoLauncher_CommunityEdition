@@ -8,6 +8,14 @@ module Panino.Multiplayer.Taowa.FrpcConfig
 
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.TypedToml
+  ( TomlLine
+  , TomlValue(..)
+  , blankLine
+  , renderToml
+  , tableArray
+  , tomlKeyValue
+  )
 import Panino.Multiplayer.Taowa.Types
   ( TaowaFrpProfile(..)
   , redactedToken
@@ -23,24 +31,24 @@ renderRedactedFrpcConfig profile sessionId localPort =
 
 renderFrpcConfigWithToken :: Maybe Text -> TaowaFrpProfile -> Text -> Int -> Text
 renderFrpcConfigWithToken token profile sessionId localPort =
-  Text.unlines $
-    [ "serverAddr = " <> tomlString (taowaProfileServerAddr profile)
-    , "serverPort = " <> renderInt (taowaProfileServerPort profile)
+  renderToml $
+    [ tomlKeyValue "serverAddr" (TomlString (taowaProfileServerAddr profile))
+    , tomlKeyValue "serverPort" (TomlInteger (taowaProfileServerPort profile))
     ]
       <> authLines token
-      <> [ ""
-         , "[[proxies]]"
-         , "name = " <> tomlString (taowaSessionProxyName sessionId)
-         , "type = \"tcp\""
-         , "localIP = \"127.0.0.1\""
-         , "localPort = " <> renderInt localPort
-         , "remotePort = " <> renderInt (taowaProfileRemotePort profile)
+      <> [ blankLine
+         , tableArray "proxies"
+         , tomlKeyValue "name" (TomlString (taowaSessionProxyName sessionId))
+         , tomlKeyValue "type" (TomlString "tcp")
+         , tomlKeyValue "localIP" (TomlString "127.0.0.1")
+         , tomlKeyValue "localPort" (TomlInteger localPort)
+         , tomlKeyValue "remotePort" (TomlInteger (taowaProfileRemotePort profile))
          ]
 
-authLines :: Maybe Text -> [Text]
+authLines :: Maybe Text -> [TomlLine]
 authLines maybeToken =
   case Text.strip <$> maybeToken of
-    Just token | not (Text.null token) -> ["auth.token = " <> tomlString token]
+    Just token | not (Text.null token) -> [tomlKeyValue "auth.token" (TomlString token)]
     _ -> []
 
 taowaSessionProxyName :: Text -> Text
@@ -57,18 +65,3 @@ sanitizeName =
       | char >= '0' && char <= '9' = char
       | char == '-' || char == '_' = char
       | otherwise = '-'
-
-tomlString :: Text -> Text
-tomlString value =
-  "\"" <> Text.concatMap escape value <> "\""
-  where
-    escape '"' = "\\\""
-    escape '\\' = "\\\\"
-    escape '\n' = "\\n"
-    escape '\r' = "\\r"
-    escape '\t' = "\\t"
-    escape char = Text.singleton char
-
-renderInt :: Int -> Text
-renderInt =
-  Text.pack . show

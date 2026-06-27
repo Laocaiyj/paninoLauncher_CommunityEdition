@@ -123,6 +123,8 @@ library
     Panino.Compatibility.Types
     Panino.Core
     Panino.Core.CommandLine
+    Panino.Core.TypedToml
+    Panino.Core.Types
     Panino.CoreLogic.Determinism
     Panino.CoreLogic.Hashing
     Panino.Download.Hash
@@ -145,6 +147,7 @@ library
     Panino.Graphics.Tuning.Recommend.Policy
     Panino.Graphics.Tuning.Types
     Panino.Install.Plan.Executor
+    Panino.Install.Plan.State
     Panino.Install.Plan.Types
     Panino.Lockfile.Changeset
     Panino.Lockfile.Explain
@@ -315,6 +318,7 @@ test-suite panino-core-test
     Integration.ContentPlan.TypedInstall
     Integration.ContentPlan.Update
     Integration.CoreCli
+    Integration.CoreTypes
     Integration.Diagnostics
     Integration.DownloadManager
     Integration.DownloadManager.Multipart

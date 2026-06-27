@@ -15,6 +15,7 @@ import Panino.Download.Manager
   ( DownloadJob(..)
   , sha1HexFile
   )
+import Panino.Core.Types (sha1Text)
 import Panino.Minecraft.Install (InstallResult(..))
 import Panino.Minecraft.Layout
   ( MinecraftLayout(..)
@@ -74,5 +75,5 @@ verifyShaderFile job = do
     Nothing -> pure ()
     Just expected -> do
       actual <- sha1HexFile path
-      when (actual /= Text.toLower expected) $
+      when (actual /= sha1Text expected) $
         fail ("install_post_verify_failed: shader file sha1 mismatch " <> path)

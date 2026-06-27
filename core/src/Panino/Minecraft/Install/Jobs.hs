@@ -35,6 +35,11 @@ import qualified Data.Text as Text
 import Panino.Download.Manager
   ( DownloadJob(..)
   )
+import Panino.Core.Types
+  ( sha1FromText
+  , urlFromString
+  , urlFromText
+  )
 import Panino.Minecraft.Layout
   ( MinecraftLayout(..)
   , assetIndexPath
@@ -66,9 +71,9 @@ assetJobs :: MinecraftLayout -> AssetIndex -> [DownloadJob]
 assetJobs layout index =
   [ DownloadJob
       { jobLabel = "asset " <> Text.unpack name
-      , jobUrl = assetObjectUrl objectInfo
+      , jobUrl = urlFromString (assetObjectUrl objectInfo)
       , jobTargetPath = assetObjectPath layout (assetHash objectInfo)
-      , jobSha1 = Just (assetHash objectInfo)
+      , jobSha1 = sha1FromText (assetHash objectInfo)
       , jobSize = Just (assetSize objectInfo)
       }
   | (name, objectInfo) <- sortOn (Down . assetSize . snd) (Map.toList (assetObjects index))
@@ -154,9 +159,9 @@ downloadJob label target info = do
   pure
     DownloadJob
       { jobLabel = label
-      , jobUrl = url
+      , jobUrl = urlFromString url
       , jobTargetPath = target
-      , jobSha1 = downloadSha1 info
+      , jobSha1 = downloadSha1 info >>= sha1FromText
       , jobSize = downloadSize info
       }
 
@@ -199,7 +204,7 @@ libraryMavenJob layout library = do
   pure
     DownloadJob
       { jobLabel = "library " <> Text.unpack (libraryName library)
-      , jobUrl = Text.unpack (ensureTrailingSlash baseUrl <> Text.pack (mavenArtifactPath (libraryName library) Nothing))
+      , jobUrl = urlFromText (ensureTrailingSlash baseUrl <> Text.pack (mavenArtifactPath (libraryName library) Nothing))
       , jobTargetPath = librariesDir layout </> mavenArtifactPath (libraryName library) Nothing
       , jobSha1 = Nothing
       , jobSize = Nothing

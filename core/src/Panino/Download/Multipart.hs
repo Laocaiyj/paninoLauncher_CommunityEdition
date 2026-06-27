@@ -61,6 +61,10 @@ import Network.HTTP.Types
   ( HeaderName
   , statusCode
   )
+import Panino.Core.Types
+  ( Url
+  , urlString
+  )
 import System.Directory
   ( createDirectoryIfMissing
   , doesFileExist
@@ -80,7 +84,7 @@ import System.IO
 
 data MultipartJob = MultipartJob
   { multipartJobLabel :: String
-  , multipartJobUrl :: String
+  , multipartJobUrl :: Url
   , multipartJobTargetPartPath :: FilePath
   , multipartJobSize :: Int64
   } deriving (Eq, Show)
@@ -227,7 +231,7 @@ rangeSupport :: Manager -> MultipartJob -> IO RangeSupport
 rangeSupport manager job = do
   result <-
     ( do
-        request <- parseRequest (multipartJobUrl job)
+        request <- parseRequest (urlString (multipartJobUrl job))
         let headRequest =
               request
                 { method = "HEAD"
@@ -258,7 +262,7 @@ rangeSupport manager job = do
 probeRangeGet :: Manager -> MultipartJob -> IO RangeSupport
 probeRangeGet manager job =
   ( do
-      request <- parseRequest (multipartJobUrl job)
+      request <- parseRequest (urlString (multipartJobUrl job))
       let rangedRequest =
             request
               { requestHeaders = ("Range", "bytes=0-0") : requestHeaders request
@@ -316,7 +320,7 @@ mapMaybeReadInt =
 downloadSegment :: Manager -> IO () -> MVar Handle -> MVar [Int] -> MultipartJob -> (Int64 -> IO ()) -> (MultipartProgress -> IO ()) -> [MultipartSegment] -> Int -> Int64 -> MultipartSegment -> IO Bool
 downloadSegment manager checkCancelled partHandleVar completedVar job onChunk onProgress segments workerCount segmentBytes segment = do
   checkCancelled
-  request <- parseRequest (multipartJobUrl job)
+  request <- parseRequest (urlString (multipartJobUrl job))
   let rangedRequest =
         request
           { requestHeaders =

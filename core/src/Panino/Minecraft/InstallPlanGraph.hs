@@ -21,8 +21,7 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Foldable (foldl')
 import Data.Maybe
-  ( fromMaybe
-  , isNothing
+  ( isNothing
   )
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -33,6 +32,11 @@ import Panino.CoreLogic.Determinism
   , stableTextSet
   )
 import Panino.Download.Manager (DownloadJob(..))
+import Panino.Core.Types
+  ( sha1Text
+  , urlString
+  , urlText
+  )
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Minecraft.InstallPlanGraph.Typed
   ( combineTypedPlans
@@ -279,8 +283,8 @@ jobNode job =
     , installPlanNodeKind = jobKind job
     , installPlanNodeLabel = Text.pack (jobLabel job)
     , installPlanNodeTargetPath = jobTargetPath job
-    , installPlanNodeUrlCandidates = [Text.pack (jobUrl job)]
-    , installPlanNodeSha1 = jobSha1 job
+    , installPlanNodeUrlCandidates = [urlText (jobUrl job)]
+    , installPlanNodeSha1 = sha1Text <$> jobSha1 job
     , installPlanNodeSize = jobSize job
     , installPlanNodeDependencies = []
     , installPlanNodePhase = jobPhase job
@@ -290,7 +294,7 @@ jobNode job =
 
 jobBlockedReason :: DownloadJob -> Maybe Text
 jobBlockedReason job
-  | null (jobUrl job) = Just "missing_url"
+  | null (urlString (jobUrl job)) = Just "missing_url"
   | isNothing (jobSha1 job) = Just "missing_sha1"
   | otherwise = Nothing
 
@@ -336,11 +340,11 @@ jobFingerprint :: DownloadJob -> String
 jobFingerprint job =
   jobLabel job
     <> "|"
-    <> jobUrl job
+    <> urlString (jobUrl job)
     <> "|"
     <> jobTargetPath job
     <> "|"
-    <> Text.unpack (fromMaybe "" (jobSha1 job))
+    <> Text.unpack (maybe "" sha1Text (jobSha1 job))
     <> "|"
     <> maybe "" show (jobSize job)
     <> "|"

@@ -25,6 +25,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
 import Panino.Content.Online.Types (LoaderMetadata(..))
+import Panino.Core.Types (urlFromString)
 import Panino.Download.Manager
   ( DownloadJob(..)
   , DownloadOptions
@@ -78,7 +79,7 @@ installInstallerProfile manager layout minecraftVersion downloadOptions isCancel
       installerJobs =
         [ DownloadJob
             { jobLabel = Text.unpack loader <> " installer"
-            , jobUrl = installerDownloadUrl
+            , jobUrl = urlFromString installerDownloadUrl
             , jobTargetPath = installerPath
             , jobSha1 = Nothing
             , jobSize = Nothing

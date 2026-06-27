@@ -47,6 +47,12 @@ import Panino.CoreLogic.Determinism
   ( stableFingerprint
   , stableSortPackages
   )
+import Panino.Core.Types
+  ( sha1FromText
+  , sha1Text
+  , urlFromText
+  , urlText
+  )
 import Panino.Download.Manager (DownloadJob(..))
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Minecraft.Layout
@@ -143,8 +149,8 @@ performancePackNode download =
     , Plan.installNodePhase = "files"
     , Plan.installNodeLabel = Text.pack (packPlanFileName file)
     , Plan.installNodeTargetPath = Just (jobTargetPath job)
-    , Plan.installNodeSourceUrls = [Text.pack (jobUrl job)]
-    , Plan.installNodeSha1 = jobSha1 job
+    , Plan.installNodeSourceUrls = [urlText (jobUrl job)]
+    , Plan.installNodeSha1 = sha1Text <$> jobSha1 job
     , Plan.installNodeSize = jobSize job
     , Plan.installNodeRequired = True
     , Plan.installNodeDependsOn = []
@@ -205,7 +211,7 @@ resolvedDownloadFromModrinth layout resolved =
           , packPlanFileProjectId = resolvedModrinthProject resolved
           , packPlanFileName = jobLabel job
           , packPlanFileTargetPath = jobTargetPath job
-          , packPlanFileSha1 = jobSha1 job
+          , packPlanFileSha1 = sha1Text <$> jobSha1 job
           , packPlanFileSize = fromIntegral <$> jobSize job
           }
    in ResolvedPerformanceDownload job planFile
@@ -231,9 +237,9 @@ resolveCurseForgeProject state layout request entry = do
         job =
           DownloadJob
             { jobLabel = Text.unpack (projectTitle project <> " " <> fileName file)
-            , jobUrl = Text.unpack downloadUrl
+            , jobUrl = urlFromText downloadUrl
             , jobTargetPath = minecraftRoot layout </> "mods" </> safeFileName
-            , jobSha1 = Map.lookup "sha1" (fileHashes file)
+            , jobSha1 = Map.lookup "sha1" (fileHashes file) >>= sha1FromText
             , jobSize = Just (fileSizeBytes file)
             }
         planFile =
@@ -242,7 +248,7 @@ resolveCurseForgeProject state layout request entry = do
             , packPlanFileProjectId = projectId project
             , packPlanFileName = safeFileName
             , packPlanFileTargetPath = jobTargetPath job
-            , packPlanFileSha1 = jobSha1 job
+            , packPlanFileSha1 = sha1Text <$> jobSha1 job
             , packPlanFileSize = fromIntegral <$> jobSize job
             }
     pure [ResolvedPerformanceDownload job planFile]
@@ -302,7 +308,7 @@ performanceDownloadKey download =
     , Text.pack (packPlanFileName file)
     , Text.pack (packPlanFileTargetPath file)
     , fromMaybe "" (packPlanFileSha1 file)
-    , Text.pack (jobUrl job)
+    , urlText (jobUrl job)
     ]
   where
     job = resolvedPerformanceDownloadJob download

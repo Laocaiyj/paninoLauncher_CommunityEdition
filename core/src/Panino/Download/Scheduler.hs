@@ -15,6 +15,10 @@ import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( Url
+  , urlString
+  )
 import Panino.Net.Probe (sourceHostKey)
 
 data DownloadLane
@@ -23,7 +27,7 @@ data DownloadLane
   deriving (Eq, Show)
 
 data SchedulerJob = SchedulerJob
-  { schedulerJobUrl :: String
+  { schedulerJobUrl :: Url
   , schedulerJobSize :: Maybe Int64
   } deriving (Eq, Show)
 
@@ -58,7 +62,7 @@ renderLane LargeObjectLane = "large-object"
 
 schedulerJobHost :: SchedulerJob -> Text
 schedulerJobHost =
-  Text.pack . sourceHostKey . schedulerJobUrl
+  Text.pack . sourceHostKey . urlString . schedulerJobUrl
 
 largeObjectThreshold :: Int64
 largeObjectThreshold = 32 * 1024 * 1024

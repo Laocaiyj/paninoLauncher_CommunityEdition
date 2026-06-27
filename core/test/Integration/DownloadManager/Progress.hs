@@ -31,6 +31,7 @@ import Panino.Download.Manager
   , downloadOptionsWithOverrides
   , runDownloadJobsWithOptionsAndProgressAndCancel
   )
+import Panino.Core.Types (urlFromString)
 import Panino.Net.Http (makeHttpManager)
 import System.Directory (doesFileExist)
 import System.FilePath
@@ -70,7 +71,7 @@ assertDownloadProgressCompletion tempDir = do
           )
     )
     $ \port -> do
-      let downloadJob = job { jobUrl = "http://127.0.0.1:" <> show port <> "/progress.bin" }
+      let downloadJob = job { jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/progress.bin") }
       _ <-
         runDownloadJobsWithOptionsAndProgressAndCancel
           manager
@@ -98,7 +99,7 @@ assertDownloadProgressWaitsForUnknownTailJobs tempDir = do
       knownJob port =
         DownloadJob
           { jobLabel = "known-tail-test"
-          , jobUrl = "http://127.0.0.1:" <> show port <> "/known.bin"
+          , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/known.bin")
           , jobTargetPath = knownTarget
           , jobSha1 = Nothing
           , jobSize = Just expectedSize
@@ -106,7 +107,7 @@ assertDownloadProgressWaitsForUnknownTailJobs tempDir = do
       unknownJob port =
         DownloadJob
           { jobLabel = "unknown-tail-test"
-          , jobUrl = "http://127.0.0.1:" <> show port <> "/unknown.bin"
+          , jobUrl = urlFromString ("http://127.0.0.1:" <> show port <> "/unknown.bin")
           , jobTargetPath = unknownTarget
           , jobSha1 = Nothing
           , jobSize = Nothing

@@ -15,12 +15,16 @@ import Control.Exception (Exception)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
+import Panino.Core.Types
+  ( Sha1
+  , Url
+  )
 
 data DownloadJob = DownloadJob
   { jobLabel :: String
-  , jobUrl :: String
+  , jobUrl :: Url
   , jobTargetPath :: FilePath
-  , jobSha1 :: Maybe Text
+  , jobSha1 :: Maybe Sha1
   , jobSize :: Maybe Int64
   } deriving (Eq, Show)
 

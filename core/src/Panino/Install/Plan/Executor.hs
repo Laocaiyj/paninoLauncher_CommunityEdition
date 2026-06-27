@@ -5,6 +5,8 @@ module Panino.Install.Plan.Executor
   ( InstallNodeResult(..)
   , InstallNodeStatus(..)
   , InstallPlanExecutionResult(..)
+  , blockedInstallPlanExecutionResult
+  , executeExecutableInstallPlan
   , executeInstallPlan
   , installPlanExecutionBatches
   , installNodeStatusText
@@ -37,6 +39,15 @@ import Panino.Install.Plan.Types
   ( InstallPlanNode(..)
   , InstallVerification(..)
   , TypedInstallPlan(..)
+  )
+import Panino.Install.Plan.State
+  ( BlockedInstallPlan
+  , ExecutableInstallPlan
+  , InstallPlanReadiness(..)
+  , blockedInstallPlanReasons
+  , blockedTypedPlan
+  , classifyTypedInstallPlan
+  , executableTypedPlan
   )
 import Panino.Diagnostics.Classify
   ( classifyFailure
@@ -118,12 +129,13 @@ instance ToJSON InstallPlanExecutionResult where
       , "rolledBackNodeIds" .= installExecutionRolledBackNodeIds result
       ]
 
-installPlanExecutionBatches :: TypedInstallPlan -> Either [Text] [[InstallPlanNode]]
-installPlanExecutionBatches plan
+installPlanExecutionBatches :: ExecutableInstallPlan -> Either [Text] [[InstallPlanNode]]
+installPlanExecutionBatches executablePlan
   | not (null duplicateIds) = Left (map ("duplicate_node_id:" <>) duplicateIds)
   | not (null missingDependencies) = Left (map ("missing_dependency:" <>) missingDependencies)
   | otherwise = buildBatches Set.empty nodes []
   where
+    plan = executableTypedPlan executablePlan
     nodes = stableSortPlanNodes executionNodeKey (typedPlanNodes plan)
     nodeIds = map installNodeId nodes
     nodeIdSet = Set.fromList nodeIds
@@ -165,34 +177,45 @@ installPlanExecutionBatches plan
 
 executeInstallPlan :: TypedInstallPlan -> (InstallPlanNode -> IO ()) -> (InstallPlanNode -> IO ()) -> (InstallNodeResult -> IO ()) -> IO InstallPlanExecutionResult
 executeInstallPlan plan runNode rollbackNode emitResult
-  | not (null (typedPlanBlockedReasons plan)) = do
-      let nodes = stableSortPlanNodes executionNodeKey (typedPlanNodes plan)
-      let results =
-            [ InstallNodeResult
-                { installResultNodeId = installNodeId node
-                , installResultNodeKind = Just (installNodeKind node)
-                , installResultPhase = Just (installNodePhase node)
-                , installResultTargetPath = installNodeTargetPath node
-                , installResultStatus = InstallNodeBlocked
-                , installResultMessage = installNodeBlockedReason node <|> listToMaybe (typedPlanBlockedReasons plan)
-                , installResultDiagnostic =
-                    nodeDiagnostic node
-                      <|> (diagnosticFromBlockedReason "plan" (installNodeKind node) <$> (installNodeBlockedReason node <|> listToMaybe (typedPlanBlockedReasons plan)))
-                }
-            | node <- nodes
-            ]
-      traverse_ emitResult results
-      pure
-        InstallPlanExecutionResult
-          { installExecutionPlanId = typedPlanId plan
-          , installExecutionStatus = "blocked"
-          , installExecutionResults = results
-          , installExecutionCompletedNodeIds = []
-          , installExecutionFailedNodeId = Nothing
-          , installExecutionRolledBackNodeIds = []
-          }
-  | otherwise =
-      case installPlanExecutionBatches plan of
+  case classifyTypedInstallPlan plan of
+    InstallPlanBlocked blocked ->
+      blockedInstallPlanExecutionResult blocked emitResult
+    InstallPlanExecutable executable ->
+      executeExecutableInstallPlan executable runNode rollbackNode emitResult
+
+blockedInstallPlanExecutionResult :: BlockedInstallPlan -> (InstallNodeResult -> IO ()) -> IO InstallPlanExecutionResult
+blockedInstallPlanExecutionResult blocked emitResult = do
+  let plan = blockedTypedPlan blocked
+      reasons = blockedInstallPlanReasons blocked
+      nodes = stableSortPlanNodes executionNodeKey (typedPlanNodes plan)
+      results =
+        [ InstallNodeResult
+            { installResultNodeId = installNodeId node
+            , installResultNodeKind = Just (installNodeKind node)
+            , installResultPhase = Just (installNodePhase node)
+            , installResultTargetPath = installNodeTargetPath node
+            , installResultStatus = InstallNodeBlocked
+            , installResultMessage = installNodeBlockedReason node <|> listToMaybe reasons
+            , installResultDiagnostic =
+                nodeDiagnostic node
+                  <|> (diagnosticFromBlockedReason "plan" (installNodeKind node) <$> (installNodeBlockedReason node <|> listToMaybe reasons))
+            }
+        | node <- nodes
+        ]
+  traverse_ emitResult results
+  pure
+    InstallPlanExecutionResult
+      { installExecutionPlanId = typedPlanId plan
+      , installExecutionStatus = "blocked"
+      , installExecutionResults = results
+      , installExecutionCompletedNodeIds = []
+      , installExecutionFailedNodeId = Nothing
+      , installExecutionRolledBackNodeIds = []
+      }
+
+executeExecutableInstallPlan :: ExecutableInstallPlan -> (InstallPlanNode -> IO ()) -> (InstallPlanNode -> IO ()) -> (InstallNodeResult -> IO ()) -> IO InstallPlanExecutionResult
+executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
+  case installPlanExecutionBatches executablePlan of
         Left errors -> do
           let result =
                 InstallNodeResult
@@ -220,6 +243,8 @@ executeInstallPlan plan runNode rollbackNode emitResult
               }
         Right batches -> executeBatches batches [] []
   where
+    plan = executableTypedPlan executablePlan
+
     executeBatches [] completed results =
       pure
         InstallPlanExecutionResult
