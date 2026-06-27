@@ -74,7 +74,7 @@ runModpackDownloads manager stagingPath plan = do
       >> pure ()
   where
     downloadNodes =
-      filter ((== "download") . Plan.installNodeAction) (Plan.typedPlanNodes plan)
+      filter ((== Plan.InstallNodeDownload) . Plan.installNodeAction) (Plan.typedPlanNodes plan)
 
 modpackDownloadJob :: FilePath -> Plan.InstallPlanNode -> IO DownloadJob
 modpackDownloadJob stagingPath node =
@@ -109,7 +109,7 @@ writeModpackOverrides archive stagingPath plan =
       [ node
       | node <- Plan.typedPlanNodes plan
       , Plan.installNodeKind node == "overrideFile"
-      , Plan.installNodeAction node `elem` ["write", "replace"]
+      , Plan.installNodeAction node `elem` [Plan.InstallNodeWrite, Plan.InstallNodeReplace]
       ]
 
 unzipEntryToFile :: FilePath -> FilePath -> FilePath -> IO ()
@@ -158,7 +158,7 @@ modpackLockEntries plan =
         , modpackLockEntrySource = listToMaybe (Plan.installNodeSourceUrlTexts node)
         }
     | node <- Plan.typedPlanNodes plan
-    , Plan.installNodeAction node `elem` ["download", "write", "replace"]
+    , Plan.installNodeAction node `elem` [Plan.InstallNodeDownload, Plan.InstallNodeWrite, Plan.InstallNodeReplace]
     , Plan.installNodeKind node `notElem` ["directory", "rollbackMarker"]
     , Just relativePath <- [Plan.installNodeTargetPath node]
     , safeRelativePath relativePath

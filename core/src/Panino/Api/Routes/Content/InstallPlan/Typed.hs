@@ -87,7 +87,7 @@ contentFileTypedNode request targetDir isPrimaryFile sourceFile plannedFile requ
   Plan.InstallPlanNode
     { Plan.installNodeId = contentFileNodeId plannedFile
     , Plan.installNodeKind = contentKindForTargetSubdir (contentInstallTargetSubdir request)
-    , Plan.installNodeAction = contentPlanFileAction plannedFile
+    , Plan.installNodeAction = Plan.installNodeActionFromText (contentPlanFileAction plannedFile)
     , Plan.installNodePhase = "content"
     , Plan.installNodeLabel = contentPlanFileName plannedFile
     , Plan.installNodeTargetPath = Just (contentPlanTargetPath plannedFile)
@@ -110,7 +110,7 @@ contentDependencyTypedNode request pairs dependency =
   Plan.InstallPlanNode
     { Plan.installNodeId = contentDependencyNodeId dependency
     , Plan.installNodeKind = "mod"
-    , Plan.installNodeAction = dependencyNodeAction
+    , Plan.installNodeAction = Plan.installNodeActionFromText dependencyNodeAction
     , Plan.installNodePhase = "dependencies"
     , Plan.installNodeLabel = contentDependencyName dependency
     , Plan.installNodeTargetPath = contentPlanTargetPath <$> matchingPlannedFile

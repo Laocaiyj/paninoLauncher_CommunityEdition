@@ -36,9 +36,13 @@ import Panino.CoreLogic.Determinism
   ( stableSortPlanNodes
   )
 import Panino.Install.Plan.Types
-  ( InstallPlanNode(..)
+  ( InstallNodeAction(..)
+  , InstallPlanNode(..)
+  , InstallNodePhase(..)
   , InstallVerification(..)
   , TypedInstallPlan(..)
+  , installNodeActionText
+  , installNodePhaseText
   )
 import Panino.Install.Plan.State
   ( BlockedInstallPlan
@@ -192,7 +196,7 @@ blockedInstallPlanExecutionResult blocked emitResult = do
         [ InstallNodeResult
             { installResultNodeId = installNodeId node
             , installResultNodeKind = Just (installNodeKind node)
-            , installResultPhase = Just (installNodePhase node)
+            , installResultPhase = Just (installNodePhaseText (installNodePhase node))
             , installResultTargetPath = installNodeTargetPath node
             , installResultStatus = InstallNodeBlocked
             , installResultMessage = installNodeBlockedReason node <|> listToMaybe reasons
@@ -295,7 +299,7 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
     executeNode node
       | Just message <- nodeVerificationError node =
           emitNodeStatus InstallNodeFailed (Just message) (Just (diagnosticForNodeMessage node message)) node
-      | installNodeAction node == "skip" =
+      | installNodeAction node == InstallNodeSkip =
           emitNodeStatus InstallNodeSkipped Nothing Nothing node
       | otherwise = do
           outcome <- try (runNode node)
@@ -318,7 +322,7 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
             InstallNodeResult
               { installResultNodeId = installNodeId node
               , installResultNodeKind = Just (installNodeKind node)
-              , installResultPhase = Just (installNodePhase node)
+              , installResultPhase = Just (installNodePhaseText (installNodePhase node))
               , installResultTargetPath = installNodeTargetPath node
               , installResultStatus = status
               , installResultMessage = message
@@ -331,8 +335,8 @@ executeExecutableInstallPlan executablePlan runNode rollbackNode emitResult =
       let base =
             classifyFailure
               FailureInput
-                { failurePhase = installNodePhase node
-                , failureOperation = installNodeKind node <> ":" <> installNodeAction node
+                { failurePhase = installNodePhaseText (installNodePhase node)
+                , failureOperation = installNodeKind node <> ":" <> installNodeActionText (installNodeAction node)
                 , failureExceptionText = message
                 , failureContext =
                     [ ("nodeId", installNodeId node)
@@ -367,24 +371,24 @@ executionNodeKey node =
   Text.intercalate
     "|"
     [ phaseRankKey (installNodePhase node)
-    , installNodePhase node
+    , installNodePhaseText (installNodePhase node)
     , installNodeId node
     ]
 
-phaseRankKey :: Text -> Text
+phaseRankKey :: InstallNodePhase -> Text
 phaseRankKey phase =
   case phase of
-    "staging" -> "00"
-    "metadata" -> "10"
-    "loader" -> "20"
-    "libraries" -> "30"
-    "runtime" -> "40"
-    "assets" -> "50"
-    "natives" -> "60"
-    "dependencies" -> "70"
-    "content" -> "80"
-    "files" -> "90"
-    "overrides" -> "91"
-    "verify" -> "92"
-    "commit" -> "99"
+    InstallNodePhaseStaging -> "00"
+    InstallNodePhaseMetadata -> "10"
+    InstallNodePhaseLoader -> "20"
+    InstallNodePhaseLibraries -> "30"
+    InstallNodePhaseRuntime -> "40"
+    InstallNodePhaseAssets -> "50"
+    InstallNodePhaseNatives -> "60"
+    InstallNodePhaseDependencies -> "70"
+    InstallNodePhaseContent -> "80"
+    InstallNodePhaseFiles -> "90"
+    InstallNodePhaseOverrides -> "91"
+    InstallNodePhaseVerify -> "92"
+    InstallNodePhaseCommit -> "99"
     _ -> "98"

@@ -26,7 +26,6 @@ import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
   , object
-  , withText
   , withObject
   , (.:)
   , (.:?)
@@ -50,6 +49,11 @@ import Panino.Core.Types
   , urlText
   , versionIdText
   )
+import Panino.Core.WireText
+  ( WireText(..)
+  , parseWireTextJSON
+  , toWireTextJSON
+  )
 
 data PackageSource
   = PackageSourceModrinth
@@ -68,33 +72,40 @@ instance IsString PackageSource where
     packageSourceFromText . Text.pack
 
 packageSourceFromText :: Text -> PackageSource
-packageSourceFromText source =
-  case Text.toLower source of
-    "modrinth" -> PackageSourceModrinth
-    "curseforge" -> PackageSourceCurseForge
-    "curse-forge" -> PackageSourceCurseForge
-    "loader_meta" -> PackageSourceLoaderMeta
-    "loadermeta" -> PackageSourceLoaderMeta
-    "java_runtime" -> PackageSourceJavaRuntime
-    "javaruntime" -> PackageSourceJavaRuntime
-    "local" -> PackageSourceLocal
-    "manual" -> PackageSourceManual
-    "mojang" -> PackageSourceMojang
-    "panino" -> PackageSourcePanino
-    other -> PackageSourceOther other
+packageSourceFromText =
+  parseWireText
 
 packageSourceText :: PackageSource -> Text
-packageSourceText source =
-  case source of
-    PackageSourceModrinth -> "modrinth"
-    PackageSourceCurseForge -> "curseforge"
-    PackageSourceLoaderMeta -> "loaderMeta"
-    PackageSourceJavaRuntime -> "javaRuntime"
-    PackageSourceLocal -> "local"
-    PackageSourceManual -> "manual"
-    PackageSourceMojang -> "mojang"
-    PackageSourcePanino -> "panino"
-    PackageSourceOther value -> value
+packageSourceText =
+  wireText
+
+instance WireText PackageSource where
+  parseWireText source =
+    case Text.toLower source of
+      "modrinth" -> PackageSourceModrinth
+      "curseforge" -> PackageSourceCurseForge
+      "curse-forge" -> PackageSourceCurseForge
+      "loader_meta" -> PackageSourceLoaderMeta
+      "loadermeta" -> PackageSourceLoaderMeta
+      "java_runtime" -> PackageSourceJavaRuntime
+      "javaruntime" -> PackageSourceJavaRuntime
+      "local" -> PackageSourceLocal
+      "manual" -> PackageSourceManual
+      "mojang" -> PackageSourceMojang
+      "panino" -> PackageSourcePanino
+      _ -> PackageSourceOther source
+
+  wireText source =
+    case source of
+      PackageSourceModrinth -> "modrinth"
+      PackageSourceCurseForge -> "curseforge"
+      PackageSourceLoaderMeta -> "loaderMeta"
+      PackageSourceJavaRuntime -> "javaRuntime"
+      PackageSourceLocal -> "local"
+      PackageSourceManual -> "manual"
+      PackageSourceMojang -> "mojang"
+      PackageSourcePanino -> "panino"
+      PackageSourceOther value -> value
 
 normalizePackageSource :: PackageSource -> PackageSource
 normalizePackageSource =
@@ -116,11 +127,11 @@ packageSourceIsOnline source =
 
 instance ToJSON PackageSource where
   toJSON =
-    toJSON . packageSourceText
+    toWireTextJSON
 
 instance FromJSON PackageSource where
   parseJSON =
-    withText "PackageSource" (pure . packageSourceFromText)
+    parseWireTextJSON
 
 data PackageCoordinate = PackageCoordinate
   { coordinateSource :: PackageSource

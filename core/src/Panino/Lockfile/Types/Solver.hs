@@ -50,6 +50,11 @@ import Panino.Core.Types
   , gameDirPath
   , versionIdText
   )
+import Panino.Core.WireText
+  ( WireText(..)
+  , parseWireTextJSON
+  , toWireTextJSON
+  )
 import Panino.Install.Plan.Types (TypedInstallPlan)
 import Panino.Lockfile.Types.Document (PaninoLockfile)
 import Panino.Lockfile.Types.Package (ResolvedPackage)
@@ -66,28 +71,35 @@ instance IsString LockfileSolveMode where
     lockfileSolveModeFromText . Text.pack
 
 lockfileSolveModeFromText :: Text -> LockfileSolveMode
-lockfileSolveModeFromText mode
-  | Text.null mode = LockfileModeInstall
-  | mode == "install" = LockfileModeInstall
-  | mode == "launch" = LockfileModeLaunch
-  | mode == "verify" = LockfileModeVerify
-  | otherwise = LockfileModeOther mode
+lockfileSolveModeFromText =
+  parseWireText
 
 lockfileSolveModeText :: LockfileSolveMode -> Text
-lockfileSolveModeText mode =
-  case mode of
-    LockfileModeInstall -> "install"
-    LockfileModeLaunch -> "launch"
-    LockfileModeVerify -> "verify"
-    LockfileModeOther rawMode -> rawMode
+lockfileSolveModeText =
+  wireText
+
+instance WireText LockfileSolveMode where
+  parseWireText mode
+    | Text.null mode = LockfileModeInstall
+    | mode == "install" = LockfileModeInstall
+    | mode == "launch" = LockfileModeLaunch
+    | mode == "verify" = LockfileModeVerify
+    | otherwise = LockfileModeOther mode
+
+  wireText mode =
+    case mode of
+      LockfileModeInstall -> "install"
+      LockfileModeLaunch -> "launch"
+      LockfileModeVerify -> "verify"
+      LockfileModeOther rawMode -> rawMode
 
 instance ToJSON LockfileSolveMode where
   toJSON =
-    toJSON . lockfileSolveModeText
+    toWireTextJSON
 
 instance FromJSON LockfileSolveMode where
-  parseJSON value =
-    lockfileSolveModeFromText <$> parseJSON value
+  parseJSON =
+    parseWireTextJSON
 
 data LockfileUpdatePolicy
   = LockfileKeepLocked
@@ -105,36 +117,43 @@ instance IsString LockfileUpdatePolicy where
     lockfileUpdatePolicyFromText . Text.pack
 
 lockfileUpdatePolicyFromText :: Text -> LockfileUpdatePolicy
-lockfileUpdatePolicyFromText policy
-  | Text.null policy = LockfileKeepLocked
-  | policy == "keepLocked" = LockfileKeepLocked
-  | policy == "updateSelected" = LockfileUpdateSelected
-  | policy == "updateAllSafe" = LockfileUpdateAllSafe
-  | policy == "relock" = LockfileRelock
-  | policy == "repair" = LockfileRepair
-  | policy == "launchVerify" = LockfileLaunchVerify
-  | policy == "syncRoom" = LockfileSyncRoom
-  | otherwise = LockfileUpdatePolicyOther policy
+lockfileUpdatePolicyFromText =
+  parseWireText
 
 lockfileUpdatePolicyText :: LockfileUpdatePolicy -> Text
-lockfileUpdatePolicyText policy =
-  case policy of
-    LockfileKeepLocked -> "keepLocked"
-    LockfileUpdateSelected -> "updateSelected"
-    LockfileUpdateAllSafe -> "updateAllSafe"
-    LockfileRelock -> "relock"
-    LockfileRepair -> "repair"
-    LockfileLaunchVerify -> "launchVerify"
-    LockfileSyncRoom -> "syncRoom"
-    LockfileUpdatePolicyOther rawPolicy -> rawPolicy
+lockfileUpdatePolicyText =
+  wireText
+
+instance WireText LockfileUpdatePolicy where
+  parseWireText policy
+    | Text.null policy = LockfileKeepLocked
+    | policy == "keepLocked" = LockfileKeepLocked
+    | policy == "updateSelected" = LockfileUpdateSelected
+    | policy == "updateAllSafe" = LockfileUpdateAllSafe
+    | policy == "relock" = LockfileRelock
+    | policy == "repair" = LockfileRepair
+    | policy == "launchVerify" = LockfileLaunchVerify
+    | policy == "syncRoom" = LockfileSyncRoom
+    | otherwise = LockfileUpdatePolicyOther policy
+
+  wireText policy =
+    case policy of
+      LockfileKeepLocked -> "keepLocked"
+      LockfileUpdateSelected -> "updateSelected"
+      LockfileUpdateAllSafe -> "updateAllSafe"
+      LockfileRelock -> "relock"
+      LockfileRepair -> "repair"
+      LockfileLaunchVerify -> "launchVerify"
+      LockfileSyncRoom -> "syncRoom"
+      LockfileUpdatePolicyOther rawPolicy -> rawPolicy
 
 instance ToJSON LockfileUpdatePolicy where
   toJSON =
-    toJSON . lockfileUpdatePolicyText
+    toWireTextJSON
 
 instance FromJSON LockfileUpdatePolicy where
-  parseJSON value =
-    lockfileUpdatePolicyFromText <$> parseJSON value
+  parseJSON =
+    parseWireTextJSON
 
 data LockfileSolveRequest = LockfileSolveRequest
   { solveRequestMode :: LockfileSolveMode
@@ -208,35 +227,42 @@ instance IsString LockfileChangeAction where
     lockfileChangeActionFromText . Text.pack
 
 lockfileChangeActionFromText :: Text -> LockfileChangeAction
-lockfileChangeActionFromText action
-  | action == "keep" = LockfileActionKeep
-  | action == "add" = LockfileActionAdd
-  | action == "replace" = LockfileActionReplace
-  | action == "remove" = LockfileActionRemove
-  | action == "repair" = LockfileActionRepair
-  | action == "manual" = LockfileActionManual
-  | action == "blocked" = LockfileActionBlocked
-  | otherwise = LockfileActionOther action
+lockfileChangeActionFromText =
+  parseWireText
 
 lockfileChangeActionText :: LockfileChangeAction -> Text
-lockfileChangeActionText action =
-  case action of
-    LockfileActionKeep -> "keep"
-    LockfileActionAdd -> "add"
-    LockfileActionReplace -> "replace"
-    LockfileActionRemove -> "remove"
-    LockfileActionRepair -> "repair"
-    LockfileActionManual -> "manual"
-    LockfileActionBlocked -> "blocked"
-    LockfileActionOther rawAction -> rawAction
+lockfileChangeActionText =
+  wireText
+
+instance WireText LockfileChangeAction where
+  parseWireText action
+    | action == "keep" = LockfileActionKeep
+    | action == "add" = LockfileActionAdd
+    | action == "replace" = LockfileActionReplace
+    | action == "remove" = LockfileActionRemove
+    | action == "repair" = LockfileActionRepair
+    | action == "manual" = LockfileActionManual
+    | action == "blocked" = LockfileActionBlocked
+    | otherwise = LockfileActionOther action
+
+  wireText action =
+    case action of
+      LockfileActionKeep -> "keep"
+      LockfileActionAdd -> "add"
+      LockfileActionReplace -> "replace"
+      LockfileActionRemove -> "remove"
+      LockfileActionRepair -> "repair"
+      LockfileActionManual -> "manual"
+      LockfileActionBlocked -> "blocked"
+      LockfileActionOther rawAction -> rawAction
 
 instance ToJSON LockfileChangeAction where
   toJSON =
-    toJSON . lockfileChangeActionText
+    toWireTextJSON
 
 instance FromJSON LockfileChangeAction where
-  parseJSON value =
-    lockfileChangeActionFromText <$> parseJSON value
+  parseJSON =
+    parseWireTextJSON
 
 data LockfileChange = LockfileChange
   { lockfileChangeAction :: LockfileChangeAction
@@ -417,26 +443,33 @@ instance IsString LockfileSolveStatus where
     lockfileSolveStatusFromText . Text.pack
 
 lockfileSolveStatusFromText :: Text -> LockfileSolveStatus
-lockfileSolveStatusFromText status
-  | Text.null status = LockfileSolveBlocked
-  | status == "ready" = LockfileSolveReady
-  | status == "blocked" = LockfileSolveBlocked
-  | otherwise = LockfileSolveOther status
+lockfileSolveStatusFromText =
+  parseWireText
 
 lockfileSolveStatusText :: LockfileSolveStatus -> Text
-lockfileSolveStatusText status =
-  case status of
-    LockfileSolveReady -> "ready"
-    LockfileSolveBlocked -> "blocked"
-    LockfileSolveOther rawStatus -> rawStatus
+lockfileSolveStatusText =
+  wireText
+
+instance WireText LockfileSolveStatus where
+  parseWireText status
+    | Text.null status = LockfileSolveBlocked
+    | status == "ready" = LockfileSolveReady
+    | status == "blocked" = LockfileSolveBlocked
+    | otherwise = LockfileSolveOther status
+
+  wireText status =
+    case status of
+      LockfileSolveReady -> "ready"
+      LockfileSolveBlocked -> "blocked"
+      LockfileSolveOther rawStatus -> rawStatus
 
 instance ToJSON LockfileSolveStatus where
   toJSON =
-    toJSON . lockfileSolveStatusText
+    toWireTextJSON
 
 instance FromJSON LockfileSolveStatus where
-  parseJSON value =
-    lockfileSolveStatusFromText <$> parseJSON value
+  parseJSON =
+    parseWireTextJSON
 
 data SolverResult = SolverResult
   { solverResultStatus :: LockfileSolveStatus

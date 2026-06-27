@@ -92,8 +92,8 @@ preflightNode nodeId kind action phase label dependsOn verifications blockedReas
   Plan.InstallPlanNode
     { Plan.installNodeId = nodeId
     , Plan.installNodeKind = kind
-    , Plan.installNodeAction = action
-    , Plan.installNodePhase = phase
+    , Plan.installNodeAction = Plan.installNodeActionFromText action
+    , Plan.installNodePhase = Plan.installNodePhaseFromText phase
     , Plan.installNodeLabel = label
     , Plan.installNodeTargetPath = Nothing
     , Plan.installNodeSourceUrls = []

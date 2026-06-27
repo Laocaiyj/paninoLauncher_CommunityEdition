@@ -19,6 +19,10 @@ import Data.Aeson
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.WireText
+  ( WireText(..)
+  , toWireTextJSON
+  )
 import Panino.Install.Plan.Types (TypedInstallPlan)
 
 data LockfileVerifyIssueKind
@@ -37,31 +41,38 @@ instance IsString LockfileVerifyIssueKind where
     lockfileVerifyIssueKindFromText . Text.pack
 
 lockfileVerifyIssueKindFromText :: Text -> LockfileVerifyIssueKind
-lockfileVerifyIssueKindFromText kind
-  | kind == "missingFile" = VerifyIssueMissingFile
-  | kind == "hashMismatch" = VerifyIssueHashMismatch
-  | kind == "extraFile" = VerifyIssueExtraFile
-  | kind == "manualFile" = VerifyIssueManualFile
-  | kind == "lockfileDrift" = VerifyIssueLockfileDrift
-  | kind == "javaMismatch" = VerifyIssueJavaMismatch
-  | kind == "loaderMismatch" = VerifyIssueLoaderMismatch
-  | otherwise = VerifyIssueOther kind
+lockfileVerifyIssueKindFromText =
+  parseWireText
 
 lockfileVerifyIssueKindText :: LockfileVerifyIssueKind -> Text
-lockfileVerifyIssueKindText kind =
-  case kind of
-    VerifyIssueMissingFile -> "missingFile"
-    VerifyIssueHashMismatch -> "hashMismatch"
-    VerifyIssueExtraFile -> "extraFile"
-    VerifyIssueManualFile -> "manualFile"
-    VerifyIssueLockfileDrift -> "lockfileDrift"
-    VerifyIssueJavaMismatch -> "javaMismatch"
-    VerifyIssueLoaderMismatch -> "loaderMismatch"
-    VerifyIssueOther rawKind -> rawKind
+lockfileVerifyIssueKindText =
+  wireText
+
+instance WireText LockfileVerifyIssueKind where
+  parseWireText kind
+    | kind == "missingFile" = VerifyIssueMissingFile
+    | kind == "hashMismatch" = VerifyIssueHashMismatch
+    | kind == "extraFile" = VerifyIssueExtraFile
+    | kind == "manualFile" = VerifyIssueManualFile
+    | kind == "lockfileDrift" = VerifyIssueLockfileDrift
+    | kind == "javaMismatch" = VerifyIssueJavaMismatch
+    | kind == "loaderMismatch" = VerifyIssueLoaderMismatch
+    | otherwise = VerifyIssueOther kind
+
+  wireText kind =
+    case kind of
+      VerifyIssueMissingFile -> "missingFile"
+      VerifyIssueHashMismatch -> "hashMismatch"
+      VerifyIssueExtraFile -> "extraFile"
+      VerifyIssueManualFile -> "manualFile"
+      VerifyIssueLockfileDrift -> "lockfileDrift"
+      VerifyIssueJavaMismatch -> "javaMismatch"
+      VerifyIssueLoaderMismatch -> "loaderMismatch"
+      VerifyIssueOther rawKind -> rawKind
 
 instance ToJSON LockfileVerifyIssueKind where
   toJSON =
-    toJSON . lockfileVerifyIssueKindText
+    toWireTextJSON
 
 data LockfileVerifyIssue = LockfileVerifyIssue
   { verifyIssueKind :: LockfileVerifyIssueKind
@@ -94,21 +105,28 @@ instance IsString LockfileVerifyStatus where
     lockfileVerifyStatusFromText . Text.pack
 
 lockfileVerifyStatusFromText :: Text -> LockfileVerifyStatus
-lockfileVerifyStatusFromText status
-  | status == "locked" = LockfileStatusLocked
-  | status == "drifted" = LockfileStatusDrifted
-  | otherwise = LockfileStatusOther status
+lockfileVerifyStatusFromText =
+  parseWireText
 
 lockfileVerifyStatusText :: LockfileVerifyStatus -> Text
-lockfileVerifyStatusText status =
-  case status of
-    LockfileStatusLocked -> "locked"
-    LockfileStatusDrifted -> "drifted"
-    LockfileStatusOther rawStatus -> rawStatus
+lockfileVerifyStatusText =
+  wireText
+
+instance WireText LockfileVerifyStatus where
+  parseWireText status
+    | status == "locked" = LockfileStatusLocked
+    | status == "drifted" = LockfileStatusDrifted
+    | otherwise = LockfileStatusOther status
+
+  wireText status =
+    case status of
+      LockfileStatusLocked -> "locked"
+      LockfileStatusDrifted -> "drifted"
+      LockfileStatusOther rawStatus -> rawStatus
 
 instance ToJSON LockfileVerifyStatus where
   toJSON =
-    toJSON . lockfileVerifyStatusText
+    toWireTextJSON
 
 data LockfileVerifyResponse = LockfileVerifyResponse
   { verifyResponseStatus :: LockfileVerifyStatus

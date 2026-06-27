@@ -10,6 +10,7 @@ import Panino.Core.Types (versionIdFromText)
 import Panino.Install.Plan.Types
   ( InstallPlanNode(..)
   , TypedInstallPlan(..)
+  , installNodeActionText
   )
 import Panino.Lockfile.Solver
   ( diffLockfiles
@@ -63,7 +64,7 @@ assertRoomLockRepair gameDir fabricApi sodium = do
       roomRepairPlan =
         roomLockRepairPlan gameDir roomLocalLockfile roomTargetLockfile
       roomRepairActions =
-        [ (installNodeLabel node, installNodeAction node)
+        [ (installNodeLabel node, installNodeActionText (installNodeAction node))
         | node <- typedPlanNodes roomRepairPlan
         ]
   assertEqual

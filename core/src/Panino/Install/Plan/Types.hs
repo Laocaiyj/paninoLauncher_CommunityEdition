@@ -2,6 +2,8 @@
 
 module Panino.Install.Plan.Types
   ( InstallPlanEdge(..)
+  , InstallNodeAction(..)
+  , InstallNodePhase(..)
   , InstallPlanNode(..)
   , InstallPlanRollbackAction(..)
   , InstallPlanStatus(..)
@@ -10,6 +12,13 @@ module Panino.Install.Plan.Types
   , TypedInstallPlan(..)
   , finalizeTypedInstallPlan
   , installPlanFingerprint
+  , installNodeActionFromText
+  , installNodeActionIsDownloadLike
+  , installNodeActionIsNoop
+  , installNodeActionIsWriteLike
+  , installNodeActionText
+  , installNodePhaseFromText
+  , installNodePhaseText
   , installNodeSha1FromText
   , installNodeSha1Text
   , installNodeSourceUrlsFromTexts
@@ -49,6 +58,11 @@ import Panino.Core.Types
   , sha1Text
   , urlFromText
   , urlText
+  )
+import Panino.Core.WireText
+  ( WireText(..)
+  , parseWireTextJSON
+  , toWireTextJSON
   )
 import Panino.CoreLogic.Determinism
   ( stableFingerprint
@@ -91,26 +105,33 @@ instance IsString InstallPlanStatus where
     installPlanStatusFromText . Text.pack
 
 installPlanStatusFromText :: Text -> InstallPlanStatus
-installPlanStatusFromText status
-  | Text.null status = InstallStatusReady
-  | status == "ready" = InstallStatusReady
-  | status == "blocked" = InstallStatusBlocked
-  | otherwise = InstallStatusOther status
+installPlanStatusFromText =
+  parseWireText
 
 installPlanStatusText :: InstallPlanStatus -> Text
-installPlanStatusText status =
-  case status of
-    InstallStatusReady -> "ready"
-    InstallStatusBlocked -> "blocked"
-    InstallStatusOther rawStatus -> rawStatus
+installPlanStatusText =
+  wireText
+
+instance WireText InstallPlanStatus where
+  parseWireText status
+    | Text.null status = InstallStatusReady
+    | status == "ready" = InstallStatusReady
+    | status == "blocked" = InstallStatusBlocked
+    | otherwise = InstallStatusOther status
+
+  wireText status =
+    case status of
+      InstallStatusReady -> "ready"
+      InstallStatusBlocked -> "blocked"
+      InstallStatusOther rawStatus -> rawStatus
 
 instance ToJSON InstallPlanStatus where
   toJSON =
-    toJSON . installPlanStatusText
+    toWireTextJSON
 
 instance FromJSON InstallPlanStatus where
-  parseJSON value =
-    installPlanStatusFromText <$> parseJSON value
+  parseJSON =
+    parseWireTextJSON
 
 instance ToJSON TypedInstallPlan where
   toJSON plan =
@@ -184,8 +205,8 @@ instance FromJSON InstallPlanSummary where
 data InstallPlanNode = InstallPlanNode
   { installNodeId :: Text
   , installNodeKind :: Text
-  , installNodeAction :: Text
-  , installNodePhase :: Text
+  , installNodeAction :: InstallNodeAction
+  , installNodePhase :: InstallNodePhase
   , installNodeLabel :: Text
   , installNodeTargetPath :: Maybe FilePath
   , installNodeSourceUrls :: [Url]
@@ -226,7 +247,7 @@ instance FromJSON InstallPlanNode where
         <$> obj .: "id"
         <*> obj .: "kind"
         <*> obj .: "action"
-        <*> obj .:? "phase" .!= "download"
+        <*> obj .:? "phase" .!= InstallNodePhaseDownload
         <*> obj .:? "label" .!= ""
         <*> obj .:? "targetPath"
         <*> obj .:? "sourceUrls" .!= []
@@ -262,6 +283,156 @@ installNodeSha1Text =
 installNodeSha1FromText :: Maybe Text -> Maybe Sha1
 installNodeSha1FromText =
   (>>= sha1FromText)
+
+data InstallNodeAction
+  = InstallNodeDownload
+  | InstallNodeKeep
+  | InstallNodeReplace
+  | InstallNodeWrite
+  | InstallNodeVerify
+  | InstallNodeSkip
+  | InstallNodeDelete
+  | InstallNodeExtract
+  | InstallNodePatch
+  | InstallNodeActionOther Text
+  deriving (Eq, Show)
+
+instance IsString InstallNodeAction where
+  fromString =
+    installNodeActionFromText . Text.pack
+
+installNodeActionFromText :: Text -> InstallNodeAction
+installNodeActionFromText =
+  parseWireText
+
+installNodeActionText :: InstallNodeAction -> Text
+installNodeActionText =
+  wireText
+
+instance WireText InstallNodeAction where
+  parseWireText action =
+    case Text.toLower action of
+      "download" -> InstallNodeDownload
+      "keep" -> InstallNodeKeep
+      "replace" -> InstallNodeReplace
+      "write" -> InstallNodeWrite
+      "verify" -> InstallNodeVerify
+      "skip" -> InstallNodeSkip
+      "delete" -> InstallNodeDelete
+      "extract" -> InstallNodeExtract
+      "patch" -> InstallNodePatch
+      _ -> InstallNodeActionOther action
+
+  wireText action =
+    case action of
+      InstallNodeDownload -> "download"
+      InstallNodeKeep -> "keep"
+      InstallNodeReplace -> "replace"
+      InstallNodeWrite -> "write"
+      InstallNodeVerify -> "verify"
+      InstallNodeSkip -> "skip"
+      InstallNodeDelete -> "delete"
+      InstallNodeExtract -> "extract"
+      InstallNodePatch -> "patch"
+      InstallNodeActionOther rawAction -> rawAction
+
+installNodeActionIsNoop :: InstallNodeAction -> Bool
+installNodeActionIsNoop action =
+  action `elem` [InstallNodeKeep, InstallNodeVerify, InstallNodeSkip]
+
+installNodeActionIsDownloadLike :: InstallNodeAction -> Bool
+installNodeActionIsDownloadLike action =
+  action `elem` [InstallNodeDownload, InstallNodeReplace]
+
+installNodeActionIsWriteLike :: InstallNodeAction -> Bool
+installNodeActionIsWriteLike action =
+  action `elem` [InstallNodeWrite, InstallNodeExtract, InstallNodePatch, InstallNodeDelete]
+
+instance ToJSON InstallNodeAction where
+  toJSON =
+    toWireTextJSON
+
+instance FromJSON InstallNodeAction where
+  parseJSON =
+    parseWireTextJSON
+
+data InstallNodePhase
+  = InstallNodePhaseStaging
+  | InstallNodePhaseMetadata
+  | InstallNodePhaseLoader
+  | InstallNodePhaseLibraries
+  | InstallNodePhaseRuntime
+  | InstallNodePhaseAssets
+  | InstallNodePhaseNatives
+  | InstallNodePhaseDependencies
+  | InstallNodePhaseContent
+  | InstallNodePhaseFiles
+  | InstallNodePhaseOverrides
+  | InstallNodePhaseVerify
+  | InstallNodePhaseCommit
+  | InstallNodePhaseDownload
+  | InstallNodePhaseUpdate
+  | InstallNodePhaseOther Text
+  deriving (Eq, Show)
+
+instance IsString InstallNodePhase where
+  fromString =
+    installNodePhaseFromText . Text.pack
+
+installNodePhaseFromText :: Text -> InstallNodePhase
+installNodePhaseFromText =
+  parseWireText
+
+installNodePhaseText :: InstallNodePhase -> Text
+installNodePhaseText =
+  wireText
+
+instance WireText InstallNodePhase where
+  parseWireText phase =
+    case Text.toLower phase of
+      "staging" -> InstallNodePhaseStaging
+      "metadata" -> InstallNodePhaseMetadata
+      "loader" -> InstallNodePhaseLoader
+      "libraries" -> InstallNodePhaseLibraries
+      "runtime" -> InstallNodePhaseRuntime
+      "assets" -> InstallNodePhaseAssets
+      "natives" -> InstallNodePhaseNatives
+      "dependencies" -> InstallNodePhaseDependencies
+      "content" -> InstallNodePhaseContent
+      "files" -> InstallNodePhaseFiles
+      "overrides" -> InstallNodePhaseOverrides
+      "verify" -> InstallNodePhaseVerify
+      "commit" -> InstallNodePhaseCommit
+      "download" -> InstallNodePhaseDownload
+      "update" -> InstallNodePhaseUpdate
+      _ -> InstallNodePhaseOther phase
+
+  wireText phase =
+    case phase of
+      InstallNodePhaseStaging -> "staging"
+      InstallNodePhaseMetadata -> "metadata"
+      InstallNodePhaseLoader -> "loader"
+      InstallNodePhaseLibraries -> "libraries"
+      InstallNodePhaseRuntime -> "runtime"
+      InstallNodePhaseAssets -> "assets"
+      InstallNodePhaseNatives -> "natives"
+      InstallNodePhaseDependencies -> "dependencies"
+      InstallNodePhaseContent -> "content"
+      InstallNodePhaseFiles -> "files"
+      InstallNodePhaseOverrides -> "overrides"
+      InstallNodePhaseVerify -> "verify"
+      InstallNodePhaseCommit -> "commit"
+      InstallNodePhaseDownload -> "download"
+      InstallNodePhaseUpdate -> "update"
+      InstallNodePhaseOther rawPhase -> rawPhase
+
+instance ToJSON InstallNodePhase where
+  toJSON =
+    toWireTextJSON
+
+instance FromJSON InstallNodePhase where
+  parseJSON =
+    parseWireTextJSON
 
 data InstallPlanEdge = InstallPlanEdge
   { installEdgeFrom :: Text
@@ -391,12 +562,12 @@ summarizeInstallPlanNodes :: [InstallPlanNode] -> InstallPlanSummary
 summarizeInstallPlanNodes nodes =
   InstallPlanSummary
     { installSummaryTotalNodes = length nodes
-    , installSummaryDownloadNodes = countAction "download"
-    , installSummaryKeepNodes = countAction "keep"
-    , installSummaryReplaceNodes = countAction "replace"
-    , installSummaryWriteNodes = length (filter ((`elem` ["write", "extract", "patch", "delete"]) . installNodeAction) nodes)
+    , installSummaryDownloadNodes = countAction InstallNodeDownload
+    , installSummaryKeepNodes = countAction InstallNodeKeep
+    , installSummaryReplaceNodes = countAction InstallNodeReplace
+    , installSummaryWriteNodes = length (filter (installNodeActionIsWriteLike . installNodeAction) nodes)
     , installSummaryEstimatedBytes =
-        let sizes = mapMaybe installNodeSize (filter ((== "download") . installNodeAction) nodes)
+        let sizes = mapMaybe installNodeSize (filter ((== InstallNodeDownload) . installNodeAction) nodes)
          in if null sizes then Nothing else Just (sum sizes)
     }
   where
@@ -441,8 +612,8 @@ nodeFingerprint node =
     "|"
     [ installNodeId node
     , installNodeKind node
-    , installNodeAction node
-    , installNodePhase node
+    , installNodeActionText (installNodeAction node)
+    , installNodePhaseText (installNodePhase node)
     , installNodeLabel node
     , Text.pack (fromMaybe "" (installNodeTargetPath node))
     , Text.intercalate "," (stableTextSet (installNodeSourceUrlTexts node))

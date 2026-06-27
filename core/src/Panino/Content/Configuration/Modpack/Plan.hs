@@ -340,7 +340,8 @@ unsafePlanTargetReasons :: Plan.TypedInstallPlan -> [Text]
 unsafePlanTargetReasons plan =
   [ "unsafe_target_path:" <> Plan.installNodeId node
   | node <- Plan.typedPlanNodes plan
-  , Plan.installNodeAction node `elem` ["download", "replace", "write", "extract", "patch", "delete"]
+  , Plan.installNodeActionIsDownloadLike (Plan.installNodeAction node)
+      || Plan.installNodeActionIsWriteLike (Plan.installNodeAction node)
   , Plan.installNodeKind node `notElem` ["directory", "rollbackMarker"]
   , maybe True (not . safeRelativePath) (Plan.installNodeTargetPath node)
   ]

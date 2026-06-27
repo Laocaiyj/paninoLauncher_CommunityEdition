@@ -131,7 +131,7 @@ contentUpdateResourceNode resource =
   Plan.InstallPlanNode
     { Plan.installNodeId = contentUpdateResourceNodeId resource
     , Plan.installNodeKind = "mod"
-    , Plan.installNodeAction = contentUpdateResourceAction resource
+    , Plan.installNodeAction = Plan.installNodeActionFromText (contentUpdateResourceAction resource)
     , Plan.installNodePhase = "update"
     , Plan.installNodeLabel = updateResourceProjectTitle resource
     , Plan.installNodeTargetPath = Just (updateResourceCurrentTargetPath resource)

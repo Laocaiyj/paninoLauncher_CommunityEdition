@@ -32,17 +32,17 @@ import System.Directory
 
 runLockfilePlanNode :: Manager -> Plan.InstallPlanNode -> IO ()
 runLockfilePlanNode manager node
-  | Plan.installNodeAction node `elem` ["keep", "verify", "skip"] = pure ()
-  | Plan.installNodeAction node `elem` ["download", "replace"] =
+  | Plan.installNodeActionIsNoop (Plan.installNodeAction node) = pure ()
+  | Plan.installNodeActionIsDownloadLike (Plan.installNodeAction node) =
       case downloadJobFromLockfileNode node of
         Nothing -> fail ("lockfile plan node is missing download data: " <> Text.unpack (Plan.installNodeId node))
         Just job -> void (downloadSingle manager job)
-  | Plan.installNodeAction node == "delete" =
+  | Plan.installNodeAction node == Plan.InstallNodeDelete =
       case Plan.installNodeTargetPath node of
         Nothing -> fail ("lockfile delete node is missing target path: " <> Text.unpack (Plan.installNodeId node))
         Just target -> removeFileIfExists target
   | otherwise =
-      fail ("unsupported lockfile plan action: " <> Text.unpack (Plan.installNodeAction node))
+      fail ("unsupported lockfile plan action: " <> Text.unpack (Plan.installNodeActionText (Plan.installNodeAction node)))
 
 rollbackLockfilePlanNode :: Plan.InstallPlanNode -> IO ()
 rollbackLockfilePlanNode node =

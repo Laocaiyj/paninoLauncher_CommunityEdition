@@ -91,8 +91,8 @@ runContentInstallTask state task request planBundle = do
 
 runContentPlanNode :: ServerState -> TaskSnapshot -> ContentInstallRequest -> Plan.InstallPlanNode -> IO ()
 runContentPlanNode state task request node
-  | Plan.installNodeAction node `elem` ["keep", "verify"] = pure ()
-  | Plan.installNodeAction node `elem` ["download", "replace"] =
+  | Plan.installNodeAction node `elem` [Plan.InstallNodeKeep, Plan.InstallNodeVerify] = pure ()
+  | Plan.installNodeActionIsDownloadLike (Plan.installNodeAction node) =
       case downloadJobFromPlanNode node of
         Nothing -> fail ("plan node is missing download data: " <> Text.unpack (Plan.installNodeId node))
         Just job ->
@@ -312,7 +312,7 @@ contentDownloadJobsFromTypedPlan plan =
   dedupeInstallPlanJobs $
     [ job
     | node <- Plan.typedPlanNodes (contentPlanTypedPlan plan)
-    , Plan.installNodeAction node `elem` ["download", "replace"]
+    , Plan.installNodeActionIsDownloadLike (Plan.installNodeAction node)
     , Just job <- [downloadJobFromPlanNode node]
     ]
 

@@ -157,7 +157,7 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
         , Plan.installNodeBlockedReason = packageBlockedReason package
         , Plan.installNodeDiagnostics = []
         }
-    packageAction :: ResolvedPackage -> Text
+    packageAction :: ResolvedPackage -> Plan.InstallNodeAction
     packageAction package =
       case lookup (resolvedPackageId package) changeActionMap of
         Just LockfileActionKeep -> "keep"
@@ -169,7 +169,7 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
         Just LockfileActionAdd -> if isJust (resolvedPackageTargetPath package) then "download" else "keep"
         _ | null (resolvedPackageDownloadUrls package) -> "keep"
           | otherwise -> "download"
-    packagePhase :: ResolvedPackage -> Text
+    packagePhase :: ResolvedPackage -> Plan.InstallNodePhase
     packagePhase package =
       case coordinateKind (resolvedPackageCoordinate package) of
         "minecraft" -> "metadata"

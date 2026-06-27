@@ -36,6 +36,8 @@ import Panino.Install.Plan.Types
   , InstallVerification(..)
   , TypedInstallPlan(..)
   , finalizeTypedInstallPlan
+  , installNodeActionFromText
+  , installNodePhaseFromText
   , installNodeSha1FromText
   )
 import TestSupport (assertEqual)
@@ -187,8 +189,8 @@ executorTestNode nodeId phase dependencies action =
   InstallPlanNode
     { installNodeId = nodeId
     , installNodeKind = "test"
-    , installNodeAction = action
-    , installNodePhase = phase
+    , installNodeAction = installNodeActionFromText action
+    , installNodePhase = installNodePhaseFromText phase
     , installNodeLabel = nodeId
     , installNodeTargetPath = Nothing
     , installNodeSourceUrls = []

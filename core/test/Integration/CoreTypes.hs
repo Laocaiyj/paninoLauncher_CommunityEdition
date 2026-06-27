@@ -29,7 +29,13 @@ import Panino.Core.Types
   , urlFromText
   )
 import Panino.Install.Plan.Types
-  ( InstallPlanStatus(..)
+  ( InstallNodeAction(..)
+  , InstallNodePhase(..)
+  , InstallPlanStatus(..)
+  , installNodeActionFromText
+  , installNodeActionText
+  , installNodePhaseFromText
+  , installNodePhaseText
   , installPlanStatusFromText
   , installPlanStatusText
   )
@@ -42,6 +48,7 @@ import Panino.Lockfile.Types
   , LockfileVerifyIssueKind(..)
   , LockfileVerifyStatus(..)
   , PackageCoordinate(..)
+  , PackageSource(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , coordinateProjectIdText
@@ -59,6 +66,8 @@ import Panino.Lockfile.Types
   , lockfileVerifyIssueKindFromText
   , lockfileVerifyIssueKindText
   , lockfileVerifyStatusText
+  , packageSourceFromText
+  , packageSourceText
   , resolvedPackageDownloadUrlTexts
   , resolvedPackageTargetPathFilePath
   , solveRequestMinecraftVersionText
@@ -86,6 +95,11 @@ assertCoreTypes = do
   assertEqual "minecraft launch phase id keeps wire shape" "launch" (minecraftTaskPhaseId MinecraftPhaseLaunch)
   assertEqual "install plan empty status is ready" InstallStatusReady (installPlanStatusFromText "")
   assertEqual "install plan unknown status keeps wire text" "staged" (installPlanStatusText (InstallStatusOther "staged"))
+  assertEqual "install node action parses replace" InstallNodeReplace (installNodeActionFromText "replace")
+  assertEqual "install node action unknown keeps wire text" "hydrate" (installNodeActionText (installNodeActionFromText "hydrate"))
+  assertEqual "install node action preserves extension case" "removeCandidate" (installNodeActionText (installNodeActionFromText "removeCandidate"))
+  assertEqual "install node phase parses metadata" InstallNodePhaseMetadata (installNodePhaseFromText "metadata")
+  assertEqual "install node phase unknown keeps wire text" "post-verify" (installNodePhaseText (installNodePhaseFromText "post-verify"))
   assertEqual "lockfile solve empty status is blocked" LockfileSolveBlocked (lockfileSolveStatusFromText "")
   assertEqual "lockfile solve unknown status keeps wire text" "queued" (lockfileSolveStatusText (LockfileSolveOther "queued"))
   assertEqual "lockfile solve mode defaults to install" LockfileModeInstall (lockfileSolveModeFromText "")
@@ -97,6 +111,8 @@ assertCoreTypes = do
   assertEqual "lockfile verify locked status keeps wire text" "locked" (lockfileVerifyStatusText LockfileStatusLocked)
   assertEqual "lockfile verify issue kind parses known wire text" VerifyIssueMissingFile (lockfileVerifyIssueKindFromText "missingFile")
   assertEqual "lockfile verify unknown issue kind keeps wire text" "customIssue" (lockfileVerifyIssueKindText (lockfileVerifyIssueKindFromText "customIssue"))
+  assertEqual "package source parses curseforge alias" PackageSourceCurseForge (packageSourceFromText "curse-forge")
+  assertEqual "package source unknown preserves wire text" "customSource" (packageSourceText (packageSourceFromText "customSource"))
   assertLockfileWireShape
   assertEqual
     "core typed toml escapes strings"

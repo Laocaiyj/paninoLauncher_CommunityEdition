@@ -15,6 +15,7 @@ import Panino.Api.Types
 import Panino.Install.Plan.Types
   ( InstallPlanNode(..)
   , TypedInstallPlan(..)
+  , installNodeActionText
   )
 import TestSupport (assertEqual)
 
@@ -82,7 +83,7 @@ assertContentUpdatePlan = do
           updateRequest { updatePlanResources = [ignoredResource, removeCandidate, updateResource] }
       updatePlan = contentUpdateTypedPlan updateResponse
       nodeActions =
-        [ (installNodeLabel node, installNodeAction node)
+        [ (installNodeLabel node, installNodeActionText (installNodeAction node))
         | node <- typedPlanNodes updatePlan
         ]
       lockEntries = contentUpdateLockEntries updateResponse

@@ -126,6 +126,7 @@ library
     Panino.Core.CommandLine
     Panino.Core.TypedToml
     Panino.Core.Types
+    Panino.Core.WireText
     Panino.CoreLogic.Determinism
     Panino.CoreLogic.Hashing
     Panino.Download.Hash
