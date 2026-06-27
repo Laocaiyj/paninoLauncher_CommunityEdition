@@ -5,6 +5,9 @@ module Main (main) where
 import Integration.ApiJson
   ( assertApiJsonContracts
   )
+import Integration.ApiServerRouting
+  ( assertApiServerRouting
+  )
 import Integration.ContentPlan
   ( assertContentSearchQueries
   , assertContentTargetResolution
@@ -123,6 +126,7 @@ import System.Directory
 main :: IO ()
 main = do
   assertCoreCli
+  assertApiServerRouting
   tempRoot <- getTemporaryDirectory
   testTaowaP0 tempRoot
   testTaowaP1 tempRoot

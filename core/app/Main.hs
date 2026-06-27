@@ -20,6 +20,7 @@ import Panino.Core
   , parseCommand
   , renderCommand
   , selectServeSessionToken
+  , sessionTokenString
   )
 import Panino.Launch.Arguments
   ( LaunchProfile(..)
@@ -150,7 +151,7 @@ runServe options = do
     ApiServerOptions
       { apiServerHost = serveHost options
       , apiServerPort = servePort options
-      , apiServerSessionToken = Text.pack token
+      , apiServerSessionToken = Text.pack (sessionTokenString token)
       , apiServerGameDir = serveGameDir options
       }
 

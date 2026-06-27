@@ -4,14 +4,27 @@ module Panino.Core
   , LaunchOptions(..)
   , ResolveOptions(..)
   , ServeOptions(..)
+  , SessionToken
   , parseCommand
   , renderCommand
   , selectServeSessionToken
+  , sessionTokenFromString
+  , sessionTokenString
   , versionLine
   ) where
 
-import Data.Char (isSpace)
-import Text.Read (readMaybe)
+import Panino.Core.CommandLine
+  ( FlagDefinition
+  , firstNonBlank
+  , hasFlag
+  , lookupFlag
+  , parseFlags
+  , parseIntFlag
+  , requireFlag
+  , requireIntFlag
+  , switchFlag
+  , valueFlag
+  )
 
 data Command
   = ShowVersion
@@ -52,10 +65,20 @@ data LaunchOptions = LaunchOptions
 data ServeOptions = ServeOptions
   { serveHost :: String
   , servePort :: Int
-  , serveSessionToken :: Maybe String
+  , serveSessionToken :: Maybe SessionToken
   , serveSessionTokenFile :: Maybe FilePath
   , serveGameDir :: Maybe FilePath
   } deriving (Eq, Show)
+
+newtype SessionToken =
+  SessionToken String
+  deriving (Eq)
+
+instance Show SessionToken where
+  show _ = "<redacted-session-token>"
+
+sessionTokenString :: SessionToken -> String
+sessionTokenString (SessionToken token) = token
 
 parseCommand :: [String] -> Either String Command
 parseCommand [] = Right ShowVersion
@@ -117,7 +140,7 @@ versionLine packageVersion = "panino-core " <> packageVersion
 
 parseResolveOptions :: [String] -> Either String ResolveOptions
 parseResolveOptions args = do
-  options <- parseFlags args
+  options <- parseFlags resolveFlags args
   version <- requireFlag "--version" options
   pure ResolveOptions
     { resolveVersion = version
@@ -126,7 +149,7 @@ parseResolveOptions args = do
 
 parseInstallOptions :: [String] -> Either String InstallOptions
 parseInstallOptions args = do
-  options <- parseFlags args
+  options <- parseFlags installFlags args
   version <- requireFlag "--version" options
   concurrency <- parseIntFlag "--concurrency" 32 options
   pure InstallOptions
@@ -139,7 +162,7 @@ parseInstallOptions args = do
 
 parseLaunchOptions :: Bool -> [String] -> Either String LaunchOptions
 parseLaunchOptions printOnly args = do
-  options <- parseFlags args
+  options <- parseFlags launchFlags args
   version <- requireFlag "--version" options
   memoryMb <- parseIntFlag "--memory" 4096 options
   concurrency <- parseIntFlag "--concurrency" 32 options
@@ -157,92 +180,65 @@ parseLaunchOptions printOnly args = do
 
 parseServeOptions :: [String] -> Either String ServeOptions
 parseServeOptions args = do
-  options <- parseFlags args
+  options <- parseFlags serveFlags args
   port <- requireIntFlag "--port" options
   pure ServeOptions
     { serveHost = valueOr "127.0.0.1" (lookupFlag "--host" options)
     , servePort = port
-    , serveSessionToken = lookupFlag "--session-token" options
+    , serveSessionToken = lookupFlag "--session-token" options >>= sessionTokenFromString
     , serveSessionTokenFile = lookupFlag "--session-token-file" options
     , serveGameDir = lookupFlag "--game-dir" options
     }
 
-selectServeSessionToken :: Maybe String -> Maybe String -> ServeOptions -> Either String String
+selectServeSessionToken :: Maybe String -> Maybe String -> ServeOptions -> Either String SessionToken
 selectServeSessionToken fileToken envToken options =
-  case firstNonBlank [fileToken, envToken, serveSessionToken options] of
+  case firstNonBlank [fileToken, envToken] >>= sessionTokenFromString of
     Just token -> Right token
-    Nothing -> Left "serve requires --session-token-file, PANINO_CORE_SESSION_TOKEN, or --session-token"
+    Nothing ->
+      case serveSessionToken options of
+        Just token -> Right token
+        Nothing -> Left "serve requires --session-token-file, PANINO_CORE_SESSION_TOKEN, or --session-token"
 
-data FlagValue
-  = FlagValue String String
-  | BareFlag String
-  deriving (Eq, Show)
+resolveFlags :: [FlagDefinition]
+resolveFlags =
+  [ valueFlag "--version"
+  , valueFlag "--game-dir"
+  ]
 
-parseFlags :: [String] -> Either String [FlagValue]
-parseFlags [] = Right []
-parseFlags [flag]
-  | isFlag flag = Right [BareFlag flag]
-parseFlags (flag:value:rest)
-  | isFlag flag && not (isFlag value) = (FlagValue flag value :) <$> parseFlags rest
-parseFlags (flag:rest)
-  | isFlag flag = (BareFlag flag :) <$> parseFlags rest
-parseFlags (arg:_) = Left ("unexpected argument: " <> arg)
+installFlags :: [FlagDefinition]
+installFlags =
+  [ valueFlag "--version"
+  , valueFlag "--game-dir"
+  , valueFlag "--concurrency"
+  , valueFlag "--loader"
+  , valueFlag "--shader-loader"
+  ]
 
-isFlag :: String -> Bool
-isFlag ('-':'-':_) = True
-isFlag _ = False
+launchFlags :: [FlagDefinition]
+launchFlags =
+  [ valueFlag "--version"
+  , valueFlag "--game-dir"
+  , valueFlag "--memory"
+  , valueFlag "--java"
+  , valueFlag "--username"
+  , valueFlag "--uuid"
+  , valueFlag "--access-token"
+  , valueFlag "--concurrency"
+  , switchFlag "--no-install"
+  ]
 
-lookupFlag :: String -> [FlagValue] -> Maybe String
-lookupFlag flag values = go values
-  where
-    go [] = Nothing
-    go (FlagValue key value:rest)
-      | key == flag = Just value
-      | otherwise = go rest
-    go (_:rest) = go rest
-
-hasFlag :: String -> [FlagValue] -> Bool
-hasFlag flag = any (== BareFlag flag)
-
-requireFlag :: String -> [FlagValue] -> Either String String
-requireFlag flag values =
-  case lookupFlag flag values of
-    Just value -> Right value
-    Nothing -> Left ("missing required flag: " <> flag)
-
-parseIntFlag :: String -> Int -> [FlagValue] -> Either String Int
-parseIntFlag flag fallback values =
-  case lookupFlag flag values of
-    Nothing -> Right fallback
-    Just value ->
-      case readMaybe value of
-        Just parsed
-          | parsed > 0 -> Right parsed
-        _ -> Left ("invalid integer for " <> flag <> ": " <> value)
-
-requireIntFlag :: String -> [FlagValue] -> Either String Int
-requireIntFlag flag values =
-  case lookupFlag flag values of
-    Nothing -> Left ("missing required flag: " <> flag)
-    Just value ->
-      case readMaybe value of
-        Just parsed
-          | parsed > 0 -> Right parsed
-        _ -> Left ("invalid integer for " <> flag <> ": " <> value)
+serveFlags :: [FlagDefinition]
+serveFlags =
+  [ valueFlag "--host"
+  , valueFlag "--port"
+  , valueFlag "--session-token"
+  , valueFlag "--session-token-file"
+  , valueFlag "--game-dir"
+  ]
 
 valueOr :: a -> Maybe a -> a
 valueOr fallback = maybe fallback id
 
-firstNonBlank :: [Maybe String] -> Maybe String
-firstNonBlank [] = Nothing
-firstNonBlank (Nothing:rest) = firstNonBlank rest
-firstNonBlank (Just value:rest) =
-  case trim value of
-    "" -> firstNonBlank rest
-    trimmed -> Just trimmed
-
-trim :: String -> String
-trim = dropWhileEnd isSpace . dropWhile isSpace
-
-dropWhileEnd :: (a -> Bool) -> [a] -> [a]
-dropWhileEnd predicate = reverse . dropWhile predicate . reverse
+sessionTokenFromString :: String -> Maybe SessionToken
+sessionTokenFromString value =
+  SessionToken <$> firstNonBlank [Just value]

@@ -4,6 +4,7 @@ module Integration.CoreCli
   ( assertCoreCli
   ) where
 
+import Data.List (isInfixOf)
 import Panino.Core
   ( Command(..)
   , InstallOptions(..)
@@ -13,6 +14,8 @@ import Panino.Core
   , parseCommand
   , renderCommand
   , selectServeSessionToken
+  , sessionTokenFromString
+  , sessionTokenString
   , versionLine
   )
 import TestSupport (assertEqual)
@@ -23,10 +26,15 @@ assertCoreCli = do
   assertEqual "version flag" (Right ShowVersion) (parseCommand ["--version"])
   assertEqual "health command" (Right HealthCheck) (parseCommand ["health"])
   assertEqual "unknown command" (Left "unknown command: nope") (parseCommand ["nope"])
+  assertEqual "unknown flag" (Left "unknown flag: --wat") (parseCommand ["resolve", "--wat"])
   assertEqual
     "resolve command"
     (Right (Resolve (ResolveOptions "1.20.1" Nothing)))
     (parseCommand ["resolve", "--version", "1.20.1"])
+  assertEqual
+    "resolve command with flag assignment"
+    (Right (Resolve (ResolveOptions "1.20.1" (Just "/tmp/mc"))))
+    (parseCommand ["resolve", "--version=1.20.1", "--game-dir=/tmp/mc"])
   assertEqual
     "install command"
     (Right (Install (InstallOptions "1.20.1" (Just "/tmp/mc") 4 Nothing Nothing)))
@@ -41,19 +49,23 @@ assertCoreCli = do
     (parseCommand ["args", "--version", "1.20.1", "--memory", "2048"])
   assertEqual
     "serve command"
-    (Right (Serve (ServeOptions "127.0.0.1" 37123 (Just "dev-token") Nothing (Just "/tmp/mc"))))
+    (Right (Serve (ServeOptions "127.0.0.1" 37123 (sessionTokenFromString "dev-token") Nothing (Just "/tmp/mc"))))
     (parseCommand ["serve", "--port", "37123", "--session-token", "dev-token", "--game-dir", "/tmp/mc"])
+  assertEqual
+    "serve command show redacts token"
+    False
+    ("dev-token" `isInfixOf` show (parseCommand ["serve", "--port", "37123", "--session-token", "dev-token", "--game-dir", "/tmp/mc"] :: Either String Command))
   assertEqual
     "serve token file command"
     (Right (Serve (ServeOptions "127.0.0.1" 37123 Nothing (Just "/tmp/core-token") Nothing)))
     (parseCommand ["serve", "--port", "37123", "--session-token-file", "/tmp/core-token"])
-  let serveOptions = ServeOptions "127.0.0.1" 37123 (Just "legacy-token") (Just "/tmp/core-token") Nothing
-  assertEqual "serve token file wins" (Right "file-token") (selectServeSessionToken (Just " file-token\n") (Just "env-token") serveOptions)
-  assertEqual "serve token env fallback" (Right "env-token") (selectServeSessionToken Nothing (Just "env-token") serveOptions)
-  assertEqual "serve token legacy fallback" (Right "legacy-token") (selectServeSessionToken Nothing Nothing serveOptions)
+  let serveOptions = ServeOptions "127.0.0.1" 37123 (sessionTokenFromString "legacy-token") (Just "/tmp/core-token") Nothing
+  assertEqual "serve token file wins" (Right "file-token") (sessionTokenString <$> selectServeSessionToken (Just " file-token\n") (Just "env-token") serveOptions)
+  assertEqual "serve token env fallback" (Right "env-token") (sessionTokenString <$> selectServeSessionToken Nothing (Just "env-token") serveOptions)
+  assertEqual "serve token legacy fallback" (Right "legacy-token") (sessionTokenString <$> selectServeSessionToken Nothing Nothing serveOptions)
   assertEqual
     "serve token rejects empty sources"
     (Left "serve requires --session-token-file, PANINO_CORE_SESSION_TOKEN, or --session-token")
-    (selectServeSessionToken (Just "\n") (Just " ") (ServeOptions "127.0.0.1" 37123 (Just "") Nothing Nothing))
+    (selectServeSessionToken (Just "\n") (Just " ") (ServeOptions "127.0.0.1" 37123 (sessionTokenFromString "") Nothing Nothing))
   assertEqual "version line" "panino-core 0.1.0.0" (versionLine "0.1.0.0")
   assertEqual "health output" "ok" (renderCommand "0.1.0.0" HealthCheck)
