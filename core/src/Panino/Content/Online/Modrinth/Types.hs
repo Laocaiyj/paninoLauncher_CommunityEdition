@@ -29,7 +29,6 @@ import Data.Maybe
   , fromMaybe
   , mapMaybe
   )
-import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (UTCTime)
@@ -51,9 +50,9 @@ import Panino.Core.Types
   ( ProjectId
   , Url
   , VersionId
-  , projectIdFromText
+  , projectIdText
   , urlFromText
-  , versionIdFromText
+  , versionIdText
   )
 
 data ModrinthSearchResponse = ModrinthSearchResponse
@@ -73,7 +72,7 @@ instance FromJSON ModrinthSearchResponse where
         <*> obj .:? "total_hits" .!= 0
 
 data ModrinthProjectResponse = ModrinthProjectResponse
-  { modrinthProjectId :: Text
+  { modrinthProjectId :: ProjectId
   , modrinthSlug :: Maybe Text
   , modrinthTitle :: Text
   , modrinthDescription :: Maybe Text
@@ -82,7 +81,7 @@ data ModrinthProjectResponse = ModrinthProjectResponse
   , modrinthDownloads :: Maybe Int
   , modrinthFollowers :: Maybe Int
   , modrinthFollows :: Maybe Int
-  , modrinthIconUrl :: Maybe Text
+  , modrinthIconUrl :: Maybe Url
   , modrinthAuthor :: Maybe Text
   , modrinthCategories :: [Text]
   , modrinthVersions :: [Text]
@@ -126,16 +125,16 @@ instance FromJSON ModrinthProjectResponse where
 modrinthProjectToOnline :: ModrinthProjectResponse -> OnlineProject
 modrinthProjectToOnline project =
   OnlineProject
-    { projectId = onlineProjectIdFromText (modrinthProjectId project)
+    { projectId = modrinthProjectId project
     , projectSource = "modrinth"
     , projectSlug = modrinthSlug project
     , projectTitle = modrinthTitle project
     , projectSummary = fromMaybe "" (modrinthDescription project)
     , projectDescription = modrinthBody project
-    , projectIconUrl = fmap onlineUrlFromText (modrinthIconUrl project)
-    , projectGalleryUrls = map onlineUrlFromText (mapMaybe galleryUrl (modrinthGallery project))
+    , projectIconUrl = modrinthIconUrl project
+    , projectGalleryUrls = mapMaybe galleryUrl (modrinthGallery project)
     , projectAuthors = maybe [] (: []) (modrinthAuthor project)
-    , projectUrl = fmap onlineUrlFromText (modrinthProjectUrl project)
+    , projectUrl = modrinthProjectUrl project
     , projectType = onlineProjectType (fromMaybe "mod" (modrinthProjectKind project))
     , projectDownloads = fromMaybe 0 (modrinthDownloads project)
     , projectFollows = modrinthFollowers project <|> modrinthFollows project
@@ -154,9 +153,9 @@ modrinthProjectToOnline project =
           (modrinthCategories project <> modrinthLoaders project <> [modrinthTitle project, fromMaybe "" (modrinthDescription project)])
     }
 
-modrinthProjectUrl :: ModrinthProjectResponse -> Maybe Text
+modrinthProjectUrl :: ModrinthProjectResponse -> Maybe Url
 modrinthProjectUrl project =
-  (\slug -> "https://modrinth.com/" <> modrinthProjectType (onlineProjectType (fromMaybe "mod" (modrinthProjectKind project))) <> "/" <> slug)
+  (\slug -> urlFromText ("https://modrinth.com/" <> modrinthProjectType (onlineProjectType (fromMaybe "mod" (modrinthProjectKind project))) <> "/" <> slug))
     <$> modrinthSlug project
 
 modrinthLicenseId :: Maybe Value -> Maybe Text
@@ -168,17 +167,17 @@ modrinthLicenseId (Just (Object obj)) =
     _ -> Nothing
 modrinthLicenseId _ = Nothing
 
-galleryUrl :: Value -> Maybe Text
-galleryUrl (String value) = Just value
+galleryUrl :: Value -> Maybe Url
+galleryUrl (String value) = Just (urlFromText value)
 galleryUrl (Object obj) =
   case KeyMap.lookup "url" obj of
-    Just (String value) -> Just value
+    Just (String value) -> Just (urlFromText value)
     _ -> Nothing
 galleryUrl _ = Nothing
 
 data ModrinthVersionResponse = ModrinthVersionResponse
-  { modrinthVersionId :: Text
-  , modrinthVersionProjectId :: Text
+  { modrinthVersionId :: VersionId
+  , modrinthVersionProjectId :: ProjectId
   , modrinthVersionName :: Text
   , modrinthVersionNumber :: Text
   , modrinthChangelog :: Maybe Text
@@ -213,8 +212,8 @@ instance FromJSON ModrinthVersionResponse where
 modrinthVersionToOnline :: ModrinthVersionResponse -> OnlineRelease
 modrinthVersionToOnline version =
   OnlineRelease
-    { releaseId = onlineVersionIdFromText (modrinthVersionId version)
-    , releaseProjectId = onlineProjectIdFromText (modrinthVersionProjectId version)
+    { releaseId = modrinthVersionId version
+    , releaseProjectId = modrinthVersionProjectId version
     , releaseSource = "modrinth"
     , releaseVersionName = modrinthVersionName version
     , releaseVersionNumber = modrinthVersionNumber version
@@ -230,7 +229,7 @@ modrinthVersionToOnline version =
 
 data ModrinthFile = ModrinthFile
   { modrinthFileHashes :: Map Text Text
-  , modrinthFileUrl :: Maybe Text
+  , modrinthFileUrl :: Maybe Url
   , modrinthFileName :: Text
   , modrinthFilePrimary :: Bool
   , modrinthFileSize :: Maybe Int64
@@ -252,15 +251,15 @@ modrinthFileToOnline downloads file =
     { fileId = fromMaybe (modrinthFileName file) (Map.lookup "sha1" (modrinthFileHashes file))
     , fileName = modrinthFileName file
     , fileSizeBytes = fromMaybe 0 (modrinthFileSize file)
-    , fileDownloadUrl = fmap onlineUrlFromText (modrinthFileUrl file)
+    , fileDownloadUrl = modrinthFileUrl file
     , fileHashes = modrinthFileHashes file
     , filePrimary = modrinthFilePrimary file
     , fileDownloadCount = downloads
     }
 
 data ModrinthDependency = ModrinthDependency
-  { modrinthDependencyVersionId :: Maybe Text
-  , modrinthDependencyProjectId :: Maybe Text
+  { modrinthDependencyVersionId :: Maybe VersionId
+  , modrinthDependencyProjectId :: Maybe ProjectId
   , modrinthDependencyType :: Text
   } deriving (Eq, Show)
 
@@ -275,24 +274,12 @@ instance FromJSON ModrinthDependency where
 modrinthDependencyToOnline :: ModrinthDependency -> OnlineDependency
 modrinthDependencyToOnline dependency =
   OnlineDependency
-    { dependencyId = Text.intercalate ":" (catMaybes [modrinthDependencyProjectId dependency, modrinthDependencyVersionId dependency, Just (modrinthDependencyType dependency)])
-    , dependencyProjectId = fmap onlineProjectIdFromText (modrinthDependencyProjectId dependency)
-    , dependencyVersionId = fmap onlineVersionIdFromText (modrinthDependencyVersionId dependency)
+    { dependencyId = Text.intercalate ":" (catMaybes [projectIdText <$> modrinthDependencyProjectId dependency, versionIdText <$> modrinthDependencyVersionId dependency, Just (modrinthDependencyType dependency)])
+    , dependencyProjectId = modrinthDependencyProjectId dependency
+    , dependencyVersionId = modrinthDependencyVersionId dependency
     , dependencySource = "modrinth"
     , dependencyRelation = relationText (modrinthDependencyType dependency)
     }
-
-onlineProjectIdFromText :: Text -> ProjectId
-onlineProjectIdFromText value =
-  fromMaybe (fromString (Text.unpack value)) (projectIdFromText value)
-
-onlineVersionIdFromText :: Text -> VersionId
-onlineVersionIdFromText value =
-  fromMaybe (fromString (Text.unpack value)) (versionIdFromText value)
-
-onlineUrlFromText :: Text -> Url
-onlineUrlFromText =
-  urlFromText
 
 modrinthProjectType :: Text -> Text
 modrinthProjectType "resourcePack" = "resourcepack"

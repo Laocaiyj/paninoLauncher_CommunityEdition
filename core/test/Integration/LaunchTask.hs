@@ -27,7 +27,10 @@ import Panino.Api.Routes.Minecraft.LaunchHooks
   , beginLaunchHooks
   , runBestEffortLaunchChecks
   )
-import Panino.Api.Routes.Minecraft.LaunchTask (observeStartedLaunchWithDelay)
+import Panino.Api.Routes.Minecraft.LaunchTask
+  ( launchTaskOutcomeText
+  , observeStartedLaunchWithDelay
+  )
 import Panino.Api.Routes.Tasks (startTaskWithGameDirContext)
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
@@ -106,7 +109,7 @@ assertLaunchTaskCompletesAfterProcessStart tempRoot = do
               , pollJavaProcessExitCode = pure Nothing
               , waitJavaProcess = readMVar processFinished
               }
-      observeStartedLaunchWithDelay 1000 state snapshot layout hooks launch
+      launchTaskOutcomeText <$> observeStartedLaunchWithDelay 1000 state snapshot layout hooks launch
   taskState <- waitForTaskState state (taskSnapshotId task) TaskSucceeded 100
   latest <- Map.lookup (taskSnapshotId task) <$> readTVarIO (stateTasks state)
   assertEqual "launch task succeeds after Java process starts" (Just TaskSucceeded) taskState
@@ -166,7 +169,7 @@ assertLaunchTaskFailsOnEarlyProcessExit tempRoot = do
                     , javaMemorySamples = []
                     }
               }
-      observeStartedLaunchWithDelay 1000 state snapshot layout hooks launch
+      launchTaskOutcomeText <$> observeStartedLaunchWithDelay 1000 state snapshot layout hooks launch
   taskState <- waitForTaskState state (taskSnapshotId task) TaskFailed 100
   latest <- Map.lookup (taskSnapshotId task) <$> readTVarIO (stateTasks state)
   assertEqual "launch task fails when Java exits inside startup grace period" (Just TaskFailed) taskState

@@ -32,6 +32,7 @@ import Panino.Content.Online.Minecraft
   , preferredLoaderMetadata
   )
 import Panino.Content.Online.Types (LoaderMetadata(..))
+import Panino.Core.Types (projectIdText)
 import Panino.Minecraft.InstallPreflight.Checks
   ( LoaderPreflightCheck(..)
   , ShaderPreflightCheck(..)
@@ -209,12 +210,12 @@ resolveShaderCompanions manager request resolution = do
   companionOutcome <-
     try
       ( if shaderResolutionProject resolution == "iris" && normalizeLoaderName (shaderResolutionResolvedLoader resolution) == "fabric"
-          then resolveModrinthProject manager (preflightMinecraftVersion request) (shaderResolutionResolvedLoader resolution) (map resolvedModrinthProject resolved) "fabric-api"
+          then resolveModrinthProject manager (preflightMinecraftVersion request) (shaderResolutionResolvedLoader resolution) (map (projectIdText . resolvedModrinthProject) resolved) "fabric-api"
           else pure []
       )
   case companionOutcome of
     Right companions -> do
-      let projects = map resolvedModrinthProject (resolved <> companions)
+      let projects = map (projectIdText . resolvedModrinthProject) (resolved <> companions)
       pure
         emptyShaderCheck
           { shaderProjects = projects
@@ -236,7 +237,7 @@ resolveShaderCompanions manager request resolution = do
     Left (err :: SomeException) ->
       pure
         emptyShaderCheck
-          { shaderProjects = map resolvedModrinthProject resolved
+          { shaderProjects = map (projectIdText . resolvedModrinthProject) resolved
           , shaderSelectedVersion = Just (shaderResolutionVersion resolution)
           , shaderResolvedLoader = Just (shaderResolutionResolvedLoader resolution)
           , shaderFallbackFrom = fallbackFrom
@@ -260,7 +261,7 @@ missingShaderSha1Warnings =
   where
     missingSha1 resolved
       | Map.member "sha1" (modrinthFileHashes (resolvedModrinthFile resolved)) = Nothing
-      | otherwise = Just ("shader_file_missing_sha1:" <> resolvedModrinthProject resolved)
+      | otherwise = Just ("shader_file_missing_sha1:" <> projectIdText (resolvedModrinthProject resolved))
 
 shaderPreflightBlockedReason :: Text -> Text -> Text -> SomeException -> Text
 shaderPreflightBlockedReason project loader minecraftVersion err

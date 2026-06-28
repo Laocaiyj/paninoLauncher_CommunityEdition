@@ -6,12 +6,23 @@ module Integration.LoaderSelection
   ) where
 
 import qualified Data.Map.Strict as Map
+import Data.Aeson (decode)
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Panino.Content.Online.Minecraft
   ( preferredLoaderMetadata
   )
 import Panino.Content.Online.Types
   ( LoaderMetadata(..)
+  )
+import Panino.Core.Types
+  ( VersionId
+  , projectIdText
+  , urlFromText
+  , urlText
+  , versionIdFromText
+  , versionIdText
   )
 import Panino.Minecraft.LoaderInstall
   ( ModrinthFile(..)
@@ -41,12 +52,20 @@ assertModrinthPreferredVersionSelection = do
   assertEqual
     "Modrinth selection prefers file/version text matching requested Minecraft version"
     (Just "sodium-1217")
-    (modrinthVersionId <$> selected)
+    (versionIdText . modrinthVersionId <$> selected)
+  assertEqual
+    "Modrinth loader resolver JSON decodes typed ids and url"
+    (Just ("typed-version", "typed-project", Just "https://cdn.modrinth.test/typed.jar"))
+    (modrinthLoaderVersionSummary <$> (decode modrinthLoaderVersionJson :: Maybe ModrinthVersion))
+  assertEqual
+    "Modrinth loader resolver JSON rejects empty version id"
+    Nothing
+    (decode modrinthLoaderVersionWithEmptyIdJson :: Maybe ModrinthVersion)
 
 testModrinthVersion :: Text -> Text -> Text -> Text -> Text -> ModrinthVersion
 testModrinthVersion modrinthId displayName versionNumber publishedAt jarName =
   ModrinthVersion
-    { modrinthVersionId = modrinthId
+    { modrinthVersionId = testVersionId modrinthId
     , modrinthVersionProjectId = "AANobbMI"
     , modrinthVersionGameVersions = ["1.21.7", "1.21.8"]
     , modrinthVersionLoaders = ["fabric", "quilt"]
@@ -58,7 +77,7 @@ testModrinthVersion modrinthId displayName versionNumber publishedAt jarName =
     , modrinthVersionFiles =
         [ ModrinthFile
             { modrinthFileName = jarName
-            , modrinthFileUrl = "https://cdn.modrinth.test/" <> jarName
+            , modrinthFileUrl = urlFromText ("https://cdn.modrinth.test/" <> jarName)
             , modrinthFilePrimary = True
             , modrinthFileHashes = Map.empty
             , modrinthFileSize = Just 1
@@ -66,6 +85,41 @@ testModrinthVersion modrinthId displayName versionNumber publishedAt jarName =
         ]
     , modrinthVersionDependencies = []
     }
+
+testVersionId :: Text -> VersionId
+testVersionId value =
+  fromMaybe "invalid-test-version-id" (versionIdFromText value)
+
+modrinthLoaderVersionSummary :: ModrinthVersion -> (Text, Text, Maybe Text)
+modrinthLoaderVersionSummary version =
+  ( versionIdText (modrinthVersionId version)
+  , projectIdText (modrinthVersionProjectId version)
+  , case modrinthVersionFiles version of
+      file:_ -> Just (urlText (modrinthFileUrl file))
+      [] -> Nothing
+  )
+
+modrinthLoaderVersionJson :: LBS.ByteString
+modrinthLoaderVersionJson =
+  LBS.pack $
+    "{"
+      <> "\"id\":\"typed-version\","
+      <> "\"project_id\":\"typed-project\","
+      <> "\"game_versions\":[\"1.21.7\"],"
+      <> "\"loaders\":[\"fabric\"],"
+      <> "\"files\":[{\"filename\":\"typed.jar\",\"url\":\"https://cdn.modrinth.test/typed.jar\"}]"
+      <> "}"
+
+modrinthLoaderVersionWithEmptyIdJson :: LBS.ByteString
+modrinthLoaderVersionWithEmptyIdJson =
+  LBS.pack $
+    "{"
+      <> "\"id\":\"\","
+      <> "\"project_id\":\"typed-project\","
+      <> "\"game_versions\":[\"1.21.7\"],"
+      <> "\"loaders\":[\"fabric\"],"
+      <> "\"files\":[{\"filename\":\"typed.jar\",\"url\":\"https://cdn.modrinth.test/typed.jar\"}]"
+      <> "}"
 
 assertPreferredLoaderMetadataSelection :: IO ()
 assertPreferredLoaderMetadataSelection = do

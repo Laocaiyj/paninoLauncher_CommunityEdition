@@ -6,13 +6,16 @@ module Panino.Lockfile.Verify
   ) where
 
 import Data.List (sort)
-import qualified Data.Map.Strict as Map
 import Data.Maybe
   ( fromMaybe
   , mapMaybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( sha1FromText
+  , sha1Text
+  )
 import Panino.CoreLogic.Determinism
   ( stableSortPackages
   , stableTextSet
@@ -34,10 +37,12 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , emptyChangeset
   , lockfileFileKey
+  , lockfileFileSha1
   , lockfileFileTargetPathFilePath
   , lockfileVerifyIssueKindText
   , packageSourceIsManualLike
   , resolvedPackageKey
+  , resolvedPackageSha1
   , resolvedPackageTargetPathFilePath
   )
 import System.Directory
@@ -111,7 +116,7 @@ verifyLockfile gameDir lockfile = do
     verifyFile file = do
       let relativeTarget = lockfileFileTargetPathFilePath file
           target = gameDir </> relativeTarget
-          expectedSha1 = Map.lookup "sha1" (lockfileFileHashes file)
+          expectedSha1 = lockfileFileSha1 file
       exists <- doesFileExist target
       if not exists
         then
@@ -127,7 +132,8 @@ verifyLockfile gameDir lockfile = do
                 }
         else do
           actualSha1 <- sha1File target
-          if maybe False (/= actualSha1) expectedSha1
+          let actualSha1Value = sha1FromText actualSha1
+          if maybe False ((/= actualSha1) . sha1Text) expectedSha1
             then
               pure $
                 Left $
@@ -136,7 +142,7 @@ verifyLockfile gameDir lockfile = do
                     , verifyIssuePackageId = Just (lockfileFilePackageId file)
                     , verifyIssueTargetPath = Just relativeTarget
                     , verifyIssueExpectedSha1 = expectedSha1
-                    , verifyIssueActualSha1 = Just actualSha1
+                    , verifyIssueActualSha1 = actualSha1Value
                     , verifyIssueMessage = "Lockfile-managed file hash does not match."
                     }
             else pure (Right ())
@@ -148,7 +154,7 @@ manualFileIssues lockfile =
       { verifyIssueKind = VerifyIssueManualFile
       , verifyIssuePackageId = Just (resolvedPackageId package)
       , verifyIssueTargetPath = resolvedPackageTargetPathFilePath package
-      , verifyIssueExpectedSha1 = Map.lookup "sha1" (resolvedPackageHashes package)
+      , verifyIssueExpectedSha1 = resolvedPackageSha1 package
       , verifyIssueActualSha1 = Nothing
       , verifyIssueMessage = "Manual or local file is tracked by the lockfile."
       }
@@ -223,8 +229,8 @@ verifyIssueKey issue =
     [ lockfileVerifyIssueKindText (verifyIssueKind issue)
     , fromMaybe "" (verifyIssuePackageId issue)
     , Text.pack (fromMaybe "" (verifyIssueTargetPath issue))
-    , fromMaybe "" (verifyIssueExpectedSha1 issue)
-    , fromMaybe "" (verifyIssueActualSha1 issue)
+    , maybe "" sha1Text (verifyIssueExpectedSha1 issue)
+    , maybe "" sha1Text (verifyIssueActualSha1 issue)
     , verifyIssueMessage issue
     ]
 

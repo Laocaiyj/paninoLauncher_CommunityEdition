@@ -49,7 +49,8 @@ import Panino.CoreLogic.Determinism
   , stableSortPackages
   )
 import Panino.Core.Types
-  ( sha1FromText
+  ( projectIdText
+  , sha1FromText
   , sha1Text
   , urlText
   )
@@ -208,7 +209,7 @@ resolvedDownloadFromModrinth layout resolved =
       planFile =
         PerformancePackPlanFile
           { packPlanFileSource = "modrinth"
-          , packPlanFileProjectId = resolvedModrinthProject resolved
+          , packPlanFileProjectId = projectIdText (resolvedModrinthProject resolved)
           , packPlanFileName = jobLabel job
           , packPlanFileTargetPath = jobTargetPath job
           , packPlanFileSha1 = sha1Text <$> jobSha1 job

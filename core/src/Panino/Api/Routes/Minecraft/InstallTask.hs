@@ -2,7 +2,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Panino.Api.Routes.Minecraft.InstallTask
-  ( runInstallTask
+  ( InstallTaskState(..)
+  , installTaskStateText
+  , runInstallTask
   ) where
 
 import Control.Concurrent.Async (AsyncCancelled)
@@ -14,7 +16,8 @@ import Control.Exception
   , try
   )
 import Data.Aeson
-  ( Value
+  ( ToJSON(..)
+  , Value(..)
   , encode
   , object
   , (.=)
@@ -39,6 +42,8 @@ import Panino.Api.Routes.Minecraft.Phase
   )
 import Panino.Api.Routes.Minecraft.InstallTask.Rollback
   ( InstallRollbackOutcome(..)
+  , InstallRollbackStatus(..)
+  , installRollbackStatusText
   , prepareInstallRollbackSnapshot
   , rollbackInstallFailure
   )
@@ -80,12 +85,31 @@ import System.FilePath
   , (</>)
   )
 
+data InstallTaskState
+  = InstallTaskRunning
+  | InstallTaskSucceeded
+  | InstallTaskFailed
+  | InstallTaskCancelled
+  deriving (Eq, Show)
+
+installTaskStateText :: InstallTaskState -> Text
+installTaskStateText state =
+  case state of
+    InstallTaskRunning -> "running"
+    InstallTaskSucceeded -> "succeeded"
+    InstallTaskFailed -> "failed"
+    InstallTaskCancelled -> "cancelled"
+
+instance ToJSON InstallTaskState where
+  toJSON =
+    String . installTaskStateText
+
 runInstallTask :: ServerState -> TaskSnapshot -> InstallRequest -> LoaderInstallPreflightResponse -> IO Text
 runInstallTask state task request preflight = do
   layout <- requestLayout state (installRequestGameDir request)
   let downloadOptions = downloadOptionsFromRuntime (installRequestDownload request)
   writeInstallPreflightDiagnostics layout preflight
-  writeInstallState layout task request "running" Nothing Nothing Nothing Nothing Nothing
+  writeInstallState layout task request InstallTaskRunning Nothing Nothing Nothing Nothing Nothing
   rollbackSnapshot <- prepareInstallRollbackSnapshot layout task
   outcome <- try $ do
     emitPhaseMarker state task MinecraftPhasePrepare "Prepare install plan" 1 5 0 "preparing install"
@@ -118,7 +142,7 @@ runInstallTask state task request preflight = do
           }
     let result = loaderInstallResult profileResult
     let summary = installDownloadSummary result
-    writeInstallState layout task request "succeeded" Nothing Nothing (Just (loaderInstallProfileVersion profileResult)) Nothing Nothing
+    writeInstallState layout task request InstallTaskSucceeded Nothing Nothing (Just (loaderInstallProfileVersion profileResult)) Nothing Nothing
     pure
       ( Text.pack
           ( "installed into "
@@ -136,13 +160,13 @@ runInstallTask state task request preflight = do
     Right message -> pure message
     Left (err :: SomeException)
       | isInstallCancellationException err -> do
-          writeInstallState layout task request "cancelled" Nothing Nothing Nothing Nothing Nothing
+          writeInstallState layout task request InstallTaskCancelled Nothing Nothing Nothing Nothing Nothing
           throwIO err
     Left (err :: SomeException) -> do
       rollback <- rollbackInstallFailure layout task rollbackSnapshot
       let originalCode = installErrorCodeFromException err
           finalCode =
-            if installRollbackStatus rollback == "partial_install_left_for_diagnosis"
+            if installRollbackStatus rollback == InstallRollbackPartialForDiagnosis
               then "partial_install_left_for_diagnosis"
               else originalCode
           failedPhase = installFailurePhase originalCode
@@ -151,7 +175,7 @@ runInstallTask state task request preflight = do
         layout
         task
         request
-        "failed"
+        InstallTaskFailed
         (Just finalCode)
         (Just detail)
         Nothing
@@ -177,7 +201,7 @@ isInstallCancellationException err =
         Just (_ :: SomeAsyncException) -> True
         Nothing -> False
 
-writeInstallState :: MinecraftLayout -> TaskSnapshot -> InstallRequest -> Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe MinecraftTaskPhase -> Maybe FilePath -> IO ()
+writeInstallState :: MinecraftLayout -> TaskSnapshot -> InstallRequest -> InstallTaskState -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe MinecraftTaskPhase -> Maybe FilePath -> IO ()
 writeInstallState layout task request installState errorCode errorDetail installedProfile failedPhase rollbackReportPath = do
   now <- getCurrentTime
   let payload =
@@ -239,7 +263,7 @@ installFailureDetail layout request preflight err originalCode finalCode failedP
         , "blockedReasons=" <> Text.intercalate "," (preflightResponseBlockedReasons preflight)
         , "originalErrorCode=" <> originalCode
         , "failedPhase=" <> taskPhaseIdText (minecraftTaskPhaseId failedPhase)
-        , "rollbackState=" <> installRollbackStatus rollback
+        , "rollbackState=" <> installRollbackStatusText (installRollbackStatus rollback)
         , "rollbackReport=" <> Text.pack (installRollbackReportPath rollback)
         , "loaderLog=" <> Text.pack (minecraftRoot layout </> "downloads" </> "loader-install.log")
         , "shaderLog=" <> Text.pack (minecraftRoot layout </> "downloads" </> "shader-install.log")

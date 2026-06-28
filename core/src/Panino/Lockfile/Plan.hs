@@ -13,7 +13,6 @@ import Data.Aeson
   , (.=)
   )
 import qualified Data.ByteString.Lazy.Char8 as BL8
-import qualified Data.Map.Strict as Map
 import Data.Maybe
   ( fromMaybe
   , isJust
@@ -30,6 +29,7 @@ import Panino.CoreLogic.Determinism
 import Panino.Core.Types
   ( Url
   , relativePathFilePath
+  , sha1Text
   , urlFromText
   , urlText
   )
@@ -47,6 +47,7 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , resolvedPackageDownloadUrlTexts
   , resolvedPackageKey
+  , resolvedPackageSha1
   , resolvedPackageTargetPathFilePath
   )
 import System.FilePath
@@ -148,7 +149,7 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
         , Plan.installNodeLabel = resolvedPackageDisplayName package
         , Plan.installNodeTargetPath = absoluteTarget <$> resolvedPackageTargetPathFilePath package
         , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts (stableTextSet (resolvedPackageDownloadUrlTexts package))
-        , Plan.installNodeSha1 = Plan.installNodeSha1FromText (Map.lookup "sha1" (resolvedPackageHashes package))
+        , Plan.installNodeSha1 = Plan.installNodeSha1FromText (sha1Text <$> resolvedPackageSha1 package)
         , Plan.installNodeSize = resolvedPackageSize package
         , Plan.installNodeRequired = True
         , Plan.installNodeDependsOn = dependsFor package
@@ -186,7 +187,7 @@ buildLockfileTypedPlan gameDir packages constraints changeset warnings blockedRe
       | isJust (resolvedPackageTargetPath package)
       ]
         <> [ Plan.InstallVerification "hashKnown" "ok" Nothing
-           | Map.member "sha1" (resolvedPackageHashes package)
+           | isJust (resolvedPackageSha1 package)
            ]
         <> [ Plan.InstallVerification "sourceAvailable" "ok" Nothing
            | not (null (resolvedPackageDownloadUrls package))

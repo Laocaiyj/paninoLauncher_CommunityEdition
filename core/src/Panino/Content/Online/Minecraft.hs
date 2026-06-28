@@ -55,6 +55,11 @@ import Panino.Content.Online.Types
   , MinecraftRemoteVersion(..)
   , MinecraftVersionPackage(..)
   )
+import Panino.Core.Types
+  ( Sha1
+  , Url
+  , VersionId
+  )
 import Text.Read (readMaybe)
 
 contentMinecraftVersions :: Manager -> IO [MinecraftRemoteVersion]
@@ -173,9 +178,9 @@ instance FromJSON MojangManifest where
       MojangManifest <$> obj .:? "versions" .!= []
 
 data MojangManifestVersion = MojangManifestVersion
-  { mojangVersionId :: Text
+  { mojangVersionId :: VersionId
   , mojangVersionType :: Text
-  , mojangVersionUrl :: Text
+  , mojangVersionUrl :: Url
   , mojangVersionReleaseTime :: Maybe UTCTime
   } deriving (Eq, Show)
 
@@ -198,7 +203,7 @@ mojangVersion version =
     }
 
 data MojangPackage = MojangPackage
-  { mojangPackageId :: Text
+  { mojangPackageId :: VersionId
   , mojangPackageType :: Text
   , mojangPackageJavaVersion :: Maybe MojangJavaVersion
   , mojangPackageAssetIndex :: Maybe MojangAssetIndex
@@ -245,8 +250,8 @@ instance FromJSON MojangJavaVersion where
 
 data MojangAssetIndex = MojangAssetIndex
   { mojangAssetIndexId :: Text
-  , mojangAssetIndexUrl :: Text
-  , mojangAssetIndexSha1 :: Maybe Text
+  , mojangAssetIndexUrl :: Url
+  , mojangAssetIndexSha1 :: Maybe Sha1
   , mojangAssetIndexSize :: Maybe Int64
   , mojangAssetIndexTotalSize :: Maybe Int64
   } deriving (Eq, Show)
@@ -262,8 +267,8 @@ instance FromJSON MojangAssetIndex where
         <*> obj .:? "totalSize"
 
 data MojangDownload = MojangDownload
-  { mojangDownloadUrl :: Text
-  , mojangDownloadSha1 :: Maybe Text
+  { mojangDownloadUrl :: Url
+  , mojangDownloadSha1 :: Maybe Sha1
   , mojangDownloadSize :: Maybe Int64
   } deriving (Eq, Show)
 

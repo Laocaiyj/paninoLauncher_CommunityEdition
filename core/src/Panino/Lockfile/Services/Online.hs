@@ -79,6 +79,7 @@ import Panino.Lockfile.Types
   , packageSourceFromText
   , packageSourceIsOnline
   , resolvedPackageKey
+  , resolvedPackageSha1
   , solveRequestMinecraftVersionText
   )
 import System.FilePath ((</>))
@@ -122,7 +123,7 @@ onlineRootNeedsResolution package =
     && ( coordinateVersionId (resolvedPackageCoordinate package) == Nothing
            || resolvedPackageTargetPath package == Nothing
            || null (resolvedPackageDownloadUrls package)
-           || not (Map.member "sha1" (resolvedPackageHashes package))
+           || not (isJust (resolvedPackageSha1 package))
        )
 
 onlineRootPackage :: Manager -> LockfileSolveRequest -> ResolvedPackage -> IO (Maybe ResolvedPackage)

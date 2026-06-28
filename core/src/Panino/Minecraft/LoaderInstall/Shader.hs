@@ -29,9 +29,11 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
 import Panino.Core.Types
-  ( sha1FromText
+  ( projectIdText
+  , sha1FromText
   , sha1Text
-  , urlFromText
+  , urlText
+  , versionIdText
   )
 import Panino.CoreLogic.Determinism (stableTextSet)
 import Panino.Download.Manager
@@ -134,7 +136,7 @@ resolveShaderModrinthProject manager minecraftVersion loader project maybeShader
         Right resolved -> do
           let selectedVersion =
                 fromMaybe
-                  (fromMaybe project (listToMaybe [versionId | ResolvedModrinthMod itemProject versionId _ <- resolved, itemProject == project]))
+                  (fromMaybe project (listToMaybe [versionIdText versionId | ResolvedModrinthMod itemProject versionId _ <- resolved, projectIdText itemProject == project]))
                   maybeShaderVersion
           pure
             ShaderResolution
@@ -153,8 +155,8 @@ resolveShaderModrinthProject manager minecraftVersion loader project maybeShader
 modrinthDownloadJob :: MinecraftLayout -> ResolvedModrinthMod -> DownloadJob
 modrinthDownloadJob layout resolved =
   DownloadJob
-    { jobLabel = "modrinth mod " <> Text.unpack (resolvedModrinthProject resolved)
-    , jobUrl = urlFromText (modrinthFileUrl selectedFile)
+    { jobLabel = "modrinth mod " <> Text.unpack (projectIdText (resolvedModrinthProject resolved))
+    , jobUrl = modrinthFileUrl selectedFile
     , jobTargetPath = minecraftRoot layout </> "mods" </> Text.unpack (safeFileName (modrinthFileName selectedFile))
     , jobSha1 = Map.lookup "sha1" (modrinthFileHashes selectedFile) >>= sha1FromText
     , jobSize = modrinthFileSize selectedFile
@@ -173,7 +175,7 @@ installModrinthShader manager layout minecraftVersion loader project maybeShader
   throwIfCancelled isCancelled
   resolution <- resolveShaderModrinthProject manager minecraftVersion loader project maybeShaderVersion
   throwIfCancelled isCancelled
-  companionMods <- resolveFabricApiCompanion manager minecraftVersion (shaderResolutionResolvedLoader resolution) (map resolvedModrinthProject (shaderResolutionMods resolution))
+  companionMods <- resolveFabricApiCompanion manager minecraftVersion (shaderResolutionResolvedLoader resolution) (map (projectIdText . resolvedModrinthProject) (shaderResolutionMods resolution))
   throwIfCancelled isCancelled
   createDirectoryIfMissing True (minecraftRoot layout </> "mods")
   let resolved = stableResolvedModrinthMods (shaderResolutionMods resolution <> companionMods)
@@ -274,19 +276,19 @@ writeShaderInstallLog layout minecraftVersion resolution resolved = do
     )
   where
     resolvedLine item =
-      Text.unpack (resolvedModrinthProject item)
+      Text.unpack (projectIdText (resolvedModrinthProject item))
         <> " file="
         <> Text.unpack (modrinthFileName (resolvedModrinthFile item))
         <> maybe "" ((" sha1=" <>) . Text.unpack) (Map.lookup "sha1" (modrinthFileHashes (resolvedModrinthFile item)))
         <> " url="
-        <> Text.unpack (modrinthFileUrl (resolvedModrinthFile item))
+        <> Text.unpack (urlText (modrinthFileUrl (resolvedModrinthFile item)))
 
 removeStaleShaderFiles :: MinecraftLayout -> [ResolvedModrinthMod] -> IO ()
 removeStaleShaderFiles layout resolved = do
   previous <- readShaderInstallLogFiles layout
   let selected =
         Map.fromList
-          [ (resolvedModrinthProject item, modrinthFileName (resolvedModrinthFile item))
+          [ (projectIdText (resolvedModrinthProject item), modrinthFileName (resolvedModrinthFile item))
           | item <- resolved
           ]
   forM_ previous $ \(project, previousFile) ->

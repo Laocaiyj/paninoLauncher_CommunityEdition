@@ -14,7 +14,9 @@ import Panino.Core.TypedToml
   , blankLine
   , renderToml
   , tableArray
+  , tomlKey
   , tomlKeyValue
+  , tomlPath
   )
 import Panino.Multiplayer.Taowa.Types
   ( TaowaFrpProfile(..)
@@ -32,23 +34,23 @@ renderRedactedFrpcConfig profile sessionId localPort =
 renderFrpcConfigWithToken :: Maybe Text -> TaowaFrpProfile -> Text -> Int -> Text
 renderFrpcConfigWithToken token profile sessionId localPort =
   renderToml $
-    [ tomlKeyValue "serverAddr" (TomlString (taowaProfileServerAddr profile))
-    , tomlKeyValue "serverPort" (TomlInteger (taowaProfileServerPort profile))
+    [ tomlKeyValue (tomlKey "serverAddr") (TomlString (taowaProfileServerAddr profile))
+    , tomlKeyValue (tomlKey "serverPort") (TomlInteger (taowaProfileServerPort profile))
     ]
       <> authLines token
       <> [ blankLine
-         , tableArray "proxies"
-         , tomlKeyValue "name" (TomlString (taowaSessionProxyName sessionId))
-         , tomlKeyValue "type" (TomlString "tcp")
-         , tomlKeyValue "localIP" (TomlString "127.0.0.1")
-         , tomlKeyValue "localPort" (TomlInteger localPort)
-         , tomlKeyValue "remotePort" (TomlInteger (taowaProfileRemotePort profile))
+         , tableArray (tomlKey "proxies")
+         , tomlKeyValue (tomlKey "name") (TomlString (taowaSessionProxyName sessionId))
+         , tomlKeyValue (tomlKey "type") (TomlString "tcp")
+         , tomlKeyValue (tomlKey "localIP") (TomlString "127.0.0.1")
+         , tomlKeyValue (tomlKey "localPort") (TomlInteger localPort)
+         , tomlKeyValue (tomlKey "remotePort") (TomlInteger (taowaProfileRemotePort profile))
          ]
 
 authLines :: Maybe Text -> [TomlLine]
 authLines maybeToken =
   case Text.strip <$> maybeToken of
-    Just token | not (Text.null token) -> [tomlKeyValue "auth.token" (TomlString token)]
+    Just token | not (Text.null token) -> [tomlKeyValue (tomlPath "auth" ["token"]) (TomlString token)]
     _ -> []
 
 taowaSessionProxyName :: Text -> Text

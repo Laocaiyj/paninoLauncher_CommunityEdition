@@ -204,7 +204,7 @@ instance ToJSON Url where
 
 instance FromJSON Url where
   parseJSON =
-    withText "Url" (pure . urlFromText)
+    withText "Url" (parseNonEmpty "Url" (fmap Url . nonEmptyText))
 
 instance ToJSON RelativePath where
   toJSON = toWireTextJSON

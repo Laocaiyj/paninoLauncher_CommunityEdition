@@ -10,6 +10,8 @@ module Panino.Lockfile.Types.Package
   , coordinateVersionIdText
   , lockfileFileDownloadUrlTexts
   , lockfileFileKey
+  , lockfileFileSha1
+  , lockfileFileSha1Text
   , lockfileFileTargetPathFilePath
   , normalizePackageSource
   , packageCoordinateKey
@@ -19,6 +21,8 @@ module Panino.Lockfile.Types.Package
   , packageSourceText
   , resolvedPackageDownloadUrlTexts
   , resolvedPackageKey
+  , resolvedPackageSha1
+  , resolvedPackageSha1Text
   , resolvedPackageTargetPathFilePath
   ) where
 
@@ -42,10 +46,13 @@ import qualified Data.Text as Text
 import Panino.Core.Types
   ( ProjectId
   , RelativePath
+  , Sha1
   , Url
   , VersionId
   , projectIdText
   , relativePathFilePath
+  , sha1FromText
+  , sha1Text
   , urlText
   , versionIdText
   )
@@ -368,6 +375,14 @@ resolvedPackageDownloadUrlTexts :: ResolvedPackage -> [Text]
 resolvedPackageDownloadUrlTexts =
   map urlText . resolvedPackageDownloadUrls
 
+resolvedPackageSha1 :: ResolvedPackage -> Maybe Sha1
+resolvedPackageSha1 package =
+  Map.lookup "sha1" (resolvedPackageHashes package) >>= sha1FromText
+
+resolvedPackageSha1Text :: ResolvedPackage -> Maybe Text
+resolvedPackageSha1Text =
+  fmap sha1Text . resolvedPackageSha1
+
 lockfileFileTargetPathFilePath :: LockfileFile -> FilePath
 lockfileFileTargetPathFilePath =
   relativePathFilePath . lockfileFileTargetPath
@@ -375,3 +390,11 @@ lockfileFileTargetPathFilePath =
 lockfileFileDownloadUrlTexts :: LockfileFile -> [Text]
 lockfileFileDownloadUrlTexts =
   map urlText . lockfileFileDownloadUrls
+
+lockfileFileSha1 :: LockfileFile -> Maybe Sha1
+lockfileFileSha1 file =
+  Map.lookup "sha1" (lockfileFileHashes file) >>= sha1FromText
+
+lockfileFileSha1Text :: LockfileFile -> Maybe Text
+lockfileFileSha1Text =
+  fmap sha1Text . lockfileFileSha1

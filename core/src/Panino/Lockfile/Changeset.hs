@@ -13,6 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types (versionIdText)
 import Panino.CoreLogic.Determinism
   ( stableFingerprint
   , stableSortPackages
@@ -28,7 +29,6 @@ import Panino.Lockfile.Types
   , PackageSource
   , PaninoLockfile(..)
   , ResolvedPackage(..)
-  , coordinateVersionIdText
   , lockfileChangeActionText
   , packageSourceIsManualLike
   , emptyChangeset
@@ -104,8 +104,8 @@ packageChange action package existing reason =
     { lockfileChangeAction = action
     , lockfileChangePackageId = resolvedPackageId package
     , lockfileChangeDisplayName = resolvedPackageDisplayName package
-    , lockfileChangeFromVersionId = existing >>= coordinateVersionIdText . resolvedPackageCoordinate
-    , lockfileChangeToVersionId = coordinateVersionIdText (resolvedPackageCoordinate package)
+    , lockfileChangeFromVersionId = existing >>= coordinateVersionId . resolvedPackageCoordinate
+    , lockfileChangeToVersionId = coordinateVersionId (resolvedPackageCoordinate package)
     , lockfileChangeTargetPath = resolvedPackageTargetPathFilePath package
     , lockfileChangeReason = reason
     }
@@ -131,8 +131,8 @@ lockfileChangeKey change =
     [ lockfileChangeActionText (lockfileChangeAction change)
     , lockfileChangePackageId change
     , lockfileChangeDisplayName change
-    , fromMaybe "" (lockfileChangeFromVersionId change)
-    , fromMaybe "" (lockfileChangeToVersionId change)
+    , maybe "" versionIdText (lockfileChangeFromVersionId change)
+    , maybe "" versionIdText (lockfileChangeToVersionId change)
     , Text.pack (fromMaybe "" (lockfileChangeTargetPath change))
     ]
 

@@ -18,7 +18,9 @@ import Panino.Core.TypedToml
   , blankLine
   , renderToml
   , tableArray
+  , tomlKey
   , tomlKeyValue
+  , tomlPath
   )
 import Panino.Core.Types
   ( GameDir
@@ -84,11 +86,16 @@ import Panino.Install.Plan.Types
   , installVerificationStatusText
   )
 import Panino.Lockfile.Types
-  ( LockfileSolveRequest
+  ( LockfileApplyRejection(..)
+  , LockfileApplyStatus(..)
+  , LockfileFile(..)
+  , LockfileSolveRequest
+  , LockfileChange(..)
   , LockfileChangeAction(..)
   , LockfileSolveMode(..)
   , LockfileSolveStatus(..)
   , LockfileUpdatePolicy(..)
+  , LockfileVerifyIssue(..)
   , LockfileVerifyIssueKind(..)
   , LockfileVerifyStatus(..)
   , PackageCoordinate(..)
@@ -97,6 +104,9 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , coordinateProjectIdText
   , coordinateVersionIdText
+  , lockfileApplyRejectionFromText
+  , lockfileApplyRejectionText
+  , lockfileApplyStatusText
   , lockfileChangeActionFromText
   , lockfileChangeActionText
   , lockfileSolveModeFromText
@@ -114,6 +124,8 @@ import Panino.Lockfile.Types
   , packageSourceText
   , resolvedPackageDownloadUrlTexts
   , resolvedPackageTargetPathFilePath
+  , resolvedPackageSha1Text
+  , lockfileFileSha1Text
   , solveRequestMinecraftVersionText
   , solveRequestTargetGameDirPath
   )
@@ -123,6 +135,18 @@ import Panino.Api.Routes.Minecraft.Phase
   , launchRepairProgressPhases
   , minecraftTaskPhaseId
   , progressPhaseId
+  )
+import Panino.Api.Routes.Minecraft.InstallTask
+  ( InstallTaskState(..)
+  , installTaskStateText
+  )
+import Panino.Api.Routes.Minecraft.InstallTask.Rollback
+  ( InstallRollbackStatus(..)
+  , installRollbackStatusText
+  )
+import Panino.Api.Routes.Minecraft.LaunchTask
+  ( LaunchTaskOutcome(..)
+  , launchTaskOutcomeText
   )
 import Panino.Minecraft.Types
   ( DownloadInfo(..)
@@ -138,12 +162,18 @@ assertCoreTypes = do
   assertEqual "core url wire text keeps string shape" "https://example.com/file.jar" (wireText url)
   assertEqual "core url json keeps string wire shape" "\"https://example.com/file.jar\"" (BL8.unpack (encode url))
   assertEqual "core url json roundtrip" (Right url) (eitherDecode "\"https://example.com/file.jar\"" :: Either String Url)
+  assertEqual "core url json rejects empty text" True (isLeft (eitherDecode "\"\"" :: Either String Url))
   assertEqual "core sha1 constructor normalizes case" (Just "abcdef") (sha1Text <$> sha1FromText "ABCDEF")
   assertEqual "core sha1 json rejects empty text" True (isLeft (eitherDecode "\"\"" :: Either String Sha1))
   assertEqual "core game dir json rejects empty text" True (isLeft (eitherDecode "\"\"" :: Either String GameDir))
   assertEqual "minecraft install phase ids keep wire shape" ["prepare", "minecraft", "loader", "content", "verify"] (map (taskPhaseIdText . progressPhaseId) installProgressPhases)
   assertEqual "minecraft launch repair phase ids keep wire shape" ["minecraft", "loader", "content", "verify"] (map (taskPhaseIdText . progressPhaseId) launchRepairProgressPhases)
   assertEqual "minecraft launch phase id keeps wire shape" "launch" (taskPhaseIdText (minecraftTaskPhaseId MinecraftPhaseLaunch))
+  assertEqual "launch task outcome texts keep wire shape" ["java process started", "java exited successfully"] (map launchTaskOutcomeText [LaunchProcessStarted, LaunchProcessExitedSuccessfully])
+  assertEqual "install task state ids keep wire shape" ["running", "succeeded", "failed", "cancelled"] (map installTaskStateText [InstallTaskRunning, InstallTaskSucceeded, InstallTaskFailed, InstallTaskCancelled])
+  assertEqual "install task state json keeps string wire shape" "\"failed\"" (BL8.unpack (encode InstallTaskFailed))
+  assertEqual "install rollback status texts keep wire shape" ["rolled_back", "partial_install_left_for_diagnosis"] (map installRollbackStatusText [InstallRolledBack, InstallRollbackPartialForDiagnosis])
+  assertEqual "install rollback status json keeps string wire shape" "\"rolled_back\"" (BL8.unpack (encode InstallRolledBack))
   assertEqual "task phase id json keeps string wire shape" (Right "content") (taskPhaseIdText <$> (eitherDecode "\"content\"" :: Either String TaskPhaseId))
   assertEqual "task kind parses launch" TaskKindLaunch (taskKindFromText "launch")
   assertEqual "task kind unknown keeps wire text" "diagnostics.export" (taskKindText (taskKindFromText "diagnostics.export"))
@@ -173,9 +203,26 @@ assertCoreTypes = do
   assertEqual "lockfile update policy unknown keeps wire text" "customPolicy" (lockfileUpdatePolicyText (lockfileUpdatePolicyFromText "customPolicy"))
   assertEqual "lockfile change action parses repair" LockfileActionRepair (lockfileChangeActionFromText "repair")
   assertEqual "lockfile change action unknown keeps wire text" "customAction" (lockfileChangeActionText (lockfileChangeActionFromText "customAction"))
+  assertEqual "lockfile apply rejection parses fingerprint mismatch" LockfileApplySolverFingerprintMismatch (lockfileApplyRejectionFromText "solver_fingerprint_mismatch")
+  assertEqual "lockfile apply rejection unknown keeps wire text" "custom_apply_rejection" (lockfileApplyRejectionText (lockfileApplyRejectionFromText "custom_apply_rejection"))
+  assertEqual "lockfile apply rejection json keeps string wire shape" "\"solver_blocked\"" (BL8.unpack (encode LockfileApplySolverBlocked))
+  assertEqual "lockfile apply status keeps wire shape" "applied" (lockfileApplyStatusText LockfileApplied)
+  assertEqual "lockfile apply status json keeps string wire shape" "\"applied\"" (BL8.unpack (encode LockfileApplied))
   assertEqual "lockfile verify locked status keeps wire text" "locked" (lockfileVerifyStatusText LockfileStatusLocked)
   assertEqual "lockfile verify issue kind parses known wire text" VerifyIssueMissingFile (lockfileVerifyIssueKindFromText "missingFile")
   assertEqual "lockfile verify unknown issue kind keeps wire text" "customIssue" (lockfileVerifyIssueKindText (lockfileVerifyIssueKindFromText "customIssue"))
+  let verifyIssue =
+        LockfileVerifyIssue
+          { verifyIssueKind = VerifyIssueHashMismatch
+          , verifyIssuePackageId = Just "iris"
+          , verifyIssueTargetPath = Just "mods/iris.jar"
+          , verifyIssueExpectedSha1 = Just "ABCDEF"
+          , verifyIssueActualSha1 = Just "123456"
+          , verifyIssueMessage = "Lockfile-managed file hash does not match."
+          }
+      encodedVerifyIssue = BL8.unpack (encode verifyIssue)
+  assertContains "lockfile verify expected sha stays a JSON string" "\"expectedSha1\":\"abcdef\"" encodedVerifyIssue
+  assertContains "lockfile verify actual sha stays a JSON string" "\"actualSha1\":\"123456\"" encodedVerifyIssue
   assertEqual "package source parses curseforge alias" PackageSourceCurseForge (packageSourceFromText "curse-forge")
   assertEqual "package source unknown preserves wire text" "customSource" (packageSourceText (packageSourceFromText "customSource"))
   assertLockfileWireShape
@@ -186,10 +233,18 @@ assertCoreTypes = do
     "core typed toml escapes strings"
     ("serverAddr = \"host\\\"\\\\\\nname\"\nserverPort = 7000\n\n[[proxies]]\n" :: Text)
     ( renderToml
-        [ tomlKeyValue "serverAddr" (TomlString "host\"\\\nname")
-        , tomlKeyValue "serverPort" (TomlInteger 7000)
+        [ tomlKeyValue (tomlKey "serverAddr") (TomlString "host\"\\\nname")
+        , tomlKeyValue (tomlKey "serverPort") (TomlInteger 7000)
         , blankLine
-        , tableArray "proxies"
+        , tableArray (tomlKey "proxies")
+        ]
+    )
+  assertEqual
+    "core typed toml renders dotted keys and quotes unsafe key segments"
+    ("auth.token = \"secret\"\n\"server addr\".\"token\\\"name\" = \"value\"\n" :: Text)
+    ( renderToml
+        [ tomlKeyValue (tomlPath "auth" ["token"]) (TomlString "secret")
+        , tomlKeyValue (tomlPath "server addr" ["token\"name"]) (TomlString "value")
         ]
     )
 
@@ -227,6 +282,16 @@ assertLockfileWireShape = do
           , resolvedPackageConflicts = []
           , resolvedPackageSourceSnapshot = Nothing
           }
+      lockfileFile =
+        LockfileFile
+          { lockfileFilePackageId = "iris"
+          , lockfileFileName = "iris.jar"
+          , lockfileFileTargetPath = "mods/iris.jar"
+          , lockfileFileHashes = Map.singleton "sha1" "ABCDEF"
+          , lockfileFileSize = Just 1
+          , lockfileFileDownloadUrls = ["https://example.com/iris.jar"]
+          , lockfileFileKind = "mod"
+          }
       lockfile =
         PaninoLockfile
           { lockfileVersion = 1
@@ -250,10 +315,25 @@ assertLockfileWireShape = do
           }
       encodedPackage = BL8.unpack (encode package)
       encodedLockfile = BL8.unpack (encode lockfile)
+      lockfileChange =
+        LockfileChange
+          { lockfileChangeAction = LockfileActionReplace
+          , lockfileChangePackageId = "iris"
+          , lockfileChangeDisplayName = "Iris"
+          , lockfileChangeFromVersionId = Just "old-version"
+          , lockfileChangeToVersionId = Just "new-version"
+          , lockfileChangeTargetPath = Just "mods/iris.jar"
+          , lockfileChangeReason = "Selected package differs from existing lockfile."
+          }
+      encodedChange = BL8.unpack (encode lockfileChange)
   assertEqual "coordinate project id text view" (Just "iris") (coordinateProjectIdText coordinate)
   assertEqual "coordinate version id text view" (Just "iris-version") (coordinateVersionIdText coordinate)
   assertEqual "resolved package target path text view" (Just "mods/iris.jar") (resolvedPackageTargetPathFilePath package)
   assertEqual "resolved package download url text view" ["https://example.com/iris.jar"] (resolvedPackageDownloadUrlTexts package)
+  assertEqual "resolved package sha1 accessor normalizes text" (Just "abcdef") (resolvedPackageSha1Text package)
+  assertEqual "resolved package sha1 accessor rejects empty text" Nothing (resolvedPackageSha1Text package { resolvedPackageHashes = Map.singleton "sha1" "" })
+  assertEqual "lockfile file sha1 accessor normalizes text" (Just "abcdef") (lockfileFileSha1Text lockfileFile)
+  assertEqual "lockfile file sha1 accessor rejects empty text" Nothing (lockfileFileSha1Text lockfileFile { lockfileFileHashes = Map.singleton "sha1" "" })
   assertEqual "lockfile target game dir text view" (Just "/tmp/panino") (lockfileTargetGameDirPath lockfile)
   assertEqual "lockfile minecraft text view" (Just "1.21.5") (lockfileMinecraftText lockfile)
   assertContains "package projectId stays a JSON string" "\"projectId\":\"iris\"" encodedPackage
@@ -262,6 +342,15 @@ assertLockfileWireShape = do
   assertContains "package downloadUrls stays a JSON string list" "\"downloadUrls\":[\"https://example.com/iris.jar\"]" encodedPackage
   assertContains "lockfile targetGameDir stays a JSON string" "\"targetGameDir\":\"/tmp/panino\"" encodedLockfile
   assertContains "lockfile minecraft stays a JSON string" "\"minecraft\":\"1.21.5\"" encodedLockfile
+  assertContains "lockfile change fromVersionId stays a JSON string" "\"fromVersionId\":\"old-version\"" encodedChange
+  assertContains "lockfile change toVersionId stays a JSON string" "\"toVersionId\":\"new-version\"" encodedChange
+  case eitherDecode "{\"action\":\"replace\",\"packageId\":\"iris\",\"displayName\":\"Iris\",\"fromVersionId\":\"old-version\",\"toVersionId\":\"new-version\",\"targetPath\":\"mods/iris.jar\",\"reason\":\"changed\"}" :: Either String LockfileChange of
+    Left err ->
+      assertEqual ("lockfile change json decodes: " <> err) True False
+    Right change -> do
+      assertEqual "lockfile change from version decodes as VersionId" (Just "old-version") (versionIdText <$> lockfileChangeFromVersionId change)
+      assertEqual "lockfile change to version decodes as VersionId" (Just "new-version") (versionIdText <$> lockfileChangeToVersionId change)
+  assertEqual "lockfile change empty version id is rejected" True (isLeft (eitherDecode "{\"fromVersionId\":\"\"}" :: Either String LockfileChange))
   case eitherDecode "{\"targetGameDir\":\"/tmp/panino\",\"minecraftVersion\":\"1.21.5\"}" :: Either String LockfileSolveRequest of
     Left err ->
       assertEqual ("lockfile solve request json decodes: " <> err) True False

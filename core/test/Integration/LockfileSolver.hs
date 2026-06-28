@@ -41,14 +41,19 @@ import Panino.Lockfile.Apply
   , runLockfilePlanNode
   )
 import Panino.Lockfile.Solver
-  ( lockfileApplyReadyLockfile
+  ( LockfileApplyReadiness(..)
+  , lockfileApplyReadiness
+  , lockfileApplyReadyLockfile
   , lockfileLaunchBlockedReasons
   , lockfileSolveCacheGameDir
+  , readyLockfileApplyLockfile
+  , readyLockfileLockfile
   , solveLockfile
   , verifyLockfile
   )
 import Panino.Lockfile.Types
   ( LockfileApplyRequest(..)
+  , LockfileApplyRejection(..)
   , LockfileChangeset(..)
   , LockfileExplain(..)
   , LockfileSolveRequest(..)
@@ -197,10 +202,16 @@ assertLockfileSolver = do
       case gameDirFromPath gameDir of
         Nothing ->
           fail "lockfile apply test expected non-empty target game dir"
-        Just staleApplyGameDir ->
+        Just staleApplyGameDir -> do
+          let matchingApplyRequest =
+                LockfileApplyRequest
+                  { applyRequestTargetGameDir = staleApplyGameDir
+                  , applyRequestSolverFingerprint = lockfileFingerprint lockfile
+                  , applyRequestResult = result
+                  }
           assertEqual
             "lockfile apply rejects stale solver fingerprint"
-            (Left "solver_fingerprint_mismatch")
+            (Left LockfileApplySolverFingerprintMismatch)
             ( lockfileApplyReadyLockfile
                 LockfileApplyRequest
                   { applyRequestTargetGameDir = staleApplyGameDir
@@ -208,6 +219,19 @@ assertLockfileSolver = do
                   , applyRequestResult = result
                   }
             )
+          case lockfileApplyReadyLockfile matchingApplyRequest of
+            Left rejection ->
+              assertEqual ("lockfile apply accepts matching fingerprint: " <> show rejection) True False
+            Right readyLockfile ->
+              assertEqual "lockfile apply ready typestate exposes checked lockfile" (lockfileFingerprint lockfile) (lockfileFingerprint (readyLockfileLockfile readyLockfile))
+          case lockfileApplyReadiness matchingApplyRequest of
+            LockfileApplyReady readyApply ->
+              assertEqual
+                "lockfile apply readiness requires checked lockfile before executable plan"
+                (lockfileFingerprint lockfile)
+                (lockfileFingerprint (readyLockfileLockfile (readyLockfileApplyLockfile readyApply)))
+            readiness ->
+              assertEqual ("lockfile apply readiness expected ready state: " <> show readiness) True False
       let applyGameDir = tempDir </> "panino-lockfile-apply-test"
       applyGameDirExists <- doesDirectoryExist applyGameDir
       when applyGameDirExists (removeDirectoryRecursive applyGameDir)

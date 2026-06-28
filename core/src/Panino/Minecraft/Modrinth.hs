@@ -36,21 +36,43 @@ import Panino.Content.Online.Http
   ( coreRequest
   , fetchJson
   )
+import Panino.Core.Types
+  ( ProjectId
+  , Url
+  , VersionId
+  , projectIdFromText
+  , projectIdText
+  , urlText
+  , versionIdFromText
+  , versionIdText
+  )
 import Panino.CoreLogic.Determinism (stableSortOnText)
 
 data ResolvedModrinthMod = ResolvedModrinthMod
-  { resolvedModrinthProject :: Text
-  , resolvedModrinthVersion :: Text
+  { resolvedModrinthProject :: ProjectId
+  , resolvedModrinthVersion :: VersionId
   , resolvedModrinthFile :: ModrinthFile
   } deriving (Eq, Show)
+
+data ModrinthVisitKey
+  = ModrinthVisitProject ProjectId
+  | ModrinthVisitVersion VersionId
+  deriving (Eq, Ord, Show)
 
 resolveModrinthProject :: Manager -> Text -> Text -> [Text] -> Text -> IO [ResolvedModrinthMod]
 resolveModrinthProject manager minecraftVersion loader visited project =
   resolveModrinthProjectWithVersion manager minecraftVersion loader visited project Nothing
 
 resolveModrinthProjectWithVersion :: Manager -> Text -> Text -> [Text] -> Text -> Maybe Text -> IO [ResolvedModrinthMod]
-resolveModrinthProjectWithVersion manager minecraftVersion loader visited project maybeVersionId
-  | project `elem` visited = pure []
+resolveModrinthProjectWithVersion manager minecraftVersion loader visited project maybeVersionId = do
+  projectId <- parseProjectId project
+  versionId <- traverse parseVersionId maybeVersionId
+  visitedKeys <- traverse (fmap ModrinthVisitProject . parseProjectId) visited
+  resolveModrinthProjectTyped manager minecraftVersion loader visitedKeys projectId versionId
+
+resolveModrinthProjectTyped :: Manager -> Text -> Text -> [ModrinthVisitKey] -> ProjectId -> Maybe VersionId -> IO [ResolvedModrinthMod]
+resolveModrinthProjectTyped manager minecraftVersion loader visited project maybeVersionId
+  | ModrinthVisitProject project `elem` visited = pure []
   | otherwise = do
       selectedVersion <-
         case maybeVersionId of
@@ -58,7 +80,7 @@ resolveModrinthProjectWithVersion manager minecraftVersion loader visited projec
             version <- modrinthVersionById manager versionId
             if modrinthVersionProjectId version == project
               then pure version
-              else fail ("shader_release_not_found: Modrinth release " <> Text.unpack versionId <> " does not belong to " <> Text.unpack project)
+              else fail ("shader_release_not_found: Modrinth release " <> Text.unpack (versionIdText versionId) <> " does not belong to " <> Text.unpack (projectIdText project))
           Nothing -> do
             versions <- modrinthVersions manager project minecraftVersion loader
             case selectPreferredModrinthVersion minecraftVersion loader versions of
@@ -66,56 +88,59 @@ resolveModrinthProjectWithVersion manager minecraftVersion loader visited projec
               Nothing ->
                 fail
                   ( "shader_release_not_found: no Modrinth "
-                      <> Text.unpack project
+                      <> Text.unpack (projectIdText project)
                       <> " release found for Minecraft "
                       <> Text.unpack minecraftVersion
                       <> " and loader "
                       <> Text.unpack loader
                   )
-      resolveModrinthVersion manager minecraftVersion loader (project : visited) project selectedVersion
+      resolveModrinthVersion manager minecraftVersion loader (ModrinthVisitProject project : visited) project selectedVersion
 
-resolveModrinthVersion :: Manager -> Text -> Text -> [Text] -> Text -> ModrinthVersion -> IO [ResolvedModrinthMod]
-resolveModrinthVersion manager minecraftVersion loader visited project version = do
-  when (not (modrinthVersionCompatible minecraftVersion loader version)) $
-    fail
-      ( "shader_release_not_found: Modrinth "
-          <> Text.unpack project
-          <> " release "
-          <> Text.unpack (modrinthVersionId version)
-          <> " is not compatible with Minecraft "
-          <> Text.unpack minecraftVersion
-          <> " and loader "
-          <> Text.unpack loader
-      )
-  selectedFile <-
-    case preferredFile version of
-      Just file -> pure file
-      Nothing -> fail ("shader_file_missing_download: Modrinth release has no downloadable file: " <> Text.unpack project)
-  dependencies <-
-    concat
-      <$> mapConcurrently
-        (resolveRequiredDependency manager minecraftVersion loader visited)
-        (requiredDependencies (modrinthVersionDependencies version))
-  pure (dependencies <> [ResolvedModrinthMod project (modrinthVersionId version) selectedFile])
+resolveModrinthVersion :: Manager -> Text -> Text -> [ModrinthVisitKey] -> ProjectId -> ModrinthVersion -> IO [ResolvedModrinthMod]
+resolveModrinthVersion manager minecraftVersion loader visited project version
+  | ModrinthVisitVersion (modrinthVersionId version) `elem` visited = pure []
+  | otherwise = do
+      when (not (modrinthVersionCompatible minecraftVersion loader version)) $
+        fail
+          ( "shader_release_not_found: Modrinth "
+              <> Text.unpack (projectIdText project)
+              <> " release "
+              <> Text.unpack (versionIdText (modrinthVersionId version))
+              <> " is not compatible with Minecraft "
+              <> Text.unpack minecraftVersion
+              <> " and loader "
+              <> Text.unpack loader
+          )
+      selectedFile <-
+        case preferredFile version of
+          Just file -> pure file
+          Nothing -> fail ("shader_file_missing_download: Modrinth release has no downloadable file: " <> Text.unpack (projectIdText project))
+      let visited' = ModrinthVisitVersion (modrinthVersionId version) : visited
+      dependencies <-
+        concat
+          <$> mapConcurrently
+            (resolveRequiredDependency manager minecraftVersion loader visited')
+            (requiredDependencies (modrinthVersionDependencies version))
+      pure (dependencies <> [ResolvedModrinthMod project (modrinthVersionId version) selectedFile])
 
-resolveRequiredDependency :: Manager -> Text -> Text -> [Text] -> ModrinthDependency -> IO [ResolvedModrinthMod]
+resolveRequiredDependency :: Manager -> Text -> Text -> [ModrinthVisitKey] -> ModrinthDependency -> IO [ResolvedModrinthMod]
 resolveRequiredDependency manager minecraftVersion loader visited dependency =
   case modrinthDependencyVersionId dependency of
     Just versionId
-      | versionId `elem` visited -> pure []
+      | ModrinthVisitVersion versionId `elem` visited -> pure []
       | otherwise -> do
           version <- modrinthVersionById manager versionId
           let project = fromMaybe (modrinthVersionProjectId version) (modrinthDependencyProjectId dependency)
           if modrinthVersionCompatible minecraftVersion loader version
-            then resolveModrinthVersion manager minecraftVersion loader (versionId : visited) project version
+            then resolveModrinthVersion manager minecraftVersion loader visited project version
             else
               case modrinthDependencyProjectId dependency of
                 Just projectId ->
-                  resolveModrinthProject manager minecraftVersion loader (versionId : visited) projectId
+                  resolveModrinthProjectTyped manager minecraftVersion loader (ModrinthVisitVersion versionId : visited) projectId Nothing
                 Nothing ->
                   fail
                     ( "shader_dependency_unresolved: dependency version "
-                        <> Text.unpack versionId
+                        <> Text.unpack (versionIdText versionId)
                         <> " is not compatible with Minecraft "
                         <> Text.unpack minecraftVersion
                         <> " and loader "
@@ -124,7 +149,7 @@ resolveRequiredDependency manager minecraftVersion loader visited dependency =
                     )
     Nothing ->
       case modrinthDependencyProjectId dependency of
-        Just project -> resolveModrinthProject manager minecraftVersion loader visited project
+        Just project -> resolveModrinthProjectTyped manager minecraftVersion loader visited project Nothing
         Nothing -> fail "shader_dependency_unresolved: Modrinth required dependency is missing project_id and version_id"
 
 requiredDependencies :: [ModrinthDependency] -> [ModrinthDependency]
@@ -143,20 +168,20 @@ resolvedModrinthKey :: ResolvedModrinthMod -> Text
 resolvedModrinthKey item =
   Text.intercalate
     "|"
-    [ resolvedModrinthProject item
+    [ projectIdText (resolvedModrinthProject item)
     , modrinthFileName file
-    , modrinthFileUrl file
+    , urlText (modrinthFileUrl file)
     , fromMaybe "" (Map.lookup "sha1" (modrinthFileHashes file))
     ]
   where
     file = resolvedModrinthFile item
 
-modrinthVersions :: Manager -> Text -> Text -> Text -> IO [ModrinthVersion]
+modrinthVersions :: Manager -> ProjectId -> Text -> Text -> IO [ModrinthVersion]
 modrinthVersions manager project minecraftVersion loader = do
   request <-
     coreRequest
       ( "https://api.modrinth.com/v2/project/"
-          <> Text.unpack project
+          <> Text.unpack (projectIdText project)
           <> "/version?game_versions=%5B%22"
           <> Text.unpack minecraftVersion
           <> "%22%5D&loaders=%5B%22"
@@ -166,11 +191,11 @@ modrinthVersions manager project minecraftVersion loader = do
       []
   fetchJson manager request
 
-modrinthVersionById :: Manager -> Text -> IO ModrinthVersion
+modrinthVersionById :: Manager -> VersionId -> IO ModrinthVersion
 modrinthVersionById manager versionId =
   fetchJson manager
     =<< coreRequest
-      ("https://api.modrinth.com/v2/version/" <> Text.unpack versionId)
+      ("https://api.modrinth.com/v2/version/" <> Text.unpack (versionIdText versionId))
       []
 
 modrinthLoaderName :: Text -> Text
@@ -178,8 +203,8 @@ modrinthLoaderName "neoforge" = "neoforge"
 modrinthLoaderName other = Text.toLower other
 
 data ModrinthVersion = ModrinthVersion
-  { modrinthVersionId :: Text
-  , modrinthVersionProjectId :: Text
+  { modrinthVersionId :: VersionId
+  , modrinthVersionProjectId :: ProjectId
   , modrinthVersionGameVersions :: [Text]
   , modrinthVersionLoaders :: [Text]
   , modrinthVersionName :: Text
@@ -208,8 +233,8 @@ instance FromJSON ModrinthVersion where
         <*> obj .:? "dependencies" .!= []
 
 data ModrinthDependency = ModrinthDependency
-  { modrinthDependencyProjectId :: Maybe Text
-  , modrinthDependencyVersionId :: Maybe Text
+  { modrinthDependencyProjectId :: Maybe ProjectId
+  , modrinthDependencyVersionId :: Maybe VersionId
   , modrinthDependencyType :: Text
   } deriving (Eq, Show)
 
@@ -223,7 +248,7 @@ instance FromJSON ModrinthDependency where
 
 data ModrinthFile = ModrinthFile
   { modrinthFileName :: Text
-  , modrinthFileUrl :: Text
+  , modrinthFileUrl :: Url
   , modrinthFilePrimary :: Bool
   , modrinthFileHashes :: Map Text Text
   , modrinthFileSize :: Maybe Int64
@@ -260,8 +285,8 @@ modrinthVersionSelectionKey minecraftVersion loader version =
   , modrinthReleaseRank (modrinthVersionType version)
   , if modrinthVersionFeatured version then 0 else 1
   , Down (fromMaybe "" (modrinthVersionDatePublished version))
-  , modrinthVersionProjectId version
-  , modrinthVersionId version
+  , projectIdText (modrinthVersionProjectId version)
+  , versionIdText (modrinthVersionId version)
   )
 
 modrinthVersionSupportsMinecraft :: Text -> ModrinthVersion -> Bool
@@ -304,8 +329,8 @@ modrinthDependencyKey :: ModrinthDependency -> Text
 modrinthDependencyKey dependency =
   Text.intercalate
     "|"
-    [ fromMaybe "" (modrinthDependencyProjectId dependency)
-    , fromMaybe "" (modrinthDependencyVersionId dependency)
+    [ maybe "" projectIdText (modrinthDependencyProjectId dependency)
+    , maybe "" versionIdText (modrinthDependencyVersionId dependency)
     , modrinthDependencyType dependency
     ]
 
@@ -314,10 +339,18 @@ modrinthFileKey file =
   Text.intercalate
     "|"
     [ modrinthFileName file
-    , modrinthFileUrl file
+    , urlText (modrinthFileUrl file)
     , maybe "" (Text.pack . show) (modrinthFileSize file)
     , fromMaybe "" (Map.lookup "sha1" (modrinthFileHashes file))
     ]
+
+parseProjectId :: Text -> IO ProjectId
+parseProjectId value =
+  maybe (fail "modrinth_project_id_empty") pure (projectIdFromText value)
+
+parseVersionId :: Text -> IO VersionId
+parseVersionId value =
+  maybe (fail "modrinth_version_id_empty") pure (versionIdFromText value)
 
 safeFileName :: Text -> Text
 safeFileName value =

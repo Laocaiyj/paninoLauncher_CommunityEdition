@@ -4,6 +4,8 @@
 module Panino.Api.Routes.Minecraft.InstallTask.Rollback
   ( InstallRollbackOutcome(..)
   , InstallRollbackSnapshot
+  , InstallRollbackStatus(..)
+  , installRollbackStatusText
   , prepareInstallRollbackSnapshot
   , rollbackInstallFailure
   ) where
@@ -19,7 +21,9 @@ import Control.Monad
   , when
   )
 import Data.Aeson
-  ( encode
+  ( ToJSON(..)
+  , Value(..)
+  , encode
   , object
   , (.=)
   )
@@ -68,13 +72,28 @@ data InstallRollbackSnapshot = InstallRollbackSnapshot
   } deriving (Eq, Show)
 
 data InstallRollbackOutcome = InstallRollbackOutcome
-  { installRollbackStatus :: Text
+  { installRollbackStatus :: InstallRollbackStatus
   , installRollbackReportPath :: FilePath
   , installRollbackRemovedFiles :: [FilePath]
   , installRollbackRestoredFiles :: [FilePath]
   , installRollbackNewProfiles :: [Text]
   , installRollbackFailures :: [Text]
   } deriving (Eq, Show)
+
+data InstallRollbackStatus
+  = InstallRolledBack
+  | InstallRollbackPartialForDiagnosis
+  deriving (Eq, Show)
+
+installRollbackStatusText :: InstallRollbackStatus -> Text
+installRollbackStatusText status =
+  case status of
+    InstallRolledBack -> "rolled_back"
+    InstallRollbackPartialForDiagnosis -> "partial_install_left_for_diagnosis"
+
+instance ToJSON InstallRollbackStatus where
+  toJSON =
+    String . installRollbackStatusText
 
 prepareInstallRollbackSnapshot :: MinecraftLayout -> TaskSnapshot -> IO InstallRollbackSnapshot
 prepareInstallRollbackSnapshot layout task = do
@@ -121,8 +140,8 @@ rollbackInstallFailure layout task snapshot = do
   forM_ removedFiles (cleanupEmptyInstallDirectories layout)
   let status =
         if null failures
-          then "rolled_back"
-          else "partial_install_left_for_diagnosis"
+          then InstallRolledBack
+          else InstallRollbackPartialForDiagnosis
       reportPath = minecraftRoot layout </> "downloads" </> "install-rollback.json"
       outcome =
         InstallRollbackOutcome

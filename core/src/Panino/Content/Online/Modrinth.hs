@@ -194,8 +194,8 @@ prefetchModrinthDependencies manager versions =
           concatMap modrinthDependencies versions
     dependencyRequestUrls dependency =
       catMaybes
-        [ (\versionId -> "https://api.modrinth.com/v2/version/" <> Text.unpack versionId) <$> modrinthDependencyVersionId dependency
-        , (\depProject -> "https://api.modrinth.com/v2/project/" <> Text.unpack depProject) <$> modrinthDependencyProjectId dependency
+        [ (\versionId -> "https://api.modrinth.com/v2/version/" <> Text.unpack (versionIdText versionId)) <$> modrinthDependencyVersionId dependency
+        , (\depProject -> "https://api.modrinth.com/v2/project/" <> Text.unpack (projectIdText depProject)) <$> modrinthDependencyProjectId dependency
         ]
     prefetch url = do
       _ <- (fetchJson manager =<< coreRequest url [] :: IO Value)

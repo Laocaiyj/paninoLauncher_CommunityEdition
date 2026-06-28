@@ -17,11 +17,16 @@ import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Time (UTCTime)
+import Panino.Core.Types
+  ( Sha1
+  , Url
+  , VersionId
+  )
 
 data MinecraftRemoteVersion = MinecraftRemoteVersion
-  { remoteVersionId :: Text
+  { remoteVersionId :: VersionId
   , remoteVersionType :: Text
-  , remoteVersionUrl :: Text
+  , remoteVersionUrl :: Url
   , remoteVersionReleaseTime :: Maybe UTCTime
   } deriving (Eq, Show)
 
@@ -35,7 +40,7 @@ instance ToJSON MinecraftRemoteVersion where
       ]
 
 data MinecraftVersionPackage = MinecraftVersionPackage
-  { packageId :: Text
+  { packageId :: VersionId
   , packageType :: Text
   , packageJavaMajorVersion :: Maybe Int
   , packageAssetIndex :: Maybe MinecraftAssetIndex
@@ -58,8 +63,8 @@ instance ToJSON MinecraftVersionPackage where
 
 data MinecraftAssetIndex = MinecraftAssetIndex
   { assetIndexId :: Text
-  , assetIndexUrl :: Text
-  , assetIndexSha1 :: Maybe Text
+  , assetIndexUrl :: Url
+  , assetIndexSha1 :: Maybe Sha1
   , assetIndexSizeBytes :: Maybe Int64
   , assetIndexTotalSizeBytes :: Maybe Int64
   } deriving (Eq, Show)
@@ -75,8 +80,8 @@ instance ToJSON MinecraftAssetIndex where
       ]
 
 data MinecraftDownload = MinecraftDownload
-  { downloadUrl :: Text
-  , downloadSha1 :: Maybe Text
+  { downloadUrl :: Url
+  , downloadSha1 :: Maybe Sha1
   , downloadSizeBytes :: Maybe Int64
   } deriving (Eq, Show)
 
@@ -95,7 +100,7 @@ data LoaderMetadata = LoaderMetadata
   , loaderMetadataLoaderVersion :: Text
   , loaderMetadataInstallerVersion :: Maybe Text
   , loaderMetadataStable :: Bool
-  , loaderMetadataDownloadUrl :: Maybe Text
+  , loaderMetadataDownloadUrl :: Maybe Url
   } deriving (Eq, Show)
 
 instance ToJSON LoaderMetadata where

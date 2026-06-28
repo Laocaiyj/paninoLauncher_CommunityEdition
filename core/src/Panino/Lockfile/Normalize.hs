@@ -60,6 +60,7 @@ import Panino.Lockfile.Types
   , packageSourceFromText
   , packageSourceText
   , resolvedPackageKey
+  , resolvedPackageSha1
   , solveRequestMinecraftVersionText
   )
 import System.FilePath
@@ -230,7 +231,7 @@ packageResolutionScore package =
   sum
     [ 4 | isJust (coordinateVersionId (resolvedPackageCoordinate package)) ]
     + sum [ 4 | isJust (resolvedPackageTargetPath package) ]
-    + sum [ 3 | Map.member "sha1" (resolvedPackageHashes package) ]
+    + sum [ 3 | isJust (resolvedPackageSha1 package) ]
     + sum [ 2 | not (null (resolvedPackageDownloadUrls package)) ]
     + sum [ 1 | isJust (resolvedPackageSourceSnapshot package) ]
     + length (resolvedPackageDependencies package)

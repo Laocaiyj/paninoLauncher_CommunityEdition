@@ -19,6 +19,7 @@ import Data.Aeson
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types (Sha1)
 import Panino.Core.WireText
   ( WireText(..)
   , toWireTextJSON
@@ -78,8 +79,8 @@ data LockfileVerifyIssue = LockfileVerifyIssue
   { verifyIssueKind :: LockfileVerifyIssueKind
   , verifyIssuePackageId :: Maybe Text
   , verifyIssueTargetPath :: Maybe FilePath
-  , verifyIssueExpectedSha1 :: Maybe Text
-  , verifyIssueActualSha1 :: Maybe Text
+  , verifyIssueExpectedSha1 :: Maybe Sha1
+  , verifyIssueActualSha1 :: Maybe Sha1
   , verifyIssueMessage :: Text
   } deriving (Eq, Show)
 

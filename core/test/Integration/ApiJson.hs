@@ -9,6 +9,8 @@ import Data.Aeson
   , eitherDecode
   , encode
   )
+import Data.Either (isLeft)
+import qualified Data.Text as Text
 import Integration.LoaderShaderFixtureServer
   ( modrinthProjectJson
   )
@@ -19,7 +21,15 @@ import Panino.Api.Types
   , TaskProgress(..)
   )
 import Panino.Content.Online.Modrinth
-  ( ModrinthProjectResponse(..)
+  ( ModrinthDependency(..)
+  , ModrinthFile(..)
+  , ModrinthProjectResponse(..)
+  , ModrinthVersionResponse(..)
+  )
+import Panino.Core.Types
+  ( projectIdText
+  , urlText
+  , versionIdText
   )
 import TestSupport (assertEqual)
 
@@ -28,7 +38,23 @@ assertApiJsonContracts = do
   assertEqual
     "modrinth project endpoint accepts id"
     (Right "sodium")
-    (modrinthProjectId <$> eitherDecode modrinthProjectJson)
+    (projectIdText . modrinthProjectId <$> eitherDecode modrinthProjectJson)
+  assertEqual
+    "modrinth version decodes typed ids and urls from JSON strings"
+    (Right ( "version-1"
+           , "project-1"
+           , Just "https://cdn.modrinth.test/mod.jar"
+           , Just "dep-project"
+           , Just "dep-version"
+           ))
+    ( modrinthVersionWireSummary
+        <$> eitherDecode
+          "{\"id\":\"version-1\",\"project_id\":\"project-1\",\"name\":\"Version 1\",\"version_number\":\"1.0.0\",\"files\":[{\"url\":\"https://cdn.modrinth.test/mod.jar\",\"filename\":\"mod.jar\",\"hashes\":{\"sha1\":\"ABCDEF\"}}],\"dependencies\":[{\"project_id\":\"dep-project\",\"version_id\":\"dep-version\",\"dependency_type\":\"required\"}]}"
+    )
+  assertEqual
+    "modrinth version rejects empty typed id"
+    True
+    (isLeft (eitherDecode "{\"id\":\"\",\"project_id\":\"project-1\",\"name\":\"Version 1\",\"version_number\":\"1.0.0\"}" :: Either String ModrinthVersionResponse))
   assertEqual
     "install request parses nested download runtime options"
     (Right (DownloadRuntimeOptions (Just 7) (Just 2) Nothing))
@@ -75,3 +101,29 @@ assertApiJsonContracts = do
     "task progress json roundtrip"
     (Just progress)
     (decode (encode progress))
+
+modrinthVersionWireSummary :: ModrinthVersionResponse -> (String, String, Maybe String, Maybe String, Maybe String)
+modrinthVersionWireSummary version =
+  ( textToString (versionIdText (modrinthVersionId version))
+  , textToString (projectIdText (modrinthVersionProjectId version))
+  , firstFileUrl
+  , firstDependencyProject
+  , firstDependencyVersion
+  )
+  where
+    firstFileUrl =
+      case modrinthFiles version of
+        file:_ -> textToString . urlText <$> modrinthFileUrl file
+        [] -> Nothing
+    firstDependencyProject =
+      case modrinthDependencies version of
+        dependency:_ -> textToString . projectIdText <$> modrinthDependencyProjectId dependency
+        [] -> Nothing
+    firstDependencyVersion =
+      case modrinthDependencies version of
+        dependency:_ -> textToString . versionIdText <$> modrinthDependencyVersionId dependency
+        [] -> Nothing
+
+textToString :: Text.Text -> String
+textToString =
+  Text.unpack

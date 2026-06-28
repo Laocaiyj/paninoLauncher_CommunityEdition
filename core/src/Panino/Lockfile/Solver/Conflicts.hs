@@ -10,7 +10,6 @@ import Data.List
   ( groupBy
   , sortOn
   )
-import qualified Data.Map.Strict as Map
 import Data.Maybe
   ( catMaybes
   , fromMaybe
@@ -19,6 +18,7 @@ import Data.Maybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types (sha1Text)
 import Panino.CoreLogic.Determinism
   ( stableSortPackages
   , stableTextSet
@@ -39,6 +39,7 @@ import Panino.Lockfile.Types
   , coordinateVersionIdText
   , packageSourceIsManualLike
   , packageSourceText
+  , resolvedPackageSha1
   , resolvedPackageTargetPathFilePath
   , solveRequestMinecraftVersionText
   )
@@ -61,7 +62,7 @@ detectPackageBlockedReasons packages =
     packageBlocked package =
       let source = coordinateSource (resolvedPackageCoordinate package)
           hasTarget = isJust (resolvedPackageTargetPath package)
-          hasSha1 = Map.member "sha1" (resolvedPackageHashes package)
+          hasSha1 = isJust (resolvedPackageSha1 package)
           hasUrl = not (null (resolvedPackageDownloadUrls package))
           manualSource = packageSourceIsManualLike source
        in [ "unsafe_target_path:" <> resolvedPackageId package
@@ -217,7 +218,7 @@ conflictBlockedReason conflict =
 
 distinctSha1 :: [ResolvedPackage] -> Int
 distinctSha1 =
-  length . stableTextSet . mapMaybe (Map.lookup "sha1" . resolvedPackageHashes)
+  length . stableTextSet . mapMaybe (fmap sha1Text . resolvedPackageSha1)
 
 projectKeyFor :: ResolvedPackage -> Text
 projectKeyFor package =

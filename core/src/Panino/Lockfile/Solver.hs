@@ -1,10 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Panino.Lockfile.Solver
-  ( diffLockfiles
+  ( LockfileApplyReadiness(..)
+  , ReadyLockfile
+  , ReadyLockfileApply
+  , diffLockfiles
   , lockfileApplyReadyLockfile
+  , lockfileApplyReadiness
   , lockfileLaunchBlockedReasons
   , lockfileSolveCacheGameDir
+  , readyLockfileApplyLockfile
+  , readyLockfileApplyPlan
+  , readyLockfileLockfile
   , roomLockRepairPlan
   , roomRequiredLockSubset
   , solveLockfile
@@ -21,6 +28,11 @@ import Panino.CoreLogic.Determinism
   , stableTextSet
   )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
+import Panino.Install.Plan.State
+  ( BlockedInstallPlan
+  , ExecutableInstallPlan
+  , requireExecutableInstallPlan
+  )
 import Panino.Lockfile.Changeset
   ( buildChangeset
   , diffLockfiles
@@ -71,6 +83,7 @@ import Panino.Lockfile.Solver.Room
   )
 import Panino.Lockfile.Types
   ( LockfileApplyRequest(..)
+  , LockfileApplyRejection(..)
   , LockfileExplain(..)
   , LockfileSolveRequest(..)
   , LockfileSolveStatus(..)
@@ -171,14 +184,47 @@ solveLockfileWithServices manager request = do
   (evidence, augmentedRequest) <- collectServiceEvidence manager request
   pure (applyServiceEvidence updateLockfileFingerprint evidence (solveLockfile augmentedRequest))
 
-lockfileApplyReadyLockfile :: LockfileApplyRequest -> Either Text PaninoLockfile
+newtype ReadyLockfile =
+  ReadyLockfile PaninoLockfile
+  deriving (Eq, Show)
+
+readyLockfileLockfile :: ReadyLockfile -> PaninoLockfile
+readyLockfileLockfile (ReadyLockfile lockfile) =
+  lockfile
+
+data ReadyLockfileApply = ReadyLockfileApply
+  { readyLockfileApplyLockfile :: ReadyLockfile
+  , readyLockfileApplyPlan :: ExecutableInstallPlan
+  } deriving (Eq, Show)
+
+data LockfileApplyReadiness
+  = LockfileApplyRejected LockfileApplyRejection
+  | LockfileApplyPlanBlocked BlockedInstallPlan
+  | LockfileApplyReady ReadyLockfileApply
+  deriving (Eq, Show)
+
+lockfileApplyReadiness :: LockfileApplyRequest -> LockfileApplyReadiness
+lockfileApplyReadiness request =
+  case lockfileApplyReadyLockfile request of
+    Left rejection -> LockfileApplyRejected rejection
+    Right readyLockfile ->
+      case requireExecutableInstallPlan (solverResultTypedPlan (applyRequestResult request)) of
+        Left blockedPlan -> LockfileApplyPlanBlocked blockedPlan
+        Right executablePlan ->
+          LockfileApplyReady
+            ReadyLockfileApply
+              { readyLockfileApplyLockfile = readyLockfile
+              , readyLockfileApplyPlan = executablePlan
+              }
+
+lockfileApplyReadyLockfile :: LockfileApplyRequest -> Either LockfileApplyRejection ReadyLockfile
 lockfileApplyReadyLockfile request =
   case solverResultLockfile (applyRequestResult request) of
-    Nothing -> Left "lockfile_missing"
+    Nothing -> Left LockfileApplyLockfileMissing
     Just lockfile
-      | solverResultStatus (applyRequestResult request) /= LockfileSolveReady -> Left "solver_blocked"
-      | lockfileFingerprint lockfile /= applyRequestSolverFingerprint request -> Left "solver_fingerprint_mismatch"
-      | otherwise -> Right lockfile
+      | solverResultStatus (applyRequestResult request) /= LockfileSolveReady -> Left LockfileApplySolverBlocked
+      | lockfileFingerprint lockfile /= applyRequestSolverFingerprint request -> Left LockfileApplySolverFingerprintMismatch
+      | otherwise -> Right (ReadyLockfile lockfile)
 
 lockfileLaunchBlockedReasons :: LockfileVerifyResponse -> [Text]
 lockfileLaunchBlockedReasons response =

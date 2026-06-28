@@ -2,6 +2,8 @@
 
 module Panino.Lockfile.Types.Solver
   ( LockfileApplyRequest(..)
+  , LockfileApplyRejection(..)
+  , LockfileApplyStatus(..)
   , LockfileChangeAction(..)
   , LockfileChange(..)
   , LockfileChangeset(..)
@@ -16,6 +18,10 @@ module Panino.Lockfile.Types.Solver
   , SolverResult(..)
   , emptyChangeset
   , emptyLockfileExplain
+  , lockfileApplyRejectionFromText
+  , lockfileApplyRejectionText
+  , lockfileApplyStatusFromText
+  , lockfileApplyStatusText
   , lockfileSolveStatusFromText
   , lockfileSolveStatusText
   , lockfileChangeActionFromText
@@ -268,8 +274,8 @@ data LockfileChange = LockfileChange
   { lockfileChangeAction :: LockfileChangeAction
   , lockfileChangePackageId :: Text
   , lockfileChangeDisplayName :: Text
-  , lockfileChangeFromVersionId :: Maybe Text
-  , lockfileChangeToVersionId :: Maybe Text
+  , lockfileChangeFromVersionId :: Maybe VersionId
+  , lockfileChangeToVersionId :: Maybe VersionId
   , lockfileChangeTargetPath :: Maybe FilePath
   , lockfileChangeReason :: Text
   } deriving (Eq, Show)
@@ -510,6 +516,74 @@ instance FromJSON SolverResult where
         <*> obj .:? "conflicts" .!= []
         <*> obj .:? "explain" .!= emptyLockfileExplain
         <*> obj .:? "diagnostics" .!= []
+
+data LockfileApplyRejection
+  = LockfileApplyLockfileMissing
+  | LockfileApplySolverBlocked
+  | LockfileApplySolverFingerprintMismatch
+  | LockfileApplyRejectedOther Text
+  deriving (Eq, Show)
+
+instance IsString LockfileApplyRejection where
+  fromString =
+    lockfileApplyRejectionFromText . Text.pack
+
+lockfileApplyRejectionFromText :: Text -> LockfileApplyRejection
+lockfileApplyRejectionFromText =
+  parseWireText
+
+lockfileApplyRejectionText :: LockfileApplyRejection -> Text
+lockfileApplyRejectionText =
+  wireText
+
+instance WireText LockfileApplyRejection where
+  parseWireText rejection
+    | rejection == "lockfile_missing" = LockfileApplyLockfileMissing
+    | rejection == "solver_blocked" = LockfileApplySolverBlocked
+    | rejection == "solver_fingerprint_mismatch" = LockfileApplySolverFingerprintMismatch
+    | otherwise = LockfileApplyRejectedOther rejection
+
+  wireText rejection =
+    case rejection of
+      LockfileApplyLockfileMissing -> "lockfile_missing"
+      LockfileApplySolverBlocked -> "solver_blocked"
+      LockfileApplySolverFingerprintMismatch -> "solver_fingerprint_mismatch"
+      LockfileApplyRejectedOther rawRejection -> rawRejection
+
+instance ToJSON LockfileApplyRejection where
+  toJSON =
+    toWireTextJSON
+
+data LockfileApplyStatus
+  = LockfileApplied
+  | LockfileApplyStatusOther Text
+  deriving (Eq, Show)
+
+instance IsString LockfileApplyStatus where
+  fromString =
+    lockfileApplyStatusFromText . Text.pack
+
+lockfileApplyStatusFromText :: Text -> LockfileApplyStatus
+lockfileApplyStatusFromText =
+  parseWireText
+
+lockfileApplyStatusText :: LockfileApplyStatus -> Text
+lockfileApplyStatusText =
+  wireText
+
+instance WireText LockfileApplyStatus where
+  parseWireText status
+    | status == "applied" = LockfileApplied
+    | otherwise = LockfileApplyStatusOther status
+
+  wireText status =
+    case status of
+      LockfileApplied -> "applied"
+      LockfileApplyStatusOther rawStatus -> rawStatus
+
+instance ToJSON LockfileApplyStatus where
+  toJSON =
+    toWireTextJSON
 
 data LockfileApplyRequest = LockfileApplyRequest
   { applyRequestTargetGameDir :: GameDir

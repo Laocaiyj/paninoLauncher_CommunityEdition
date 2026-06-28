@@ -48,14 +48,17 @@ import Panino.Install.Plan.Executor
   , executeExecutableInstallPlan
   , installPlanExecutionSucceeded
   )
-import qualified Panino.Install.Plan.State as PlanState
 import Panino.Lockfile.Apply
   ( rollbackLockfilePlanNode
   , runLockfilePlanNode
   )
 import Panino.Lockfile.Solver
-  ( diffLockfiles
-  , lockfileApplyReadyLockfile
+  ( LockfileApplyReadiness(..)
+  , diffLockfiles
+  , lockfileApplyReadiness
+  , readyLockfileApplyLockfile
+  , readyLockfileApplyPlan
+  , readyLockfileLockfile
   , solveLockfileWithServices
   , verifyLockfile
   )
@@ -67,6 +70,8 @@ import Panino.Lockfile.Store
   )
 import Panino.Lockfile.Types
   ( LockfileApplyRequest(..)
+  , LockfileApplyRejection(..)
+  , LockfileApplyStatus(..)
   , LockfileDiffRequest(..)
   , PaninoLockfile(..)
   , SolverResult(..)
@@ -153,40 +158,46 @@ lockfileVerifyResponse state request = do
 
 applyLockfileResult :: Manager -> LockfileApplyRequest -> IO Response
 applyLockfileResult manager request =
-  case lockfileApplyReadyLockfile request of
-    Left "lockfile_missing" ->
-      pure (jsonResponse status400 (object ["error" .= ("lockfile_missing" :: Text)]))
-    Left "solver_blocked" ->
-      pure (jsonResponse status409 (object ["error" .= ("solver_blocked" :: Text), "blockedReasons" .= solverResultBlockedReasons (applyRequestResult request)]))
-    Left "solver_fingerprint_mismatch" ->
+  case lockfileApplyReadiness request of
+    LockfileApplyRejected LockfileApplyLockfileMissing ->
+      pure (jsonResponse status400 (object ["error" .= LockfileApplyLockfileMissing]))
+    LockfileApplyRejected LockfileApplySolverBlocked ->
+      pure (jsonResponse status409 (object ["error" .= LockfileApplySolverBlocked, "blockedReasons" .= solverResultBlockedReasons (applyRequestResult request)]))
+    LockfileApplyRejected LockfileApplySolverFingerprintMismatch ->
       case solverResultLockfile (applyRequestResult request) of
         Nothing ->
-          pure (jsonResponse status400 (object ["error" .= ("lockfile_missing" :: Text)]))
+          pure (jsonResponse status400 (object ["error" .= LockfileApplyLockfileMissing]))
         Just lockfile ->
           pure
             ( jsonResponse
                 status409
                 ( object
-                    [ "error" .= ("solver_fingerprint_mismatch" :: Text)
+                    [ "error" .= LockfileApplySolverFingerprintMismatch
                     , "expected" .= lockfileFingerprint lockfile
                     , "actual" .= applyRequestSolverFingerprint request
                     ]
                 )
             )
-    Left code ->
-      pure (jsonResponse status409 (object ["error" .= code]))
-    Right lockfile -> do
-          let typedPlan = solverResultTypedPlan (applyRequestResult request)
+    LockfileApplyRejected rejection ->
+      pure (jsonResponse status409 (object ["error" .= rejection]))
+    LockfileApplyPlanBlocked blockedPlan -> do
+          execution <- blockedInstallPlanExecutionResult blockedPlan (\_ -> pure ())
+          pure
+            ( jsonResponse
+                status409
+                ( object
+                    [ "error" .= ("install_plan_execution_failed" :: Text)
+                    , "execution" .= execution
+                    ]
+                )
+            )
+    LockfileApplyReady readyApply -> do
           execution <-
-            case PlanState.requireExecutableInstallPlan typedPlan of
-              Left blocked ->
-                blockedInstallPlanExecutionResult blocked (\_ -> pure ())
-              Right executablePlan ->
-                executeExecutableInstallPlan
-                  executablePlan
-                  (runLockfilePlanNode manager)
-                  rollbackLockfilePlanNode
-                  (\_ -> pure ())
+            executeExecutableInstallPlan
+              (readyLockfileApplyPlan readyApply)
+              (runLockfilePlanNode manager)
+              rollbackLockfilePlanNode
+              (\_ -> pure ())
           if not (installPlanExecutionSucceeded execution)
             then
               pure
@@ -198,22 +209,25 @@ applyLockfileResult manager request =
                         ]
                     )
                 )
-            else do
-              let targetGameDir = applyRequestTargetGameDirPath request
-              path <- writeCurrentLockfile targetGameDir lockfile
-              (resultPath, explainPath) <- writeLastSolverArtifacts targetGameDir (applyRequestResult request)
-              pure
-                ( jsonResponse
-                    status200
-                    ( object
-                        [ "status" .= ("applied" :: Text)
-                        , "lockfilePath" .= path
-                        , "resultPath" .= resultPath
-                        , "explainPath" .= explainPath
-                        , "execution" .= execution
-                        ]
-                    )
-                )
+            else applyExecutionSucceeded (readyLockfileApplyLockfile readyApply) execution
+  where
+    applyExecutionSucceeded readyLockfile execution = do
+      let lockfile = readyLockfileLockfile readyLockfile
+      let targetGameDir = applyRequestTargetGameDirPath request
+      path <- writeCurrentLockfile targetGameDir lockfile
+      (resultPath, explainPath) <- writeLastSolverArtifacts targetGameDir (applyRequestResult request)
+      pure
+        ( jsonResponse
+            status200
+            ( object
+                [ "status" .= LockfileApplied
+                , "lockfilePath" .= path
+                , "resultPath" .= resultPath
+                , "explainPath" .= explainPath
+                , "execution" .= execution
+                ]
+            )
+        )
 
 data LockfileVerifyRequest = LockfileVerifyRequest
   { verifyRequestTargetGameDir :: Maybe GameDir

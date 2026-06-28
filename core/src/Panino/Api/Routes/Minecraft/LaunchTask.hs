@@ -2,7 +2,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Panino.Api.Routes.Minecraft.LaunchTask
-  ( observeStartedLaunchWithDelay
+  ( LaunchTaskOutcome(..)
+  , launchTaskOutcomeText
+  , observeStartedLaunchWithDelay
   , runLaunchTask
   ) where
 
@@ -108,6 +110,17 @@ import System.FilePath
   , (</>)
   )
 
+data LaunchTaskOutcome
+  = LaunchProcessStarted
+  | LaunchProcessExitedSuccessfully
+  deriving (Eq, Show)
+
+launchTaskOutcomeText :: LaunchTaskOutcome -> Text
+launchTaskOutcomeText outcome =
+  case outcome of
+    LaunchProcessStarted -> "java process started"
+    LaunchProcessExitedSuccessfully -> "java exited successfully"
+
 runLaunchTask :: ServerState -> TaskSnapshot -> LaunchRequest -> IO Text
 runLaunchTask state task request = do
   layout <- requestLayout state (launchRequestGameDir request)
@@ -131,7 +144,7 @@ runLaunchTask state task request = do
   writeLaunchJvmDiagnostics layout tuning javaArgs
   _ <- async (runBestEffortLaunchChecks layout versionJson)
   launch <- startJavaProcessWithTelemetry javaPath (minecraftRoot layout) javaArgs
-  observeStartedLaunch state task layout hooks launch
+  launchTaskOutcomeText <$> observeStartedLaunch state task layout hooks launch
 
 resolveLaunchJavaPath :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchRequest -> (DownloadProgress -> IO ()) -> IO FilePath
 resolveLaunchJavaPath state task layout request onProgress =
@@ -214,11 +227,11 @@ countFilesWithExtensions directory extensions = do
             ]
         Left (_ :: SomeException) -> 0
 
-observeStartedLaunch :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaProcessLaunch -> IO Text
+observeStartedLaunch :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaProcessLaunch -> IO LaunchTaskOutcome
 observeStartedLaunch =
   observeStartedLaunchWithDelay 10000000
 
-observeStartedLaunchWithDelay :: Int -> ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaProcessLaunch -> IO Text
+observeStartedLaunchWithDelay :: Int -> ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaProcessLaunch -> IO LaunchTaskOutcome
 observeStartedLaunchWithDelay delayMicros state task layout hooks launch = do
   threadDelay delayMicros
   earlyExit <- pollJavaProcessExitCode launch
@@ -226,17 +239,17 @@ observeStartedLaunchWithDelay delayMicros state task layout hooks launch = do
     Nothing -> do
       _ <- async (monitorLaunchProcess layout hooks launch)
       emitPhaseMarker state task MinecraftPhaseLaunch "Start game process" 4 4 100 "game process started"
-      pure "java process started"
+      pure LaunchProcessStarted
     Just _ ->
       waitJavaProcess launch >>= finalizeForegroundLaunch state task layout hooks
 
-finalizeForegroundLaunch :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaRunResult -> IO Text
+finalizeForegroundLaunch :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaRunResult -> IO LaunchTaskOutcome
 finalizeForegroundLaunch state task layout hooks result = do
   completeLaunchHookSession hooks result
   case javaExitCode result of
     ExitSuccess -> do
       emitPhaseMarker state task MinecraftPhaseLaunch "Start game process" 4 4 100 "java exited successfully"
-      pure "java exited successfully"
+      pure LaunchProcessExitedSuccessfully
     ExitFailure code ->
       throwIO . diagnosticException =<< launchFailureDiagnostic layout code result
 
