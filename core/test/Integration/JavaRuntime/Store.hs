@@ -8,6 +8,7 @@ import Control.Monad (when)
 import Data.Aeson (encode)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BL
+import Data.String (fromString)
 import qualified Data.Text as Text
 import Data.Time.Clock (getCurrentTime)
 import Panino.Runtime.Java.Resolve (resolveJavaRuntimeForRequirement)
@@ -158,12 +159,13 @@ assertJavaRuntimeResolutionMatrix appRoot =
   mapM_ assertRequirement [8, 16, 17, 21, 25]
   where
     assertRequirement major = do
+      let minecraftVersion = fromString ("java-" <> show major)
       response <-
         resolveJavaRuntimeForRequirement
           appRoot
-          (JavaRuntimeResolveRequest (Text.pack ("java-" <> show major)) Nothing Nothing (Just "auto") Nothing Nothing)
+          (JavaRuntimeResolveRequest minecraftVersion Nothing Nothing (Just "auto") Nothing Nothing)
           JavaRuntimeRequirement
-            { javaRequirementMinecraftVersion = Text.pack ("java-" <> show major)
+            { javaRequirementMinecraftVersion = minecraftVersion
             , javaRequirementMajorVersion = major
             , javaRequirementComponent = Nothing
             , javaRequirementSource = "test"
