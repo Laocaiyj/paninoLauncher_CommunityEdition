@@ -19,11 +19,16 @@ import Data.Aeson
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( GameDir
+  , VersionId
+  , versionIdText
+  )
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Runtime.Java.Types.Catalog (JavaRuntimeDownloadSpec(..))
 
 data JavaRuntimeRequirement = JavaRuntimeRequirement
-  { javaRequirementMinecraftVersion :: Text
+  { javaRequirementMinecraftVersion :: VersionId
   , javaRequirementMajorVersion :: Int
   , javaRequirementComponent :: Maybe Text
   , javaRequirementSource :: Text
@@ -39,8 +44,8 @@ instance ToJSON JavaRuntimeRequirement where
       ]
 
 data JavaRuntimeResolveRequest = JavaRuntimeResolveRequest
-  { resolveMinecraftVersion :: Text
-  , resolveGameDir :: Maybe FilePath
+  { resolveMinecraftVersion :: VersionId
+  , resolveGameDir :: Maybe GameDir
   , resolveInstanceId :: Maybe Text
   , resolvePolicy :: Maybe Text
   , resolvePreferredRuntimeId :: Maybe Text
@@ -59,7 +64,7 @@ instance FromJSON JavaRuntimeResolveRequest where
         <*> (obj .:? "customPath" <|> obj .:? "java")
 
 data JavaRuntimeResolveResponse = JavaRuntimeResolveResponse
-  { resolveResponseMinecraftVersion :: Text
+  { resolveResponseMinecraftVersion :: VersionId
   , resolveResponseRequiredMajorVersion :: Int
   , resolveResponseRequirementSource :: Text
   , resolveResponsePolicy :: Text
@@ -168,11 +173,11 @@ javaRuntimeTypedPlan response =
         , Plan.installNodeKind = "javaRuntimeRequirement"
         , Plan.installNodeAction = "verify"
         , Plan.installNodePhase = "runtime"
-        , Plan.installNodeLabel =
-            "Java "
-              <> Text.pack (show (resolveResponseRequiredMajorVersion response))
-              <> " for Minecraft "
-              <> resolveResponseMinecraftVersion response
+              , Plan.installNodeLabel =
+                  "Java "
+                    <> Text.pack (show (resolveResponseRequiredMajorVersion response))
+                    <> " for Minecraft "
+                    <> versionIdText (resolveResponseMinecraftVersion response)
         , Plan.installNodeTargetPath = Nothing
         , Plan.installNodeSourceUrls = []
         , Plan.installNodeSha1 = Nothing

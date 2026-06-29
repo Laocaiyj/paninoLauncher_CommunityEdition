@@ -59,7 +59,8 @@ import Panino.Diagnostics.Types
   )
 import Panino.Download.Manager (DownloadProgress)
 import Panino.Core.Types
-  ( versionIdText
+  ( versionIdFromText
+  , versionIdText
   )
 import Panino.Launch.Arguments
   ( LaunchProfile(..)
@@ -154,7 +155,7 @@ resolveLaunchJavaPath state task layout request onProgress =
       resolveAutoJavaPath
         state
         layout
-        (launchRequestVersionText request)
+        (launchRequestVersion request)
         (launchRequestDownload request)
         (taskIsCancelled state task)
         onProgress
@@ -284,14 +285,17 @@ runLaunchInstallTask state task layout request = do
   if metadataLaunchVersion metadata == launchRequestVersionText request && metadataHasExtendedInstall metadata
     then do
       installerJava <-
-        resolveLoaderInstallerJavaPath
-          state
-          layout
-          (metadataMinecraftVersion metadata)
-          (metadataLoader metadata)
-          (launchRequestDownload request)
-          (taskIsCancelled state task)
-          emitProgress
+        case versionIdFromText (metadataMinecraftVersion metadata) of
+          Nothing -> pure Nothing
+          Just metadataVersion ->
+            resolveLoaderInstallerJavaPath
+              state
+              layout
+              metadataVersion
+              (metadataLoader metadata)
+              (launchRequestDownload request)
+              (taskIsCancelled state task)
+              emitProgress
       when (repairShaderLoader /= metadataShaderLoader metadata) $
         putStrLn "launch_repair_shader_skipped:quilt_iris_incompatible"
       loaderInstallResult
@@ -318,7 +322,7 @@ runLaunchInstallTask state task layout request = do
             resolveLoaderInstallerJavaPath
               state
               layout
-              (launchRequestVersionText request)
+              (launchRequestVersion request)
               (Just loader)
               (launchRequestDownload request)
               (taskIsCancelled state task)

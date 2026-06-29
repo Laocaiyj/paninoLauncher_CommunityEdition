@@ -27,6 +27,11 @@ import Panino.Content.Local.Types
   , JavaCheckResponse(..)
   , JavaRuntimeCandidate(..)
   )
+import Panino.Core.Types
+  ( VersionId
+  , gameDirPath
+  , versionIdText
+  )
 import Panino.Minecraft.Layout
   ( MinecraftLayout
   , mkLayout
@@ -53,14 +58,14 @@ import Panino.Runtime.Java.Types
 
 resolveJavaRuntime :: Manager -> FilePath -> Maybe MinecraftLayout -> JavaRuntimeResolveRequest -> IO JavaRuntimeResolveResponse
 resolveJavaRuntime manager appRoot maybeLayout request = do
-  layout <- maybe (mkLayout (resolveGameDir request)) pure maybeLayout
-  versionJson <- loadVersionJson manager layout (resolveMinecraftVersion request)
+  layout <- maybe (mkLayout (gameDirPath <$> resolveGameDir request)) pure maybeLayout
+  versionJson <- loadVersionJson manager layout (versionIdText (resolveMinecraftVersion request))
   let requirement = javaRequirementForVersionJson (resolveMinecraftVersion request) versionJson
   resolveJavaRuntimeForRequirement appRoot request requirement
 
-resolveJavaRuntimeForVersion :: Manager -> FilePath -> MinecraftLayout -> Text -> IO JavaRuntimeResolveResponse
+resolveJavaRuntimeForVersion :: Manager -> FilePath -> MinecraftLayout -> VersionId -> IO JavaRuntimeResolveResponse
 resolveJavaRuntimeForVersion manager appRoot layout version = do
-  versionJson <- loadVersionJson manager layout version
+  versionJson <- loadVersionJson manager layout (versionIdText version)
   let request =
         JavaRuntimeResolveRequest
           { resolveMinecraftVersion = version

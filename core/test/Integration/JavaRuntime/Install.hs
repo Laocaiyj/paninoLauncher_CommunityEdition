@@ -46,6 +46,7 @@ import Panino.Content.Local.Types
   ( JavaCheckRequest(..)
   , JavaCheckResponse(..)
   )
+import Panino.Core.Types (gameDirFromPath)
 import Panino.Download.Manager (DownloadProgress(..))
 import Panino.Events.Bus (newEventBus)
 import Panino.Minecraft.Layout (mkLayout)
@@ -172,7 +173,7 @@ assertAutoJavaPathDownloadsManagedRuntime tempDir = do
             ServerState
               { stateSessionToken = "test-token"
               , stateStartedAt = now
-              , stateDefaultGameDir = Just gameDir
+              , stateDefaultGameDir = gameDirFromPath gameDir
               , stateTasks = tasks
               , stateTaskHistoryPath = historyPath
               , stateTaskHandles = taskHandles

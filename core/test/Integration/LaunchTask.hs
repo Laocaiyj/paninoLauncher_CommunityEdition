@@ -40,6 +40,7 @@ import Panino.Api.Types
   , TaskState(..)
   , taskProgressOverallPercent
   )
+import Panino.Core.Types (gameDirFromPath)
 import Panino.Events.Bus (newEventBus)
 import Panino.Launch.Java
   ( JavaProcessLaunch(..)
@@ -85,7 +86,7 @@ assertLaunchTaskCompletesAfterProcessStart tempRoot = do
         ServerState
           { stateSessionToken = "test-token"
           , stateStartedAt = now
-          , stateDefaultGameDir = Just gameDir
+          , stateDefaultGameDir = gameDirFromPath gameDir
           , stateTasks = tasks
           , stateTaskHistoryPath = historyPath
           , stateTaskHandles = taskHandles
@@ -139,7 +140,7 @@ assertLaunchTaskFailsOnEarlyProcessExit tempRoot = do
         ServerState
           { stateSessionToken = "test-token"
           , stateStartedAt = now
-          , stateDefaultGameDir = Just gameDir
+          , stateDefaultGameDir = gameDirFromPath gameDir
           , stateTasks = tasks
           , stateTaskHistoryPath = historyPath
           , stateTaskHandles = taskHandles

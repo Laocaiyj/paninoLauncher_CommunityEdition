@@ -38,7 +38,10 @@ import Numeric (showHex)
 import Panino.Api.MinecraftStatus (fetchInstalledMinecraftInstances, fetchMinecraftInstallStatus)
 import Panino.Api.Params (decodeBody)
 import Panino.Api.Response (contentSourceErrorResponse, jsonResponse)
-import Panino.Api.Server.State (ServerState(..))
+import Panino.Api.Server.State
+  ( ServerState(..)
+  , stateDefaultGameDirPath
+  )
 import Panino.Content.Online (contentLoaderMetadata, contentMinecraftPackage, contentMinecraftVersions, contentProject, contentSearch)
 import Panino.Content.Online.Types (ContentLoaderRequest(..), ContentProjectRequest(..), ContentSearchRequest(..), MinecraftPackageRequest(..), OnlineSearchPage(..))
 import Panino.Perf.Metrics (CacheStatus(..), cacheStatusHeader, cacheStatusText, recordApiMetric)
@@ -274,7 +277,7 @@ contentMinecraftInstallStatusResponse state request = do
     Left err ->
       pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
     Right statusRequest ->
-      jsonResponse status200 <$> fetchMinecraftInstallStatus (stateDefaultGameDir state) statusRequest
+      jsonResponse status200 <$> fetchMinecraftInstallStatus (stateDefaultGameDirPath state) statusRequest
 
 contentMinecraftInstalledInstancesResponse :: ServerState -> Request -> IO Response
 contentMinecraftInstalledInstancesResponse state request = do
@@ -283,7 +286,7 @@ contentMinecraftInstalledInstancesResponse state request = do
     Left err ->
       pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
     Right statusRequest ->
-      jsonResponse status200 <$> fetchInstalledMinecraftInstances (stateDefaultGameDir state) statusRequest
+      jsonResponse status200 <$> fetchInstalledMinecraftInstances (stateDefaultGameDirPath state) statusRequest
 
 contentMinecraftPackageResponse :: ServerState -> Request -> IO Response
 contentMinecraftPackageResponse state request = do

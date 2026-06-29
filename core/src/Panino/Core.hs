@@ -15,6 +15,7 @@ module Panino.Core
 
 import Panino.Core.CommandLine
   ( FlagDefinition
+  , ParsedFlags
   , firstNonBlank
   , hasFlag
   , lookupFlag
@@ -25,6 +26,13 @@ import Panino.Core.CommandLine
   , switchFlag
   , valueFlag
   )
+import Panino.Core.Types
+  ( GameDir
+  , VersionId
+  , gameDirFromPath
+  , versionIdFromText
+  )
+import qualified Data.Text as Text
 
 data Command
   = ShowVersion
@@ -38,21 +46,21 @@ data Command
   deriving (Eq, Show)
 
 data ResolveOptions = ResolveOptions
-  { resolveVersion :: String
-  , resolveGameDir :: Maybe FilePath
+  { resolveVersion :: VersionId
+  , resolveGameDir :: Maybe GameDir
   } deriving (Eq, Show)
 
 data InstallOptions = InstallOptions
-  { installVersion :: String
-  , installGameDir :: Maybe FilePath
+  { installVersion :: VersionId
+  , installGameDir :: Maybe GameDir
   , installConcurrency :: Int
   , installLoader :: Maybe String
   , installShaderLoader :: Maybe String
   } deriving (Eq, Show)
 
 data LaunchOptions = LaunchOptions
-  { launchVersion :: String
-  , launchGameDir :: Maybe FilePath
+  { launchVersion :: VersionId
+  , launchGameDir :: Maybe GameDir
   , launchMemoryMb :: Int
   , launchJavaPath :: FilePath
   , launchUsername :: String
@@ -67,7 +75,7 @@ data ServeOptions = ServeOptions
   , servePort :: Int
   , serveSessionToken :: Maybe SessionToken
   , serveSessionTokenFile :: Maybe FilePath
-  , serveGameDir :: Maybe FilePath
+  , serveGameDir :: Maybe GameDir
   } deriving (Eq, Show)
 
 newtype SessionToken =
@@ -141,20 +149,20 @@ versionLine packageVersion = "panino-core " <> packageVersion
 parseResolveOptions :: [String] -> Either String ResolveOptions
 parseResolveOptions args = do
   options <- parseFlags resolveFlags args
-  version <- requireFlag "--version" options
+  version <- requireVersionFlag "--version" options
   pure ResolveOptions
     { resolveVersion = version
-    , resolveGameDir = lookupFlag "--game-dir" options
+    , resolveGameDir = optionalGameDirFlag "--game-dir" options
     }
 
 parseInstallOptions :: [String] -> Either String InstallOptions
 parseInstallOptions args = do
   options <- parseFlags installFlags args
-  version <- requireFlag "--version" options
+  version <- requireVersionFlag "--version" options
   concurrency <- parseIntFlag "--concurrency" 32 options
   pure InstallOptions
     { installVersion = version
-    , installGameDir = lookupFlag "--game-dir" options
+    , installGameDir = optionalGameDirFlag "--game-dir" options
     , installConcurrency = concurrency
     , installLoader = lookupFlag "--loader" options
     , installShaderLoader = lookupFlag "--shader-loader" options
@@ -163,12 +171,12 @@ parseInstallOptions args = do
 parseLaunchOptions :: Bool -> [String] -> Either String LaunchOptions
 parseLaunchOptions printOnly args = do
   options <- parseFlags launchFlags args
-  version <- requireFlag "--version" options
+  version <- requireVersionFlag "--version" options
   memoryMb <- parseIntFlag "--memory" 4096 options
   concurrency <- parseIntFlag "--concurrency" 32 options
   pure LaunchOptions
     { launchVersion = version
-    , launchGameDir = lookupFlag "--game-dir" options
+    , launchGameDir = optionalGameDirFlag "--game-dir" options
     , launchMemoryMb = memoryMb
     , launchJavaPath = valueOr "java" (lookupFlag "--java" options)
     , launchUsername = valueOr "Steve" (lookupFlag "--username" options)
@@ -187,7 +195,7 @@ parseServeOptions args = do
     , servePort = port
     , serveSessionToken = lookupFlag "--session-token" options >>= sessionTokenFromString
     , serveSessionTokenFile = lookupFlag "--session-token-file" options
-    , serveGameDir = lookupFlag "--game-dir" options
+    , serveGameDir = optionalGameDirFlag "--game-dir" options
     }
 
 selectServeSessionToken :: Maybe String -> Maybe String -> ServeOptions -> Either String SessionToken
@@ -242,3 +250,14 @@ valueOr fallback = maybe fallback id
 sessionTokenFromString :: String -> Maybe SessionToken
 sessionTokenFromString value =
   SessionToken <$> firstNonBlank [Just value]
+
+requireVersionFlag :: String -> ParsedFlags -> Either String VersionId
+requireVersionFlag flag options = do
+  raw <- requireFlag flag options
+  case versionIdFromText (Text.pack raw) of
+    Just version -> Right version
+    Nothing -> Left (flag <> " must not be empty")
+
+optionalGameDirFlag :: String -> ParsedFlags -> Maybe GameDir
+optionalGameDirFlag flag options =
+  lookupFlag flag options >>= gameDirFromPath

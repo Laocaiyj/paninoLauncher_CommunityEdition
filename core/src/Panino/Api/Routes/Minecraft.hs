@@ -188,7 +188,7 @@ resolvePreflightInstallerJava state installRequest (Just layout) = do
       ( resolveReadyLoaderInstallerJavaPath
           state
           layout
-          (installRequestVersionText installRequest)
+          (installRequestVersion installRequest)
           (installRequestLoader installRequest)
       )
   pure $ case outcome of
@@ -201,7 +201,7 @@ resolvePreflightJavaRuntime _ _ Nothing =
 resolvePreflightJavaRuntime state installRequest (Just layout) = do
   outcome <- try $ do
     appRoot <- appSupportRoot state
-    resolveJavaRuntimeForVersion (stateHttpManager state) appRoot layout (installRequestVersionText installRequest)
+    resolveJavaRuntimeForVersion (stateHttpManager state) appRoot layout (installRequestVersion installRequest)
   pure $ case outcome of
     Right response -> Just response
     Left (_ :: SomeException) -> Nothing

@@ -28,7 +28,10 @@ import Data.List
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Panino.Api.Server.State (ServerState(..))
+import Panino.Api.Server.State
+  ( ServerState(..)
+  , stateDefaultGameDirPath
+  )
 import Panino.Api.Types
   ( DownloadRuntimeOptions(..)
   , LaunchRequest(..)
@@ -36,6 +39,7 @@ import Panino.Api.Types
   )
 import Panino.Core.Types
   ( GameDir
+  , VersionId
   , gameDirPath
   )
 import Panino.Diagnostics.Classify (classifyFailure)
@@ -127,21 +131,21 @@ normalizeDownloadStrategy :: Text -> Text
 normalizeDownloadStrategy =
   Text.toLower . Text.replace "-" "" . Text.replace "_" ""
 
-resolveLoaderInstallerJavaPath :: ServerState -> MinecraftLayout -> Text -> Maybe Text -> DownloadRuntimeOptions -> IO Bool -> (DownloadProgress -> IO ()) -> IO (Maybe FilePath)
+resolveLoaderInstallerJavaPath :: ServerState -> MinecraftLayout -> VersionId -> Maybe Text -> DownloadRuntimeOptions -> IO Bool -> (DownloadProgress -> IO ()) -> IO (Maybe FilePath)
 resolveLoaderInstallerJavaPath state layout minecraftVersion maybeLoader downloadRuntime isCancelled onProgress =
   case normalizeLoaderName <$> maybeLoader of
     Just "forge" -> Just <$> resolveAutoJavaPath state layout minecraftVersion downloadRuntime isCancelled onProgress
     Just "neoforge" -> Just <$> resolveAutoJavaPath state layout minecraftVersion downloadRuntime isCancelled onProgress
     _ -> pure Nothing
 
-resolveReadyLoaderInstallerJavaPath :: ServerState -> MinecraftLayout -> Text -> Maybe Text -> IO (Maybe FilePath)
+resolveReadyLoaderInstallerJavaPath :: ServerState -> MinecraftLayout -> VersionId -> Maybe Text -> IO (Maybe FilePath)
 resolveReadyLoaderInstallerJavaPath state layout minecraftVersion maybeLoader =
   case normalizeLoaderName <$> maybeLoader of
     Just "forge" -> resolveReadyAutoJavaPath state layout minecraftVersion
     Just "neoforge" -> resolveReadyAutoJavaPath state layout minecraftVersion
     _ -> pure Nothing
 
-resolveReadyAutoJavaPath :: ServerState -> MinecraftLayout -> Text -> IO (Maybe FilePath)
+resolveReadyAutoJavaPath :: ServerState -> MinecraftLayout -> VersionId -> IO (Maybe FilePath)
 resolveReadyAutoJavaPath state layout minecraftVersion = do
   appRoot <- appSupportRoot state
   resolved <- resolveJavaRuntimeForVersion (stateHttpManager state) appRoot layout minecraftVersion
@@ -150,7 +154,7 @@ resolveReadyAutoJavaPath state layout minecraftVersion = do
       Just javaPath | resolveResponseStatus resolved == "ready" -> Just javaPath
       _ -> Nothing
 
-resolveAutoJavaPath :: ServerState -> MinecraftLayout -> Text -> DownloadRuntimeOptions -> IO Bool -> (DownloadProgress -> IO ()) -> IO FilePath
+resolveAutoJavaPath :: ServerState -> MinecraftLayout -> VersionId -> DownloadRuntimeOptions -> IO Bool -> (DownloadProgress -> IO ()) -> IO FilePath
 resolveAutoJavaPath state layout minecraftVersion downloadRuntime isCancelled onProgress = do
   appRoot <- appSupportRoot state
   resolved <- resolveJavaRuntimeForVersion (stateHttpManager state) appRoot layout minecraftVersion
@@ -199,7 +203,7 @@ javaInstallRequestFromDownload spec downloadRuntime =
 
 appSupportRoot :: ServerState -> IO FilePath
 appSupportRoot state = do
-  layout <- mkLayout (stateDefaultGameDir state)
+  layout <- mkLayout (stateDefaultGameDirPath state)
   pure (takeDirectory (minecraftRoot layout))
 
 versionJsonJavaMajor :: VersionJson -> Maybe Int

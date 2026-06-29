@@ -40,13 +40,17 @@ import Panino.Api.Routes.Tasks
   , startTaskWithGameDirContext
   , taskIsCancelled
   )
-import Panino.Api.Server.State (ServerState(..))
+import Panino.Api.Server.State
+  ( ServerState(..)
+  , stateDefaultGameDirPath
+  )
 import Panino.Api.Types
   ( TaskAccepted(..)
   , TaskPhaseId
   , TaskProgress(..)
   , TaskSnapshot(..)
   )
+import Panino.Core.Types (gameDirPath)
 import Panino.Download.Manager (DownloadProgress(..))
 import Panino.Minecraft.Layout
   ( MinecraftLayout
@@ -105,7 +109,7 @@ javaRuntimeResolveResponse state request = do
 javaRuntimeResolveLayout :: FilePath -> JavaRuntimeResolveRequest -> IO MinecraftLayout
 javaRuntimeResolveLayout appRoot resolveRequest =
   case resolveGameDir resolveRequest of
-    Just gameDir | not (null gameDir) -> mkLayout (Just gameDir)
+    Just gameDir | not (null (gameDirPath gameDir)) -> mkLayout (Just (gameDirPath gameDir))
     _ -> mkLayout (Just (appRoot </> ".panino" </> "runtime-resolve-cache"))
 
 javaRuntimeCatalogResponse :: ServerState -> Request -> IO Response
@@ -198,7 +202,7 @@ javaRuntimeDeleteResponse _ _ =
 
 appSupportRoot :: ServerState -> IO FilePath
 appSupportRoot state = do
-  layout <- mkLayout (stateDefaultGameDir state)
+  layout <- mkLayout (stateDefaultGameDirPath state)
   pure (takeDirectory (minecraftRoot layout))
 
 emitRuntimeDownloadProgress :: ServerState -> TaskSnapshot -> DownloadProgress -> IO ()

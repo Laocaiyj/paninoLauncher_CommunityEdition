@@ -33,7 +33,10 @@ import Network.HTTP.Types
 import Network.Wai (Response)
 import Panino.Api.MinecraftStatus (MinecraftInstalledInstance(..))
 import Panino.Api.Response (jsonResponse)
-import Panino.Api.Server.State (ServerState(..))
+import Panino.Api.Server.State
+  ( ServerState(..)
+  , stateDefaultGameDirPath
+  )
 import Panino.Api.Types (TaskSnapshot(..))
 import Panino.Diagnostics.Types (Diagnostic(..))
 import Panino.Minecraft.Layout
@@ -64,7 +67,7 @@ taowaJson state action = do
 
 appSupportRoot :: ServerState -> IO FilePath
 appSupportRoot state = do
-  layout <- mkLayout (stateDefaultGameDir state)
+  layout <- mkLayout (stateDefaultGameDirPath state)
   pure (takeDirectory (minecraftRoot layout))
 
 invalidJsonResponse :: String -> Response

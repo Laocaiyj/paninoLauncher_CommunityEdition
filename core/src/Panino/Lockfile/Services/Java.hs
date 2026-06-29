@@ -28,6 +28,7 @@ import Panino.CoreLogic.Hashing (sha1File)
 import Panino.Core.Types
   ( projectIdFromText
   , urlFromText
+  , VersionId
   , versionIdFromText
   )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
@@ -40,7 +41,7 @@ import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
   , PackageCoordinate(..)
   , ResolvedPackage(..)
-  , solveRequestMinecraftVersionText
+  , solveRequestMinecraftVersion
   , solveRequestTargetGameDirPath
   )
 import Panino.Minecraft.Layout
@@ -64,7 +65,7 @@ import System.FilePath
 
 javaRuntimeServiceEvidence :: Manager -> LockfileSolveRequest -> IO ServiceEvidence
 javaRuntimeServiceEvidence manager request =
-  case solveRequestMinecraftVersionText request of
+  case solveRequestMinecraftVersion request of
     Nothing -> pure emptyServiceEvidence
     Just minecraftVersion -> do
       let targetGameDir = solveRequestTargetGameDirPath request
@@ -105,11 +106,11 @@ javaExecutableFromPolicy (Just (Object obj)) =
 javaExecutableFromPolicy _ =
   Nothing
 
-javaResolveRequest :: LockfileSolveRequest -> Text -> JavaRuntimeResolveRequest
+javaResolveRequest :: LockfileSolveRequest -> VersionId -> JavaRuntimeResolveRequest
 javaResolveRequest request minecraftVersion =
   JavaRuntimeResolveRequest
     { resolveMinecraftVersion = minecraftVersion
-    , resolveGameDir = Just (solveRequestTargetGameDirPath request)
+    , resolveGameDir = Just (solveRequestTargetGameDir request)
     , resolveInstanceId = javaPolicyText "instanceId" request
     , resolvePolicy = javaPolicyText "policy" request
     , resolvePreferredRuntimeId = javaPolicyText "preferredRuntimeId" request

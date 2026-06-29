@@ -36,6 +36,14 @@ assertCoreCli = do
     (Right (Resolve (ResolveOptions "1.20.1" (Just "/tmp/mc"))))
     (parseCommand ["resolve", "--version=1.20.1", "--game-dir=/tmp/mc"])
   assertEqual
+    "resolve rejects empty version"
+    (Left "--version must not be empty")
+    (parseCommand ["resolve", "--version="])
+  assertEqual
+    "resolve ignores empty game dir"
+    (Right (Resolve (ResolveOptions "1.20.1" Nothing)))
+    (parseCommand ["resolve", "--version", "1.20.1", "--game-dir="])
+  assertEqual
     "install command"
     (Right (Install (InstallOptions "1.20.1" (Just "/tmp/mc") 4 Nothing Nothing)))
     (parseCommand ["install", "--version", "1.20.1", "--game-dir", "/tmp/mc", "--concurrency", "4"])

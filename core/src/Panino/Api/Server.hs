@@ -35,6 +35,7 @@ import Panino.Api.Server.Routing (application)
 import Panino.Api.Server.State
   ( ApiServerOptions(..)
   , ServerState(..)
+  , apiServerGameDirPath
   )
 import Panino.Api.Types
   ( TaskSnapshot
@@ -61,7 +62,7 @@ runApiServer options = do
   when (Text.null (apiServerSessionToken options)) $
     fail "serve requires a non-empty session token"
   eventBus <- newEventBus
-  defaultLayout <- mkLayout (apiServerGameDir options)
+  defaultLayout <- mkLayout (apiServerGameDirPath options)
   let taskHistoryPath = takeDirectory (minecraftRoot defaultLayout) </> "task-history.json"
       appRoot = takeDirectory (minecraftRoot defaultLayout)
   createDirectoryIfMissing True (takeDirectory taskHistoryPath)

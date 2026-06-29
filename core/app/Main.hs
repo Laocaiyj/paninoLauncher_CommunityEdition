@@ -23,7 +23,8 @@ import Panino.Core
   , sessionTokenString
   )
 import Panino.Core.Types
-  ( versionIdText
+  ( gameDirPath
+  , versionIdText
   )
 import Panino.Launch.Arguments
   ( LaunchProfile(..)
@@ -83,20 +84,20 @@ runCommand packageVersion command =
 runResolve :: ResolveOptions -> IO ()
 runResolve options = do
   manager <- makeHttpManager
-  layout <- mkLayout (resolveGameDir options)
+  layout <- mkLayout (gameDirPath <$> resolveGameDir options)
   ensureLayout layout
-  versionJson <- loadVersionJson manager layout (Text.pack (resolveVersion options))
+  versionJson <- loadVersionJson manager layout (versionIdText (resolveVersion options))
   BL8.putStrLn (resolveVersionSummaryJson versionJson)
 
 runInstall :: InstallOptions -> IO ()
 runInstall options = do
   manager <- makeHttpManager
-  layout <- mkLayout (installGameDir options)
+  layout <- mkLayout (gameDirPath <$> installGameDir options)
   profileResult <-
     installMinecraftProfile
       manager
       layout
-      (Text.pack (installVersion options))
+      (versionIdText (installVersion options))
       (installConcurrency options)
       LoaderInstallOptions
         { loaderInstallLoader = Text.pack <$> installLoader options
@@ -110,7 +111,7 @@ runInstall options = do
   let result = loaderInstallResult profileResult
   putStrLn
     ( "installed "
-        <> Text.unpack (Text.pack (installVersion options))
+        <> Text.unpack (versionIdText (installVersion options))
         <> " into "
         <> minecraftRoot layout
         <> " with "
@@ -121,21 +122,21 @@ runInstall options = do
 runPrintArgs :: LaunchOptions -> IO ()
 runPrintArgs options = do
   manager <- makeHttpManager
-  layout <- mkLayout (launchGameDir options)
+  layout <- mkLayout (gameDirPath <$> launchGameDir options)
   ensureLayout layout
-  versionJson <- loadVersionJson manager layout (Text.pack (launchVersion options))
+  versionJson <- loadVersionJson manager layout (versionIdText (launchVersion options))
   let args = buildJavaArguments layout versionJson (classpathJars layout versionJson) (launchProfile options)
   BL8.putStrLn (encode args)
 
 runLaunch :: LaunchOptions -> IO ()
 runLaunch options = do
   manager <- makeHttpManager
-  layout <- mkLayout (launchGameDir options)
+  layout <- mkLayout (gameDirPath <$> launchGameDir options)
   ensureLayout layout
   versionJson <-
     if launchInstallBefore options
-      then installVersionJson <$> installMinecraftVersion manager layout (Text.pack (launchVersion options)) (launchConcurrency options)
-      else loadVersionJson manager layout (Text.pack (launchVersion options))
+      then installVersionJson <$> installMinecraftVersion manager layout (versionIdText (launchVersion options)) (launchConcurrency options)
+      else loadVersionJson manager layout (versionIdText (launchVersion options))
   let javaArgs = buildJavaArguments layout versionJson (classpathJars layout versionJson) (launchProfile options)
   when (usesModLoader versionJson) $
     preflightModDependencies (minecraftRoot layout)
@@ -161,7 +162,7 @@ runServe options = do
 launchProfile :: LaunchOptions -> LaunchProfile
 launchProfile options =
   LaunchProfile
-    { profileVersion = Text.pack (launchVersion options)
+    { profileVersion = versionIdText (launchVersion options)
     , profileMemoryMb = launchMemoryMb options
     , profileJavaPath = launchJavaPath options
     , profileUsername = Text.pack (launchUsername options)

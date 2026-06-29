@@ -75,7 +75,10 @@ import Panino.Api.Routes.Diagnostics.Probes
   , targetDirectoryProbe
   , valueBool
   )
-import Panino.Api.Server.State (ServerState(..))
+import Panino.Api.Server.State
+  ( ServerState(..)
+  , stateDefaultGameDirPath
+  )
 import Panino.Api.Types
   ( TaskSnapshot(..)
   , TaskState(..)
@@ -84,6 +87,10 @@ import qualified Panino.Content.Local.Java as LocalJava
 import Panino.Content.Local.Types
   ( JavaCheckRequest(..)
   , JavaCheckResponse(..)
+  )
+import Panino.Core.Types
+  ( gameDirFromPath
+  , versionIdFromText
   )
 import Panino.Launch.Tuning.Types (ResolvedJvmTuning(..))
 import Panino.Net.Http
@@ -151,7 +158,7 @@ diagnosticsProbeResponse state request = do
     Right probeRequest -> do
       generatedAt <- getCurrentTime
       source <- sourceTestValue state
-      target <- targetDirectoryProbe (diagnosticsProbeGameDir probeRequest <|> stateDefaultGameDir state)
+      target <- targetDirectoryProbe (diagnosticsProbeGameDir probeRequest <|> stateDefaultGameDirPath state)
       curseForge <- curseForgeProbe state (diagnosticsProbeCurseForgeApiKey probeRequest)
       let checks = [target, curseForge]
           overallOk = valueBool "ok" source && all checkOk checks
@@ -167,7 +174,7 @@ diagnosticsProbeResponse state request = do
 environmentReportResponse :: ServerState -> Request -> IO Response
 environmentReportResponse state request = do
   let context = environmentReportContext request
-      gameDir = environmentContextGameDir context <|> stateDefaultGameDir state
+      gameDir = environmentContextGameDir context <|> stateDefaultGameDirPath state
   generatedAt <- getCurrentTime
   capabilities <- getNumCapabilities
   hardware <- detectHardwareProfile
@@ -272,22 +279,24 @@ javaResolutionForEnvironment :: ServerState -> EnvironmentReportContext -> Maybe
 javaResolutionForEnvironment _ context _ | environmentContextVersion context == Nothing =
   pure Nothing
 javaResolutionForEnvironment state context gameDir = do
-  let version = fromMaybe "1.20.1" (environmentContextVersion context)
-  layout <- mkLayout gameDir
-  let appRoot = takeDirectory (minecraftRoot layout)
-      request =
-        JavaRuntimeResolveRequest
-          { resolveMinecraftVersion = version
-          , resolveGameDir = gameDir
-          , resolveInstanceId = Nothing
-          , resolvePolicy = Nothing
-          , resolvePreferredRuntimeId = Nothing
-          , resolveCustomPath = Nothing
-          }
-  result <- try (resolveJavaRuntime (stateHttpManager state) appRoot (Just layout) request)
-  pure $ case result of
-    Right response -> Just response
-    Left (_ :: SomeException) -> Nothing
+  case versionIdFromText (fromMaybe "1.20.1" (environmentContextVersion context)) of
+    Nothing -> pure Nothing
+    Just version -> do
+      layout <- mkLayout gameDir
+      let appRoot = takeDirectory (minecraftRoot layout)
+          request =
+            JavaRuntimeResolveRequest
+              { resolveMinecraftVersion = version
+              , resolveGameDir = gameDir >>= gameDirFromPath
+              , resolveInstanceId = Nothing
+              , resolvePolicy = Nothing
+              , resolvePreferredRuntimeId = Nothing
+              , resolveCustomPath = Nothing
+              }
+      result <- try (resolveJavaRuntime (stateHttpManager state) appRoot (Just layout) request)
+      pure $ case result of
+        Right response -> Just response
+        Left (_ :: SomeException) -> Nothing
 
 taskIsActive :: TaskSnapshot -> Bool
 taskIsActive task =

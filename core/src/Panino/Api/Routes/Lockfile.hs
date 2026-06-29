@@ -98,7 +98,7 @@ lockfileApplyResponse state request = do
 
 lockfileCurrentResponse :: ServerState -> Request -> IO Response
 lockfileCurrentResponse state request = do
-  case queryGameDir "gameDir" request <|> (stateDefaultGameDir state >>= gameDirFromPath) of
+  case queryGameDir "gameDir" request <|> stateDefaultGameDir state of
     Nothing ->
       pure (jsonResponse status400 (object ["error" .= ("game_dir_required" :: Text)]))
     Just gameDir -> do
@@ -143,7 +143,7 @@ lockfileVerifyResponse state request = do
     Left err ->
       pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= Text.pack err]))
     Right verifyRequest -> do
-      case verifyRequestTargetGameDir verifyRequest <|> (stateDefaultGameDir state >>= gameDirFromPath) of
+      case verifyRequestTargetGameDir verifyRequest <|> stateDefaultGameDir state of
         Nothing ->
           pure (jsonResponse status400 (object ["error" .= ("game_dir_required" :: Text)]))
         Just gameDir -> do

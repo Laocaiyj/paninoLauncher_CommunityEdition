@@ -29,6 +29,7 @@ import Panino.Diagnostics.Types
   ( Diagnostic
   , DiagnosticAction
   )
+import Panino.Core.Types (GameDir)
 
 data CompatibilityStatus
   = CompatibilityCompatible
@@ -69,7 +70,7 @@ data CompatibilityTarget = CompatibilityTarget
   , compatibilityTargetLoader :: Maybe Text
   , compatibilityTargetLoaderVersion :: Maybe Text
   , compatibilityTargetShaderLoader :: Maybe Text
-  , compatibilityTargetGameDir :: Maybe FilePath
+  , compatibilityTargetGameDir :: Maybe GameDir
   , compatibilityTargetJavaMajor :: Maybe Int
   , compatibilityTargetRequiredJavaMajor :: Maybe Int
   , compatibilityTargetJavaArch :: Maybe Text

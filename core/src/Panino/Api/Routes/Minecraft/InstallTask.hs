@@ -118,7 +118,7 @@ runInstallTask state task request preflight = do
       resolveLoaderInstallerJavaPath
         state
         layout
-        (installRequestVersionText request)
+        (installRequestVersion request)
         (installRequestLoader request)
         (installRequestDownload request)
         (taskIsCancelled state task)

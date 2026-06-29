@@ -11,7 +11,8 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Core.Types
-  ( versionIdText
+  ( VersionId
+  , versionIdText
   )
 import Panino.Minecraft.Types
   ( JavaVersion(..)
@@ -19,20 +20,20 @@ import Panino.Minecraft.Types
   )
 import Panino.Runtime.Java.Types (JavaRuntimeRequirement(..))
 
-javaRequirementForVersionJson :: Text -> VersionJson -> JavaRuntimeRequirement
+javaRequirementForVersionJson :: VersionId -> VersionJson -> JavaRuntimeRequirement
 javaRequirementForVersionJson requestedVersion versionJson =
   case versionJavaVersion versionJson >>= javaVersionMajorVersion of
     Just major ->
       JavaRuntimeRequirement
-        { javaRequirementMinecraftVersion = versionIdText (versionId versionJson)
+        { javaRequirementMinecraftVersion = versionId versionJson
         , javaRequirementMajorVersion = major
         , javaRequirementComponent = versionJavaVersion versionJson >>= javaVersionComponent
         , javaRequirementSource = "manifest"
         }
     Nothing ->
       JavaRuntimeRequirement
-        { javaRequirementMinecraftVersion = versionIdText (versionId versionJson)
-        , javaRequirementMajorVersion = fallbackJavaMajorVersion requestedVersion
+        { javaRequirementMinecraftVersion = versionId versionJson
+        , javaRequirementMajorVersion = fallbackJavaMajorVersion (versionIdText requestedVersion)
         , javaRequirementComponent = Nothing
         , javaRequirementSource = "fallback"
         }

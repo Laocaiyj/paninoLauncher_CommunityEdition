@@ -64,7 +64,10 @@ import Panino.Api.Routes.TaowaMultiplayer.Support
   , taowaJson
   , taskCandidate
   )
-import Panino.Api.Server.State (ServerState(..))
+import Panino.Api.Server.State
+  ( ServerState(..)
+  , stateDefaultGameDirPath
+  )
 import Panino.Api.Types
   ( ApiEvent(..)
   , TaskKind(..)
@@ -223,7 +226,7 @@ taowaRecommendationsResponse state =
     taskMap <- readTVarIO (stateTasks state)
     installed <-
       fetchInstalledMinecraftInstances
-        (stateDefaultGameDir state)
+        (stateDefaultGameDirPath state)
         MinecraftInstallStatusRequest
           { installStatusVersionIds = []
           , installStatusGameDirs = []
