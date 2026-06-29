@@ -25,6 +25,9 @@ struct PaninoLauncherApp: App {
         if CommandLine.arguments.contains("--self-test-graphics-ui") {
             GraphicsTuningSelfTest.runAndExit()
         }
+        if CommandLine.arguments.contains("--self-test-logic") {
+            LauncherLogicSelfTest.runAndExit()
+        }
         URLCache.shared.memoryCapacity = 64 * 1024 * 1024
         URLCache.shared.diskCapacity = 256 * 1024 * 1024
     }

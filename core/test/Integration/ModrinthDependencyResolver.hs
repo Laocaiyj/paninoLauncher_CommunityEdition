@@ -6,7 +6,6 @@ module Integration.ModrinthDependencyResolver
 
 import Control.Exception (finally)
 import qualified Data.ByteString.Char8 as BS8
-import qualified Data.Map.Strict as Map
 import Integration.ModrinthDependencyResolver.JavaPolicy
   ( assertLockfileJavaPolicySolves
   )
@@ -48,6 +47,7 @@ import Panino.Lockfile.Types
   , PaninoLockfile(..)
   , ResolvedPackage(..)
   , explainRejectedCandidates
+  , packageHashesEmpty
   , solverResultBlockedReasons
   , solverResultExplain
   , solverResultLockfile
@@ -158,7 +158,7 @@ assertModrinthDependencyResolver = do
                   , resolvedPackageVersionName = Nothing
                   , resolvedPackageFileName = Nothing
                   , resolvedPackageTargetPath = Nothing
-                  , resolvedPackageHashes = Map.empty
+                  , resolvedPackageHashes = packageHashesEmpty
                   , resolvedPackageDownloadUrls = []
                   , resolvedPackageGameVersions = []
                   , resolvedPackageLoaders = []

@@ -12,7 +12,6 @@ module Property.Generators
   , simpleTypedPlan
   ) where
 
-import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -43,6 +42,7 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
+  , packageHashesFromSha1Text
   )
 import Panino.Performance.Profile.Types (defaultInstanceFingerprint)
 import Panino.Performance.Telemetry.Types
@@ -164,7 +164,7 @@ simplePackage ident =
     , resolvedPackageVersionName = Just "1.0.0"
     , resolvedPackageFileName = Just (ident <> ".jar")
     , resolvedPackageTargetPath = relativePathFromFilePath ("mods/" <> Text.unpack ident <> ".jar")
-    , resolvedPackageHashes = Map.fromList [("sha1", ident <> "-sha1")]
+    , resolvedPackageHashes = packageHashesFromSha1Text (ident <> "-sha1")
     , resolvedPackageSize = Just 1
     , resolvedPackageDownloadUrls = [urlFromText ("https://example.invalid/" <> ident <> ".jar")]
     , resolvedPackageGameVersions = ["1.21.1"]

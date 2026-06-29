@@ -18,7 +18,10 @@ import Data.Maybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Panino.Core.Types (sha1Text)
+import Panino.Core.Types
+  ( sha1Text
+  , versionIdText
+  )
 import Panino.CoreLogic.Determinism
   ( stableSortPackages
   , stableTextSet
@@ -41,7 +44,6 @@ import Panino.Lockfile.Types
   , packageSourceText
   , resolvedPackageSha1
   , resolvedPackageTargetPathFilePath
-  , solveRequestMinecraftVersionText
   )
 import System.FilePath (normalise)
 
@@ -132,9 +134,10 @@ compatibilityConflicts request packages =
           (resolvedPackageDisplayName package <> " does not support Minecraft " <> minecraftVersion)
           [resolvedPackageId package]
           (maybe [] (: []) (resolvedPackageTargetPathFilePath package))
-      | Just minecraftVersion <- [solveRequestMinecraftVersionText request]
+      | Just minecraftVersionId <- [solveRequestMinecraftVersion request]
+      , let minecraftVersion = versionIdText minecraftVersionId
       , not (null (resolvedPackageGameVersions package))
-      , minecraftVersion `notElem` resolvedPackageGameVersions package
+      , minecraftVersionId `notElem` resolvedPackageGameVersions package
       ]
         <> [ solverConflict
               "solver_no_candidate"

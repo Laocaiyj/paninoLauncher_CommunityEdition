@@ -4,7 +4,6 @@ module Integration.LockfileSolver.Update
   ( assertLockfileUpdatePolicies
   ) where
 
-import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Panino.Core.Types (versionIdFromText)
 import Panino.Lockfile.Solver (solveLockfile)
@@ -16,6 +15,7 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , SolverResult(..)
   , lockfileChangePackageId
+  , packageHashesFromSha1Text
   )
 import TestFixtures
   ( testLockfilePackage
@@ -142,5 +142,5 @@ updatePackage package version sha1 =
           { coordinateVersionId = versionIdFromText version
           }
     , resolvedPackageVersionName = Just version
-    , resolvedPackageHashes = Map.fromList [("sha1", sha1)]
+    , resolvedPackageHashes = packageHashesFromSha1Text sha1
     }

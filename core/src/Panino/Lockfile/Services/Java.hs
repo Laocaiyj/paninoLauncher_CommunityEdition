@@ -26,9 +26,9 @@ import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
 import Panino.CoreLogic.Hashing (sha1File)
 import Panino.Core.Types
-  ( projectIdFromText
+  ( VersionId
+  , projectIdFromText
   , urlFromText
-  , VersionId
   , versionIdFromText
   )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
@@ -39,8 +39,11 @@ import Panino.Lockfile.Services.Evidence
   )
 import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
+  , PackageHashes
   , PackageCoordinate(..)
   , ResolvedPackage(..)
+  , packageHashesEmpty
+  , packageHashesFromMap
   , solveRequestMinecraftVersion
   , solveRequestTargetGameDirPath
   )
@@ -161,10 +164,7 @@ javaRuntimePackage response =
     , resolvedPackageVersionName = resolveResponseSelectedRuntimeId response
     , resolvedPackageFileName = Nothing
     , resolvedPackageTargetPath = Nothing
-    , resolvedPackageHashes =
-        maybe Map.empty
-          (\download -> maybe Map.empty (\sha -> Map.singleton "sha256" sha) (runtimeDownloadSha256 download))
-          (resolveResponseDownload response)
+    , resolvedPackageHashes = maybe packageHashesEmpty runtimeDownloadHashes (resolveResponseDownload response)
     , resolvedPackageSize = Nothing
     , resolvedPackageDownloadUrls = maybe [] ((: []) . urlFromText . runtimeDownloadUrl) (resolveResponseDownload response)
     , resolvedPackageGameVersions = [resolveResponseMinecraftVersion response]
@@ -180,6 +180,10 @@ javaRuntimePackage response =
     }
   where
     javaProjectId = "java-" <> Text.pack (show (resolveResponseRequiredMajorVersion response))
+
+runtimeDownloadHashes :: JavaRuntimeDownloadSpec -> PackageHashes
+runtimeDownloadHashes download =
+  maybe packageHashesEmpty (packageHashesFromMap . Map.singleton "sha256") (runtimeDownloadSha256 download)
 
 javaRuntimePolicyValue :: JavaRuntimeResolveResponse -> IO Value
 javaRuntimePolicyValue response = do

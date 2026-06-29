@@ -14,12 +14,12 @@ import Control.Exception
   , try
   )
 import Data.List (find)
-import qualified Data.Map.Strict as Map
 import Data.Maybe
   ( catMaybes
   , fromMaybe
   , isJust
   , listToMaybe
+  , mapMaybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -53,6 +53,7 @@ import Panino.Core.Types
   , projectIdFromText
   , projectIdText
   , relativePathFromFilePath
+  , versionIdFromText
   )
 import Panino.Lockfile.Normalize
   ( dedupePackages
@@ -76,6 +77,8 @@ import Panino.Lockfile.Types
   , ResolvedPackage(..)
   , coordinateProjectIdText
   , normalizePackageSource
+  , packageHashesEmpty
+  , packageHashesFromMap
   , packageSourceFromText
   , packageSourceIsOnline
   , resolvedPackageKey
@@ -326,10 +329,10 @@ onlineReleaseToPackage release =
     , resolvedPackageVersionName = Just (releaseVersionName release)
     , resolvedPackageFileName = fileName <$> selectedFile
     , resolvedPackageTargetPath = selectedFile >>= targetPathForOnlineFile "mod"
-    , resolvedPackageHashes = maybe Map.empty fileHashes selectedFile
+    , resolvedPackageHashes = maybe packageHashesEmpty (packageHashesFromMap . fileHashes) selectedFile
     , resolvedPackageSize = fileSizeBytes <$> selectedFile
     , resolvedPackageDownloadUrls = maybe [] (maybe [] (: []) . fileDownloadUrl) selectedFile
-    , resolvedPackageGameVersions = stableTextSet (releaseGameVersions release)
+    , resolvedPackageGameVersions = mapMaybe versionIdFromText (stableTextSet (releaseGameVersions release))
     , resolvedPackageLoaders = stableTextSet (map normalizeLoader (releaseLoaders release))
     , resolvedPackageJavaMajor = Nothing
     , resolvedPackageSide = Just "client"

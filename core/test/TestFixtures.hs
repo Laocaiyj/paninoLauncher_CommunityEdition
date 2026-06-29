@@ -29,6 +29,7 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
+  , packageHashesFromSha1Text
   )
 import Panino.Minecraft.Layout (MinecraftLayout(..))
 import Panino.Minecraft.Types
@@ -161,7 +162,7 @@ testLockfilePackage packageId name releaseIdText fileNameText targetPath sha1 de
     , resolvedPackageVersionName = Just releaseIdText
     , resolvedPackageFileName = Just fileNameText
     , resolvedPackageTargetPath = relativePathFromFilePath targetPath
-    , resolvedPackageHashes = Map.fromList [("sha1", sha1)]
+    , resolvedPackageHashes = packageHashesFromSha1Text sha1
     , resolvedPackageSize = Just 123
     , resolvedPackageDownloadUrls = [urlFromText ("https://cdn.modrinth.example/" <> fileNameText)]
     , resolvedPackageGameVersions = ["1.21.5"]

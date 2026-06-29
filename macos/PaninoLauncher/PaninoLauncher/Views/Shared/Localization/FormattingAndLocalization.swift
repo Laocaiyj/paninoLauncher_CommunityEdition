@@ -33,7 +33,9 @@ func javaMajorVersion(from text: String) -> Int? {
 
 func safeFileName(_ value: String) -> String {
     let fallback = "download.bin"
-    let lastComponent = URL(fileURLWithPath: value).lastPathComponent
+    let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !raw.isEmpty, raw != "." && raw != ".." else { return fallback }
+    let lastComponent = URL(fileURLWithPath: raw).lastPathComponent
     let trimmed = lastComponent.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty, trimmed != "." && trimmed != ".." else { return fallback }
     return trimmed

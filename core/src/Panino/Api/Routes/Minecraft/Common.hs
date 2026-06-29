@@ -41,6 +41,7 @@ import Panino.Core.Types
   ( GameDir
   , VersionId
   , gameDirPath
+  , versionIdText
   )
 import Panino.Diagnostics.Classify (classifyFailure)
 import Panino.Diagnostics.Types
@@ -176,7 +177,7 @@ resolveAutoJavaPath state layout minecraftVersion downloadRuntime isCancelled on
             ( "java_runtime_download_not_found: Java "
                 <> show (resolveResponseRequiredMajorVersion resolved)
                 <> " is required for Minecraft "
-                <> Text.unpack minecraftVersion
+                <> Text.unpack (versionIdText minecraftVersion)
                 <> ", but no managed runtime download is available."
             )
     _ ->
@@ -184,7 +185,7 @@ resolveAutoJavaPath state layout minecraftVersion downloadRuntime isCancelled on
         ( "java_runtime_missing: Java "
             <> show (resolveResponseRequiredMajorVersion resolved)
             <> " is required for Minecraft "
-            <> Text.unpack minecraftVersion
+            <> Text.unpack (versionIdText minecraftVersion)
             <> ". Download it in Runtime settings."
         )
 

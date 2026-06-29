@@ -120,6 +120,8 @@ import Panino.Lockfile.Types
   , lockfileVerifyIssueKindFromText
   , lockfileVerifyIssueKindText
   , lockfileVerifyStatusText
+  , packageHashesFromMap
+  , packageHashesFromSha1Text
   , packageSourceFromText
   , packageSourceText
   , resolvedPackageDownloadUrlTexts
@@ -153,6 +155,9 @@ import Panino.Minecraft.Types
   , VersionJson(..)
   , VersionManifest(..)
   , VersionSummary(..)
+  )
+import Panino.Runtime.Java.Types
+  ( JavaRuntimeResolveRequest(..)
   )
 import TestSupport (assertEqual)
 
@@ -268,7 +273,7 @@ assertLockfileWireShape = do
           , resolvedPackageVersionName = Just "1.0.0"
           , resolvedPackageFileName = Just "iris.jar"
           , resolvedPackageTargetPath = Just "mods/iris.jar"
-          , resolvedPackageHashes = Map.singleton "sha1" "abcdef"
+          , resolvedPackageHashes = packageHashesFromSha1Text "abcdef"
           , resolvedPackageSize = Just 1
           , resolvedPackageDownloadUrls = ["https://example.com/iris.jar"]
           , resolvedPackageGameVersions = ["1.21.5"]
@@ -287,7 +292,7 @@ assertLockfileWireShape = do
           { lockfileFilePackageId = "iris"
           , lockfileFileName = "iris.jar"
           , lockfileFileTargetPath = "mods/iris.jar"
-          , lockfileFileHashes = Map.singleton "sha1" "ABCDEF"
+          , lockfileFileHashes = packageHashesFromSha1Text "ABCDEF"
           , lockfileFileSize = Just 1
           , lockfileFileDownloadUrls = ["https://example.com/iris.jar"]
           , lockfileFileKind = "mod"
@@ -331,9 +336,9 @@ assertLockfileWireShape = do
   assertEqual "resolved package target path text view" (Just "mods/iris.jar") (resolvedPackageTargetPathFilePath package)
   assertEqual "resolved package download url text view" ["https://example.com/iris.jar"] (resolvedPackageDownloadUrlTexts package)
   assertEqual "resolved package sha1 accessor normalizes text" (Just "abcdef") (resolvedPackageSha1Text package)
-  assertEqual "resolved package sha1 accessor rejects empty text" Nothing (resolvedPackageSha1Text package { resolvedPackageHashes = Map.singleton "sha1" "" })
+  assertEqual "resolved package sha1 accessor rejects empty text" Nothing (resolvedPackageSha1Text package { resolvedPackageHashes = packageHashesFromMap (Map.singleton "sha1" "") })
   assertEqual "lockfile file sha1 accessor normalizes text" (Just "abcdef") (lockfileFileSha1Text lockfileFile)
-  assertEqual "lockfile file sha1 accessor rejects empty text" Nothing (lockfileFileSha1Text lockfileFile { lockfileFileHashes = Map.singleton "sha1" "" })
+  assertEqual "lockfile file sha1 accessor rejects empty text" Nothing (lockfileFileSha1Text lockfileFile { lockfileFileHashes = packageHashesFromMap (Map.singleton "sha1" "") })
   assertEqual "lockfile target game dir text view" (Just "/tmp/panino") (lockfileTargetGameDirPath lockfile)
   assertEqual "lockfile minecraft text view" (Just "1.21.5") (lockfileMinecraftText lockfile)
   assertContains "package projectId stays a JSON string" "\"projectId\":\"iris\"" encodedPackage
@@ -437,6 +442,18 @@ assertMinecraftRequestWireShape = do
       assertEqual "launch request version decodes from JSON string" "1.21.5" (launchRequestVersionText request)
       assertEqual "launch request game dir decodes from JSON string" (Just "/tmp/mc") (launchRequestGameDirPath request)
       assertEqual "launch request java path wire field remains FilePath" (Just "/usr/bin/java") (launchRequestJavaPath request)
+  case eitherDecode "{\"minecraftVersion\":\"1.21.5\",\"gameDir\":\"/tmp/mc\"}" :: Either String JavaRuntimeResolveRequest of
+    Left err ->
+      assertEqual ("java runtime resolve request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "java runtime resolve keeps minecraftVersion wire string" "1.21.5" (versionIdText (resolveMinecraftVersion request))
+      assertEqual "java runtime resolve gameDir decodes from JSON string" (Just "/tmp/mc") (gameDirPath <$> resolveGameDir request)
+  case eitherDecode "{\"version\":\"1.21.5\",\"gameDir\":\"\"}" :: Either String JavaRuntimeResolveRequest of
+    Left err ->
+      assertEqual ("java runtime resolve empty gameDir decodes as missing: " <> err) True False
+    Right request ->
+      assertEqual "java runtime resolve empty gameDir remains missing" Nothing (resolveGameDir request)
+  assertEqual "java runtime resolve empty minecraftVersion is rejected" True (isLeft (eitherDecode "{\"minecraftVersion\":\"\"}" :: Either String JavaRuntimeResolveRequest))
 
 assertMojangManifestWireShape :: IO ()
 assertMojangManifestWireShape = do

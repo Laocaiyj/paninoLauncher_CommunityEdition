@@ -2,6 +2,7 @@
 
 module Panino.Lockfile.Types.Package
   ( LockfileFile(..)
+  , PackageHashes
   , PackageConstraint(..)
   , PackageCoordinate(..)
   , PackageSource(..)
@@ -15,6 +16,12 @@ module Panino.Lockfile.Types.Package
   , lockfileFileTargetPathFilePath
   , normalizePackageSource
   , packageCoordinateKey
+  , packageHashesEmpty
+  , packageHashesFromMap
+  , packageHashesFromSha1Text
+  , packageHashesSha1
+  , packageHashesSha1Text
+  , packageHashesToMap
   , packageSourceFromText
   , packageSourceIsManualLike
   , packageSourceIsOnline
@@ -174,6 +181,42 @@ instance FromJSON PackageCoordinate where
         <*> obj .:? "name"
         <*> obj .:? "kind" .!= "mod"
 
+data PackageHashes = PackageHashes
+  { packageHashesSha1 :: Maybe Sha1
+  , packageHashesOther :: Map Text Text
+  } deriving (Eq, Show)
+
+packageHashesEmpty :: PackageHashes
+packageHashesEmpty =
+  PackageHashes Nothing Map.empty
+
+packageHashesFromMap :: Map Text Text -> PackageHashes
+packageHashesFromMap hashes =
+  PackageHashes
+    { packageHashesSha1 = Map.lookup "sha1" hashes >>= sha1FromText
+    , packageHashesOther = Map.delete "sha1" hashes
+    }
+
+packageHashesFromSha1Text :: Text -> PackageHashes
+packageHashesFromSha1Text sha1 =
+  packageHashesFromMap (Map.singleton "sha1" sha1)
+
+packageHashesToMap :: PackageHashes -> Map Text Text
+packageHashesToMap hashes =
+  maybe id (Map.insert "sha1" . sha1Text) (packageHashesSha1 hashes) (packageHashesOther hashes)
+
+packageHashesSha1Text :: PackageHashes -> Maybe Text
+packageHashesSha1Text =
+  fmap sha1Text . packageHashesSha1
+
+instance ToJSON PackageHashes where
+  toJSON =
+    toJSON . packageHashesToMap
+
+instance FromJSON PackageHashes where
+  parseJSON value =
+    packageHashesFromMap <$> parseJSON value
+
 data PackageConstraint = PackageConstraint
   { constraintId :: Text
   , constraintSourcePackage :: Maybe Text
@@ -227,10 +270,10 @@ data ResolvedPackage = ResolvedPackage
   , resolvedPackageVersionName :: Maybe Text
   , resolvedPackageFileName :: Maybe Text
   , resolvedPackageTargetPath :: Maybe RelativePath
-  , resolvedPackageHashes :: Map Text Text
+  , resolvedPackageHashes :: PackageHashes
   , resolvedPackageSize :: Maybe Int64
   , resolvedPackageDownloadUrls :: [Url]
-  , resolvedPackageGameVersions :: [Text]
+  , resolvedPackageGameVersions :: [VersionId]
   , resolvedPackageLoaders :: [Text]
   , resolvedPackageJavaMajor :: Maybe Int
   , resolvedPackageSide :: Maybe Text
@@ -281,7 +324,7 @@ instance FromJSON ResolvedPackage where
         <*> obj .:? "versionName"
         <*> obj .:? "fileName"
         <*> obj .:? "targetPath"
-        <*> obj .:? "hashes" .!= Map.empty
+        <*> obj .:? "hashes" .!= packageHashesEmpty
         <*> obj .:? "size"
         <*> obj .:? "downloadUrls" .!= []
         <*> obj .:? "gameVersions" .!= []
@@ -299,7 +342,7 @@ data LockfileFile = LockfileFile
   { lockfileFilePackageId :: Text
   , lockfileFileName :: Text
   , lockfileFileTargetPath :: RelativePath
-  , lockfileFileHashes :: Map Text Text
+  , lockfileFileHashes :: PackageHashes
   , lockfileFileSize :: Maybe Int64
   , lockfileFileDownloadUrls :: [Url]
   , lockfileFileKind :: Text
@@ -324,7 +367,7 @@ instance FromJSON LockfileFile where
         <$> obj .: "packageId"
         <*> obj .:? "fileName" .!= ""
         <*> obj .: "targetPath"
-        <*> obj .:? "hashes" .!= Map.empty
+        <*> obj .:? "hashes" .!= packageHashesEmpty
         <*> obj .:? "size"
         <*> obj .:? "downloadUrls" .!= []
         <*> obj .:? "kind" .!= "mod"
@@ -356,7 +399,7 @@ lockfileFileKey file =
     "|"
     [ lockfileFilePackageId file
     , Text.pack (lockfileFileTargetPathFilePath file)
-    , Map.findWithDefault "" "sha1" (lockfileFileHashes file)
+    , fromMaybe "" (lockfileFileSha1Text file)
     ]
 
 coordinateProjectIdText :: PackageCoordinate -> Maybe Text
@@ -376,8 +419,8 @@ resolvedPackageDownloadUrlTexts =
   map urlText . resolvedPackageDownloadUrls
 
 resolvedPackageSha1 :: ResolvedPackage -> Maybe Sha1
-resolvedPackageSha1 package =
-  Map.lookup "sha1" (resolvedPackageHashes package) >>= sha1FromText
+resolvedPackageSha1 =
+  packageHashesSha1 . resolvedPackageHashes
 
 resolvedPackageSha1Text :: ResolvedPackage -> Maybe Text
 resolvedPackageSha1Text =
@@ -392,8 +435,8 @@ lockfileFileDownloadUrlTexts =
   map urlText . lockfileFileDownloadUrls
 
 lockfileFileSha1 :: LockfileFile -> Maybe Sha1
-lockfileFileSha1 file =
-  Map.lookup "sha1" (lockfileFileHashes file) >>= sha1FromText
+lockfileFileSha1 =
+  packageHashesSha1 . lockfileFileHashes
 
 lockfileFileSha1Text :: LockfileFile -> Maybe Text
 lockfileFileSha1Text =

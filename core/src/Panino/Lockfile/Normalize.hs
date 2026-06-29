@@ -34,6 +34,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe
   ( fromMaybe
   , isJust
+  , mapMaybe
   )
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -44,10 +45,13 @@ import Panino.CoreLogic.Determinism
 import Panino.Core.Types
   ( RelativePath
   , Url
+  , VersionId
   , relativePathFilePath
   , relativePathFromFilePath
   , urlFromText
   , urlText
+  , versionIdFromText
+  , versionIdText
   )
 import Panino.Lockfile.Types
   ( LockfileSolveRequest(..)
@@ -61,7 +65,6 @@ import Panino.Lockfile.Types
   , packageSourceText
   , resolvedPackageKey
   , resolvedPackageSha1
-  , solveRequestMinecraftVersionText
   )
 import System.FilePath
   ( isRelative
@@ -81,7 +84,7 @@ normalizePackage gameDir reason package =
           }
     , resolvedPackageTargetPath = normalizeTargetPath gameDir <$> resolvedPackageTargetPath package
     , resolvedPackageDownloadUrls = stableUrlSet (resolvedPackageDownloadUrls package)
-    , resolvedPackageGameVersions = stableTextSet (resolvedPackageGameVersions package)
+    , resolvedPackageGameVersions = stableVersionSet (resolvedPackageGameVersions package)
     , resolvedPackageLoaders = stableTextSet (map normalizeLoader (resolvedPackageLoaders package))
     , resolvedPackageSelectedBecause =
         stableTextSet (resolvedPackageSelectedBecause package <> [reason])
@@ -244,7 +247,7 @@ packageCompatibleWithRequest request package =
       maybe
         True
         (\minecraftVersion -> null (resolvedPackageGameVersions package) || minecraftVersion `elem` resolvedPackageGameVersions package)
-        (solveRequestMinecraftVersionText request)
+        (solveRequestMinecraftVersion request)
     loaderCompatible =
       maybe
         True
@@ -310,3 +313,7 @@ targetPathSafe path =
 stableUrlSet :: [Url] -> [Url]
 stableUrlSet =
   map urlFromText . stableTextSet . map urlText
+
+stableVersionSet :: [VersionId] -> [VersionId]
+stableVersionSet =
+  mapMaybe versionIdFromText . stableTextSet . map versionIdText

@@ -14,7 +14,7 @@ final class PrivacyAndStateTests: XCTestCase {
     }
 
     @MainActor
-    func testDepthStyleSeparatesModernAndRetroEffects() {
+    func testDepthStyleSeparatesFlatSoftLayeredAndRetroEffects() {
         let keys = [
             "Theme.DepthStyle",
             "Theme.QuietModeEnabled",
@@ -50,14 +50,14 @@ final class PrivacyAndStateTests: XCTestCase {
         XCTAssertEqual(flat.shadowRadius, 0)
         XCTAssertGreaterThan(soft.shadowRadius, flat.shadowRadius)
         XCTAssertGreaterThan(layered.shadowRadius, soft.shadowRadius)
-        XCTAssertEqual(soft.depthHighlightOpacity, 0)
-        XCTAssertEqual(layered.depthHighlightOpacity, 0)
+        XCTAssertGreaterThan(soft.depthHighlightOpacity, flat.depthHighlightOpacity)
+        XCTAssertGreaterThan(layered.depthHighlightOpacity, soft.depthHighlightOpacity)
         XCTAssertGreaterThan(retro.depthHighlightOpacity, layered.depthHighlightOpacity)
         XCTAssertGreaterThan(retro.depthShadeOpacity, layered.depthShadeOpacity)
     }
 
     @MainActor
-    func testThemeSliderAssignmentsDoNotReenterPublishedDidSet() {
+    func testThemeSliderAssignmentsClampPersistedValues() {
         let keys = [
             "Theme.GlassFrosting",
             "Theme.BackgroundBlur",
@@ -114,6 +114,11 @@ final class PrivacyAndStateTests: XCTestCase {
         XCTAssertEqual(instance.coverBlur, 0)
         XCTAssertEqual(instance.coverDim, 0.28)
         XCTAssertEqual(instance.iconBackdropStyle, .automatic)
+    }
+
+    @MainActor
+    func testExecutableLauncherLogicSelfTestPasses() {
+        XCTAssertEqual(LauncherLogicSelfTest.run(), [])
     }
 }
 #endif

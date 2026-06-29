@@ -9,6 +9,7 @@ module Panino.Runtime.Java.Types.Resolve
 import Control.Applicative ((<|>))
 import Data.Aeson
   ( FromJSON(..)
+  , Object
   , ToJSON(..)
   , object
   , withObject
@@ -16,12 +17,14 @@ import Data.Aeson
   , (.:?)
   , (.=)
   )
+import Data.Aeson.Types (Parser)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Core.Types
   ( GameDir
   , VersionId
+  , gameDirFromPath
   , versionIdText
   )
 import qualified Panino.Install.Plan.Types as Plan
@@ -57,11 +60,16 @@ instance FromJSON JavaRuntimeResolveRequest where
     withObject "JavaRuntimeResolveRequest" $ \obj ->
       JavaRuntimeResolveRequest
         <$> (obj .: "minecraftVersion" <|> obj .: "version")
-        <*> obj .:? "gameDir"
+        <*> parseOptionalGameDir obj
         <*> obj .:? "instanceId"
         <*> obj .:? "policy"
         <*> obj .:? "preferredRuntimeId"
         <*> (obj .:? "customPath" <|> obj .:? "java")
+
+parseOptionalGameDir :: Object -> Parser (Maybe GameDir)
+parseOptionalGameDir obj = do
+  raw <- obj .:? "gameDir"
+  pure (raw >>= gameDirFromPath . Text.unpack)
 
 data JavaRuntimeResolveResponse = JavaRuntimeResolveResponse
   { resolveResponseMinecraftVersion :: VersionId

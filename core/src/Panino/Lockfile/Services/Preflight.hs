@@ -16,7 +16,6 @@ import Data.Aeson
   ( object
   , (.=)
   )
-import qualified Data.Map.Strict as Map
 import Data.Maybe
   ( fromMaybe
   , mapMaybe
@@ -61,6 +60,8 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , PackageSource
   , ResolvedPackage(..)
+  , packageHashesEmpty
+  , packageHashesFromSha1Text
   , packageSourceFromText
   , resolvedPackageKey
   , solveRequestMinecraftVersionText
@@ -140,10 +141,10 @@ preflightResolvedPackages response =
           , resolvedPackageVersionName = preflightResponseLoaderVersion response
           , resolvedPackageFileName = Nothing
           , resolvedPackageTargetPath = Nothing
-          , resolvedPackageHashes = Map.empty
+          , resolvedPackageHashes = packageHashesEmpty
           , resolvedPackageSize = Nothing
           , resolvedPackageDownloadUrls = []
-          , resolvedPackageGameVersions = [minecraftVersion]
+          , resolvedPackageGameVersions = maybe [] (: []) (versionIdFromText minecraftVersion)
           , resolvedPackageLoaders = [loader]
           , resolvedPackageJavaMajor = Nothing
           , resolvedPackageSide = Just "client"
@@ -180,10 +181,10 @@ preflightShaderPackage minecraftVersion shader project =
     , resolvedPackageVersionName = Nothing
     , resolvedPackageFileName = Nothing
     , resolvedPackageTargetPath = Nothing
-    , resolvedPackageHashes = Map.empty
+    , resolvedPackageHashes = packageHashesEmpty
     , resolvedPackageSize = Nothing
     , resolvedPackageDownloadUrls = []
-    , resolvedPackageGameVersions = [minecraftVersion]
+    , resolvedPackageGameVersions = maybe [] (: []) (versionIdFromText minecraftVersion)
     , resolvedPackageLoaders = []
     , resolvedPackageJavaMajor = Nothing
     , resolvedPackageSide = Just "client"
@@ -260,7 +261,7 @@ modpackNodePackage source node
           , resolvedPackageVersionName = Nothing
           , resolvedPackageFileName = Text.pack . takeFileName <$> Plan.installNodeTargetPath node
           , resolvedPackageTargetPath = Plan.installNodeTargetPath node >>= relativePathFromFilePath
-          , resolvedPackageHashes = maybe Map.empty (Map.singleton "sha1") (Plan.installNodeSha1Text node)
+          , resolvedPackageHashes = maybe packageHashesEmpty packageHashesFromSha1Text (Plan.installNodeSha1Text node)
           , resolvedPackageSize = Plan.installNodeSize node
           , resolvedPackageDownloadUrls = Plan.installNodeSourceUrls node
           , resolvedPackageGameVersions = []
@@ -315,10 +316,10 @@ performancePackPackage recommendation =
     , resolvedPackageVersionName = performanceRecommendationMinecraftVersion recommendation
     , resolvedPackageFileName = Nothing
     , resolvedPackageTargetPath = Nothing
-    , resolvedPackageHashes = Map.empty
+    , resolvedPackageHashes = packageHashesEmpty
     , resolvedPackageSize = Nothing
     , resolvedPackageDownloadUrls = []
-    , resolvedPackageGameVersions = maybe [] (: []) (performanceRecommendationMinecraftVersion recommendation)
+    , resolvedPackageGameVersions = mapMaybe versionIdFromText (maybe [] (: []) (performanceRecommendationMinecraftVersion recommendation))
     , resolvedPackageLoaders = maybe [] ((: []) . normalizeLoader) (performanceRecommendationLoader recommendation)
     , resolvedPackageJavaMajor = Nothing
     , resolvedPackageSide = Just "client"
