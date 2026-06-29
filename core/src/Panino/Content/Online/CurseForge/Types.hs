@@ -239,11 +239,11 @@ instance FromJSON CurseFileResponse where
         <*> obj .:? "dependencies" .!= []
         <*> obj .:? "downloadCount"
 
-curseFileToOnline :: Text -> CurseFileResponse -> OnlineRelease
+curseFileToOnline :: ProjectId -> CurseFileResponse -> OnlineRelease
 curseFileToOnline projectIdValue file =
   OnlineRelease
     { releaseId = onlineVersionIdFromText (Text.pack (show (curseFileId file)))
-    , releaseProjectId = onlineProjectIdFromText projectIdValue
+    , releaseProjectId = projectIdValue
     , releaseSource = "curseForge"
     , releaseVersionName = fromMaybe (curseFileName file) (curseFileDisplayName file)
     , releaseVersionNumber = fromMaybe (Text.pack (show (curseFileId file))) (curseFileDisplayName file)

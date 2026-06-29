@@ -232,6 +232,25 @@ assertLockfileSolver = do
                 (lockfileFingerprint (readyLockfileLockfile (readyLockfileApplyLockfile readyApply)))
             readiness ->
               assertEqual ("lockfile apply readiness expected ready state: " <> show readiness) True False
+          let spoofedBlockedResult =
+                result
+                  { solverResultTypedPlan =
+                      (solverResultTypedPlan result)
+                        { typedPlanBlockedReasons = ["spoofed_blocked_plan"]
+                        }
+                  , solverResultBlockedReasons = []
+                  }
+              spoofedBlockedApplyRequest =
+                matchingApplyRequest { applyRequestResult = spoofedBlockedResult }
+          case lockfileApplyReadiness spoofedBlockedApplyRequest of
+            LockfileApplyPlanBlocked _ ->
+              pure ()
+            readiness ->
+              assertEqual ("lockfile apply typestate rejected spoofed blocked plan: " <> show readiness) True False
+          assertEqual
+            "lockfile apply ready lockfile rejects spoofed blocked plan"
+            (Left LockfileApplySolverBlocked)
+            (lockfileApplyReadyLockfile spoofedBlockedApplyRequest)
       let applyGameDir = tempDir </> "panino-lockfile-apply-test"
       applyGameDirExists <- doesDirectoryExist applyGameDir
       when applyGameDirExists (removeDirectoryRecursive applyGameDir)

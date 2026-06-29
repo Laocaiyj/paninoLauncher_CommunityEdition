@@ -41,8 +41,13 @@ import Network.Wai
   ( Request
   , Response
   )
-import Panino.Api.Params (decodeBody)
-import Panino.Api.Response (jsonResponse)
+import Panino.Api.Response
+  ( apiError
+  , apiErrorMessage
+  , apiErrorResponse
+  , decodeJsonBodyResponse
+  , jsonResponse
+  )
 import Panino.Graphics.Tuning.Options
   ( MinecraftOptions
   , applyOptionsPatchToFile
@@ -82,76 +87,64 @@ instance FromJSON GraphicsTuningRollbackRequest where
         <*> obj .:? "backupPath"
 
 graphicsTuningResolveResponse :: Request -> IO Response
-graphicsTuningResolveResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right tuningRequest ->
-      case graphicsRequestGameDir tuningRequest of
-        Nothing ->
-          pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))
-        Just gameDir -> do
-          resolved <- readGraphicsTuningForEnvironment tuningRequest gameDir
-          pure (jsonResponse status200 resolved)
+graphicsTuningResolveResponse request =
+  decodeJsonBodyResponse request $ \tuningRequest ->
+    case graphicsRequestGameDir tuningRequest of
+      Nothing ->
+        pure (apiErrorResponse status400 (apiError "missing_game_dir"))
+      Just gameDir -> do
+        resolved <- readGraphicsTuningForEnvironment tuningRequest gameDir
+        pure (jsonResponse status200 resolved)
 
 graphicsTuningApplyResponse :: Request -> IO Response
-graphicsTuningApplyResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right tuningRequest ->
-      case graphicsRequestGameDir tuningRequest of
-        Nothing ->
-          pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))
-        Just gameDir -> do
-          let optionsFile = optionsPath gameDir
-          resolved <- readGraphicsTuningForEnvironment tuningRequest gameDir
-          now <- getCurrentTime
-          applied <- try (applyOptionsPatchToFile now optionsFile (resolvedGraphicsOptionsPatch resolved))
-          case applied of
-            Left (err :: SomeException) ->
-              pure (jsonResponse status400 (object ["error" .= ("graphics_tuning_apply_failed" :: Text), "message" .= show err]))
-            Right backup -> do
-              let resolvedWithBackup = attachBackup backup resolved
-              writeGraphicsTuningDiagnostics gameDir resolvedWithBackup backup
-              writeGraphicsTuningApplyEvent gameDir resolvedWithBackup backup
-              pure $
-                jsonResponse status200 $
-                  object
-                    [ "applied" .= True
-                    , "backup" .= backup
-                    , "tuning" .= resolvedWithBackup
-                    ]
+graphicsTuningApplyResponse request =
+  decodeJsonBodyResponse request $ \tuningRequest ->
+    case graphicsRequestGameDir tuningRequest of
+      Nothing ->
+        pure (apiErrorResponse status400 (apiError "missing_game_dir"))
+      Just gameDir -> do
+        let optionsFile = optionsPath gameDir
+        resolved <- readGraphicsTuningForEnvironment tuningRequest gameDir
+        now <- getCurrentTime
+        applied <- try (applyOptionsPatchToFile now optionsFile (resolvedGraphicsOptionsPatch resolved))
+        case applied of
+          Left (err :: SomeException) ->
+            pure (apiErrorResponse status400 (apiErrorMessage "graphics_tuning_apply_failed" (Text.pack (show err))))
+          Right backup -> do
+            let resolvedWithBackup = attachBackup backup resolved
+            writeGraphicsTuningDiagnostics gameDir resolvedWithBackup backup
+            writeGraphicsTuningApplyEvent gameDir resolvedWithBackup backup
+            pure $
+              jsonResponse status200 $
+                object
+                  [ "applied" .= True
+                  , "backup" .= backup
+                  , "tuning" .= resolvedWithBackup
+                  ]
 
 graphicsTuningRollbackResponse :: Request -> IO Response
-graphicsTuningRollbackResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right rollbackRequest
-      | null (rollbackGraphicsGameDir rollbackRequest) ->
-          pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))
-      | otherwise -> do
-          now <- getCurrentTime
-          let gameDir = rollbackGraphicsGameDir rollbackRequest
-              optionsFile = optionsPath gameDir
-              backupFile = maybe (optionsFile <> ".panino-backup") id (rollbackGraphicsBackupPath rollbackRequest)
-          rolledBack <- try (rollbackOptionsFile now optionsFile backupFile)
-          case rolledBack of
-            Left (err :: SomeException) ->
-              pure (jsonResponse status400 (object ["error" .= ("graphics_tuning_rollback_failed" :: Text), "message" .= show err]))
-            Right backup -> do
-              writeGraphicsTuningRollbackEvent gameDir backupFile backup
-              pure $
-                jsonResponse status200 $
-                  object
-                    [ "rolledBack" .= True
-                    , "restoredFrom" .= backupFile
-                    , "backup" .= backup
-                    ]
+graphicsTuningRollbackResponse request =
+  decodeJsonBodyResponse request $ \rollbackRequest ->
+    if null (rollbackGraphicsGameDir rollbackRequest)
+      then pure (apiErrorResponse status400 (apiError "missing_game_dir"))
+      else do
+        now <- getCurrentTime
+        let gameDir = rollbackGraphicsGameDir rollbackRequest
+            optionsFile = optionsPath gameDir
+            backupFile = maybe (optionsFile <> ".panino-backup") id (rollbackGraphicsBackupPath rollbackRequest)
+        rolledBack <- try (rollbackOptionsFile now optionsFile backupFile)
+        case rolledBack of
+          Left (err :: SomeException) ->
+            pure (apiErrorResponse status400 (apiErrorMessage "graphics_tuning_rollback_failed" (Text.pack (show err))))
+          Right backup -> do
+            writeGraphicsTuningRollbackEvent gameDir backupFile backup
+            pure $
+              jsonResponse status200 $
+                object
+                  [ "rolledBack" .= True
+                  , "restoredFrom" .= backupFile
+                  , "backup" .= backup
+                  ]
 
 readGraphicsTuningForEnvironment :: GraphicsTuningRequest -> FilePath -> IO ResolvedGraphicsTuning
 readGraphicsTuningForEnvironment request gameDir = do

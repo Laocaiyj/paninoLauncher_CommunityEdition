@@ -14,8 +14,14 @@ module Panino.Lockfile.Types.Solver
   , LockfileSolveRequest(..)
   , LockfileSolveStatus(..)
   , LockfileUpdatePolicy(..)
+  , BlockedSolverResult
+  , ReadySolverResult
+  , SolverReadiness(..)
   , SolverConflict(..)
   , SolverResult(..)
+  , blockedSolverResult
+  , blockedSolverResultReasons
+  , classifySolverResult
   , emptyChangeset
   , emptyLockfileExplain
   , lockfileApplyRejectionFromText
@@ -33,6 +39,9 @@ module Panino.Lockfile.Types.Solver
   , applyRequestTargetGameDirPath
   , solveRequestMinecraftVersionText
   , solveRequestTargetGameDirPath
+  , readySolverResult
+  , readySolverResultLockfile
+  , readySolverResultPlan
   ) where
 
 import Data.Aeson
@@ -61,7 +70,18 @@ import Panino.Core.WireText
   , parseWireTextJSON
   , toWireTextJSON
   )
-import Panino.Install.Plan.Types (TypedInstallPlan)
+import Panino.CoreLogic.Determinism (stableTextSet)
+import Panino.Install.Plan.State
+  ( ExecutableInstallPlan
+  , blockedInstallPlanReasons
+  , blockedTypedPlan
+  , executableTypedPlan
+  , requireExecutableInstallPlan
+  )
+import Panino.Install.Plan.Types
+  ( TypedInstallPlan(..)
+  , finalizeTypedInstallPlan
+  )
 import Panino.Lockfile.Types.Document (PaninoLockfile)
 import Panino.Lockfile.Types.Package (ResolvedPackage)
 
@@ -516,6 +536,84 @@ instance FromJSON SolverResult where
         <*> obj .:? "conflicts" .!= []
         <*> obj .:? "explain" .!= emptyLockfileExplain
         <*> obj .:? "diagnostics" .!= []
+
+data ReadySolverResult = ReadySolverResult
+  { readySolverResult :: SolverResult
+  , readySolverResultLockfile :: PaninoLockfile
+  , readySolverResultPlan :: ExecutableInstallPlan
+  } deriving (Eq, Show)
+
+data BlockedSolverResult = BlockedSolverResult
+  { blockedSolverResult :: SolverResult
+  , blockedSolverResultReasons :: [Text]
+  } deriving (Eq, Show)
+
+data SolverReadiness
+  = SolverResultReady ReadySolverResult
+  | SolverResultBlocked BlockedSolverResult
+  deriving (Eq, Show)
+
+classifySolverResult :: SolverResult -> SolverReadiness
+classifySolverResult result =
+  let planReadiness = requireExecutableInstallPlan (solverResultTypedPlan result)
+      planReasons =
+        case planReadiness of
+          Left blockedPlan -> blockedInstallPlanReasons blockedPlan
+          Right _ -> []
+      statusReasons =
+        case solverResultStatus result of
+          LockfileSolveReady -> []
+          status -> ["non_ready_solve_status:" <> lockfileSolveStatusText status]
+      lockfileReasons =
+        case solverResultLockfile result of
+          Just _ -> []
+          Nothing -> ["lockfile_missing"]
+      conflictReasons =
+        map (("solver_conflict:" <>) . solverConflictCode) (solverResultConflicts result)
+      reasons =
+        stableTextSet
+          ( solverResultBlockedReasons result
+              <> statusReasons
+              <> lockfileReasons
+              <> planReasons
+              <> conflictReasons
+          )
+   in case (reasons, solverResultLockfile result, planReadiness) of
+        ([], Just lockfile, Right executablePlan) ->
+          SolverResultReady
+            ReadySolverResult
+              { readySolverResult =
+                  result
+                    { solverResultStatus = LockfileSolveReady
+                    , solverResultTypedPlan = executableTypedPlan executablePlan
+                    , solverResultBlockedReasons = []
+                    }
+              , readySolverResultLockfile = lockfile
+              , readySolverResultPlan = executablePlan
+              }
+        _ ->
+          let blockedPlan =
+                case planReadiness of
+                  Left typedBlockedPlan -> blockedTypedPlan typedBlockedPlan
+                  Right executablePlan -> executableTypedPlan executablePlan
+              normalizedResult =
+                result
+                  { solverResultStatus = LockfileSolveBlocked
+                  , solverResultTypedPlan = blockTypedPlan reasons blockedPlan
+                  , solverResultBlockedReasons = reasons
+                  }
+           in SolverResultBlocked
+                BlockedSolverResult
+                  { blockedSolverResult = normalizedResult
+                  , blockedSolverResultReasons = reasons
+                  }
+
+blockTypedPlan :: [Text] -> TypedInstallPlan -> TypedInstallPlan
+blockTypedPlan reasons plan =
+  finalizeTypedInstallPlan
+    plan
+      { typedPlanBlockedReasons = stableTextSet (typedPlanBlockedReasons plan <> reasons)
+      }
 
 data LockfileApplyRejection
   = LockfileApplyLockfileMissing

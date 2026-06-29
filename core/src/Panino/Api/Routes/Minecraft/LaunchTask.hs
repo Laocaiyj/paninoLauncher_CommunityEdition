@@ -2,7 +2,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Panino.Api.Routes.Minecraft.LaunchTask
-  ( LaunchTaskOutcome(..)
+  ( LaunchObservation(..)
+  , LaunchTaskOutcome(..)
+  , launchObservationAfterGrace
   , launchTaskOutcomeText
   , observeStartedLaunchWithDelay
   , runLaunchTask
@@ -115,6 +117,10 @@ data LaunchTaskOutcome
   = LaunchProcessStarted
   | LaunchProcessExitedSuccessfully
   deriving (Eq, Show)
+
+data LaunchObservation
+  = LaunchStillRunning JavaProcessLaunch
+  | LaunchExitedDuringGrace JavaRunResult
 
 launchTaskOutcomeText :: LaunchTaskOutcome -> Text
 launchTaskOutcomeText outcome =
@@ -234,15 +240,26 @@ observeStartedLaunch =
 
 observeStartedLaunchWithDelay :: Int -> ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaProcessLaunch -> IO LaunchTaskOutcome
 observeStartedLaunchWithDelay delayMicros state task layout hooks launch = do
+  observation <- launchObservationAfterGrace delayMicros launch
+  finalizeLaunchObservation state task layout hooks observation
+
+launchObservationAfterGrace :: Int -> JavaProcessLaunch -> IO LaunchObservation
+launchObservationAfterGrace delayMicros launch = do
   threadDelay delayMicros
   earlyExit <- pollJavaProcessExitCode launch
   case earlyExit of
-    Nothing -> do
+    Nothing -> pure (LaunchStillRunning launch)
+    Just _ -> LaunchExitedDuringGrace <$> waitJavaProcess launch
+
+finalizeLaunchObservation :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> LaunchObservation -> IO LaunchTaskOutcome
+finalizeLaunchObservation state task layout hooks observation =
+  case observation of
+    LaunchStillRunning launch -> do
       _ <- async (monitorLaunchProcess layout hooks launch)
       emitPhaseMarker state task MinecraftPhaseLaunch "Start game process" 4 4 100 "game process started"
       pure LaunchProcessStarted
-    Just _ ->
-      waitJavaProcess launch >>= finalizeForegroundLaunch state task layout hooks
+    LaunchExitedDuringGrace result ->
+      finalizeForegroundLaunch state task layout hooks result
 
 finalizeForegroundLaunch :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchHookSession -> JavaRunResult -> IO LaunchTaskOutcome
 finalizeForegroundLaunch state task layout hooks result = do

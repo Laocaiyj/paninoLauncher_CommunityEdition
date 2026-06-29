@@ -100,12 +100,12 @@ modrinthProject manager request = do
     projectAction projectIdValue =
       fetchJson manager
         =<< coreRequest
-          ("https://api.modrinth.com/v2/project/" <> Text.unpack projectIdValue)
+          ("https://api.modrinth.com/v2/project/" <> Text.unpack (projectIdText projectIdValue))
         []
     versionAction projectIdValue query =
       fetchJson manager
         =<< coreRequest
-          ("https://api.modrinth.com/v2/project/" <> Text.unpack projectIdValue <> "/version" <> modrinthVersionQuery query)
+          ("https://api.modrinth.com/v2/project/" <> Text.unpack (projectIdText projectIdValue) <> "/version" <> modrinthVersionQuery query)
           []
 
 modrinthRequiredDependencyReleases :: Manager -> ContentSearchRequest -> [OnlineDependency] -> IO [OnlineRelease]

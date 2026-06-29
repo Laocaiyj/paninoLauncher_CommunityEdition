@@ -2,9 +2,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Panino.Api.Response
-  ( contentJsonResponse
+  ( ApiError(..)
+  , apiError
+  , apiErrorMessage
+  , apiErrorResponse
+  , contentJsonResponse
   , contentSourceErrorResponse
+  , decodeJsonBodyResponse
   , diagnosticErrorResponse
+  , invalidJsonResponse
   , jsonResponse
   , localJsonResponse
   ) where
@@ -14,11 +20,11 @@ import Control.Exception
   , catch
   )
 import Data.Aeson
-  ( ToJSON
+  ( FromJSON
+  , ToJSON(..)
   , Value(..)
   , encode
   , object
-  , toJSON
   , (.=)
   )
 import qualified Data.Aeson.Key as Key
@@ -35,11 +41,58 @@ import Network.HTTP.Types
   , status401
   )
 import Network.Wai
-  ( Response
+  ( Request
+  , Response
   , responseLBS
   )
+import Panino.Api.Params (decodeBody)
 import Panino.Diagnostics.Classify (diagnosticForApiError)
 import Panino.Diagnostics.Types (Diagnostic(..))
+
+data ApiError = ApiError
+  { apiErrorCode :: Text
+  , apiErrorMessageText :: Maybe Text
+  , apiErrorDetailsText :: Maybe Text
+  } deriving (Eq, Show)
+
+instance ToJSON ApiError where
+  toJSON err =
+    object $
+      [ "error" .= apiErrorCode err
+      ]
+        <> maybe [] (\message -> ["message" .= message]) (apiErrorMessageText err)
+        <> maybe [] (\details -> ["details" .= details]) (apiErrorDetailsText err)
+
+apiError :: Text -> ApiError
+apiError code =
+  ApiError
+    { apiErrorCode = code
+    , apiErrorMessageText = Nothing
+    , apiErrorDetailsText = Nothing
+    }
+
+apiErrorMessage :: Text -> Text -> ApiError
+apiErrorMessage code message =
+  ApiError
+    { apiErrorCode = code
+    , apiErrorMessageText = Just message
+    , apiErrorDetailsText = Nothing
+    }
+
+apiErrorResponse :: Status -> ApiError -> Response
+apiErrorResponse =
+  jsonResponse
+
+invalidJsonResponse :: Text -> Response
+invalidJsonResponse message =
+  apiErrorResponse status400 (apiErrorMessage "invalid_json" message)
+
+decodeJsonBodyResponse :: FromJSON value => Request -> (value -> IO Response) -> IO Response
+decodeJsonBodyResponse request handleDecoded = do
+  decoded <- decodeBody request
+  case decoded of
+    Left err -> pure (invalidJsonResponse (Text.pack err))
+    Right value -> handleDecoded value
 
 jsonResponse :: ToJSON value => Status -> value -> Response
 jsonResponse status value =

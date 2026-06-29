@@ -2,6 +2,7 @@
 
 module Integration.LaunchTask
   ( assertLaunchHooksAreBestEffort
+  , assertLaunchObservationTypestate
   , assertLaunchTaskCompletesAfterProcessStart
   , assertLaunchTaskFailsOnEarlyProcessExit
   ) where
@@ -28,7 +29,9 @@ import Panino.Api.Routes.Minecraft.LaunchHooks
   , runBestEffortLaunchChecks
   )
 import Panino.Api.Routes.Minecraft.LaunchTask
-  ( launchTaskOutcomeText
+  ( LaunchObservation(..)
+  , launchObservationAfterGrace
+  , launchTaskOutcomeText
   , observeStartedLaunchWithDelay
   )
 import Panino.Api.Routes.Tasks (startTaskWithGameDirContext)
@@ -65,6 +68,45 @@ import TestSupport
   ( assertEqual
   , waitForMVar
   )
+
+assertLaunchObservationTypestate :: IO ()
+assertLaunchObservationTypestate = do
+  let runningLaunch =
+        JavaProcessLaunch
+          { javaLaunchProcessId = Just 1001
+          , pollJavaProcessExitCode = pure Nothing
+          , waitJavaProcess =
+              pure JavaRunResult
+                { javaExitCode = ExitSuccess
+                , javaStdout = ""
+                , javaStderr = ""
+                , javaMemorySamples = []
+                }
+          }
+      exitedLaunch =
+        JavaProcessLaunch
+          { javaLaunchProcessId = Just 1002
+          , pollJavaProcessExitCode = pure (Just ExitSuccess)
+          , waitJavaProcess =
+              pure JavaRunResult
+                { javaExitCode = ExitSuccess
+                , javaStdout = "done"
+                , javaStderr = ""
+                , javaMemorySamples = []
+                }
+          }
+  runningObservation <- launchObservationAfterGrace 1000 runningLaunch
+  case runningObservation of
+    LaunchStillRunning _ ->
+      pure ()
+    LaunchExitedDuringGrace result ->
+      assertEqual ("launch running observation did not expect exit result: " <> show result) True False
+  exitedObservation <- launchObservationAfterGrace 1000 exitedLaunch
+  case exitedObservation of
+    LaunchExitedDuringGrace result ->
+      assertEqual "launch exited observation carries Java result" "done" (javaStdout result)
+    LaunchStillRunning _ ->
+      assertEqual "launch exited observation should not be still-running" True False
 
 assertLaunchTaskCompletesAfterProcessStart :: FilePath -> IO ()
 assertLaunchTaskCompletesAfterProcessStart tempRoot = do

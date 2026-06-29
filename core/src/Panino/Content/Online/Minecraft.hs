@@ -59,6 +59,7 @@ import Panino.Core.Types
   ( Sha1
   , Url
   , VersionId
+  , urlString
   )
 import Text.Read (readMaybe)
 
@@ -69,7 +70,7 @@ contentMinecraftVersions manager = do
 
 contentMinecraftPackage :: Manager -> MinecraftPackageRequest -> IO MinecraftVersionPackage
 contentMinecraftPackage manager request = do
-  package <- fetchJson manager =<< coreRequest (Text.unpack (minecraftPackageUrl request)) []
+  package <- fetchJson manager =<< coreRequest (urlString (minecraftPackageUrl request)) []
   pure (mojangPackage package)
 
 contentLoaderMetadata :: Manager -> ContentLoaderRequest -> IO [LoaderMetadata]

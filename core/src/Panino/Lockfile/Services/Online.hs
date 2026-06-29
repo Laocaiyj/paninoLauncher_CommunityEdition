@@ -49,7 +49,8 @@ import Panino.CoreLogic.Determinism
   , stableTextSet
   )
 import Panino.Core.Types
-  ( RelativePath
+  ( ProjectId
+  , RelativePath
   , projectIdFromText
   , projectIdText
   , relativePathFromFilePath
@@ -75,7 +76,6 @@ import Panino.Lockfile.Types
   , PackageCoordinate(..)
   , PackageSource(..)
   , ResolvedPackage(..)
-  , coordinateProjectIdText
   , normalizePackageSource
   , packageHashesEmpty
   , packageHashesFromMap
@@ -140,7 +140,7 @@ onlineRootPackage manager request package =
           PackageSourceCurseForge -> curseForgeProject manager (projectRequest "curseForge" projectIdValue)
           _ -> fail "unsupported online source"
       case preferredContentRelease response of
-        Nothing -> fail ("no compatible online release found for " <> Text.unpack projectIdValue)
+        Nothing -> fail ("no compatible online release found for " <> Text.unpack (projectIdText projectIdValue))
         Just release -> pure (Just (onlineReleaseToPackageForRoot package release))
   where
     projectRequest source projectIdValue =
@@ -151,18 +151,13 @@ onlineRootPackage manager request package =
         , contentProjectCurseForgeApiKey = solveRequestCurseForgeApiKey request
         }
 
-onlineRootProjectId :: ResolvedPackage -> Maybe Text
+onlineRootProjectId :: ResolvedPackage -> Maybe ProjectId
 onlineRootProjectId package =
-  coordinateProjectIdText coordinate
-    <|> coordinateSlug coordinate
-    <|> nonEmptyText (resolvedPackageId package)
+  coordinateProjectId coordinate
+    <|> (coordinateSlug coordinate >>= projectIdFromText)
+    <|> projectIdFromText (resolvedPackageId package)
   where
     coordinate = resolvedPackageCoordinate package
-
-nonEmptyText :: Text -> Maybe Text
-nonEmptyText value
-  | Text.null value = Nothing
-  | otherwise = Just value
 
 preferredContentRelease :: ContentProjectResponse -> Maybe OnlineRelease
 preferredContentRelease response =
@@ -197,7 +192,7 @@ curseForgeRequiredDependencyPackages manager request =
                   manager
                   ContentProjectRequest
                     { contentProjectSource = "curseForge"
-                    , contentProjectId = projectIdTextValue
+                    , contentProjectId = projectIdValue
                     , contentProjectQuery = onlineContentQuery "curseForge" "mod" request
                     , contentProjectCurseForgeApiKey = solveRequestCurseForgeApiKey request
                     }

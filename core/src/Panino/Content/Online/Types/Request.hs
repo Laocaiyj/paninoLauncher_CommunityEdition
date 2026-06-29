@@ -15,6 +15,10 @@ import Data.Aeson
   )
 import Data.Aeson.Types ((.!=))
 import Data.Text (Text)
+import Panino.Core.Types
+  ( ProjectId
+  , Url
+  )
 
 data ContentSearchRequest = ContentSearchRequest
   { contentSearchSource :: Text
@@ -48,7 +52,7 @@ instance FromJSON ContentSearchRequest where
 
 data ContentProjectRequest = ContentProjectRequest
   { contentProjectSource :: Text
-  , contentProjectId :: Text
+  , contentProjectId :: ProjectId
   , contentProjectQuery :: ContentSearchRequest
   , contentProjectCurseForgeApiKey :: Maybe Text
   } deriving (Eq, Show)
@@ -64,7 +68,7 @@ instance FromJSON ContentProjectRequest where
 
 data MinecraftPackageRequest = MinecraftPackageRequest
   { minecraftPackageId :: Text
-  , minecraftPackageUrl :: Text
+  , minecraftPackageUrl :: Url
   } deriving (Eq, Show)
 
 instance FromJSON MinecraftPackageRequest where

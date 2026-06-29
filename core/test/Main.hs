@@ -67,6 +67,7 @@ import Integration.LaunchArguments
   )
 import Integration.LaunchTask
   ( assertLaunchHooksAreBestEffort
+  , assertLaunchObservationTypestate
   , assertLaunchTaskCompletesAfterProcessStart
   , assertLaunchTaskFailsOnEarlyProcessExit
   )
@@ -134,6 +135,7 @@ main = do
   tempRoot <- getTemporaryDirectory
   testTaowaP0 tempRoot
   testTaowaP1 tempRoot
+  assertLaunchObservationTypestate
   assertLaunchTaskCompletesAfterProcessStart tempRoot
   assertLaunchTaskFailsOnEarlyProcessExit tempRoot
   assertLaunchHooksAreBestEffort tempRoot

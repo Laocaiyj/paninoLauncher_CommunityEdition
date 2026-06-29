@@ -44,6 +44,10 @@ import Panino.Api.Server.State
   )
 import Panino.Content.Online (contentLoaderMetadata, contentMinecraftPackage, contentMinecraftVersions, contentProject, contentSearch)
 import Panino.Content.Online.Types (ContentLoaderRequest(..), ContentProjectRequest(..), ContentSearchRequest(..), MinecraftPackageRequest(..), OnlineSearchPage(..))
+import Panino.Core.Types
+  ( projectIdText
+  , urlText
+  )
 import Panino.Perf.Metrics (CacheStatus(..), cacheStatusHeader, cacheStatusText, recordApiMetric)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -333,7 +337,7 @@ contentProjectCacheKey request =
   Text.intercalate
     "|"
     [ "source=" <> contentProjectSource request
-    , "project=" <> contentProjectId request
+    , "project=" <> projectIdText (contentProjectId request)
     , "query=(" <> contentSearchCacheKey (contentProjectQuery request) <> ")"
     , "curseforge=" <> secretCacheKey (contentProjectCurseForgeApiKey request)
     ]
@@ -344,7 +348,7 @@ contentLoaderCacheKey (ContentLoaderRequest minecraftVersion) =
 
 minecraftPackageCacheKey :: MinecraftPackageRequest -> Text
 minecraftPackageCacheKey request =
-  "id=" <> minecraftPackageId request <> "|url=" <> minecraftPackageUrl request
+  "id=" <> minecraftPackageId request <> "|url=" <> urlText (minecraftPackageUrl request)
 
 normalizeCacheText :: Text -> Text
 normalizeCacheText =

@@ -15,112 +15,63 @@ module Panino.Api.Routes.Local
   ) where
 
 import Data.Aeson
-  ( object
-  , (.=)
+  ( FromJSON
+  , ToJSON
   )
-import Data.Text (Text)
-import Network.HTTP.Types (status400)
 import Network.Wai
   ( Request
   , Response
   )
-import Panino.Api.Params (decodeBody)
 import Panino.Api.Response
-  ( jsonResponse
+  ( decodeJsonBodyResponse
   , localJsonResponse
   )
 import qualified Panino.Content.Local as Local
 
 javaCheckResponse :: Request -> IO Response
-javaCheckResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right javaRequest ->
-      localJsonResponse (Local.checkJavaRuntime javaRequest)
+javaCheckResponse request =
+  decodeLocalJsonResponse request Local.checkJavaRuntime
 
 javaScanResponse :: IO Response
 javaScanResponse =
   localJsonResponse Local.scanJavaRuntimes
 
 javaDeleteLocalResponse :: Request -> IO Response
-javaDeleteLocalResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right deleteRequest ->
-      localJsonResponse (Local.deleteJavaRuntimeCandidate deleteRequest)
+javaDeleteLocalResponse request =
+  decodeLocalJsonResponse request Local.deleteJavaRuntimeCandidate
 
 localResourceScanResponse :: Request -> IO Response
-localResourceScanResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right scanRequest ->
-      localJsonResponse (Local.scanLocalResources scanRequest)
+localResourceScanResponse request =
+  decodeLocalJsonResponse request Local.scanLocalResources
 
 localResourceToggleResponse :: Request -> IO Response
-localResourceToggleResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right mutationRequest ->
-      localJsonResponse (Local.toggleLocalResource mutationRequest)
+localResourceToggleResponse request =
+  decodeLocalJsonResponse request Local.toggleLocalResource
 
 localResourceDeleteResponse :: Request -> IO Response
-localResourceDeleteResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right mutationRequest ->
-      localJsonResponse (Local.deleteLocalResource mutationRequest)
+localResourceDeleteResponse request =
+  decodeLocalJsonResponse request Local.deleteLocalResource
 
 localResourceImportResponse :: Request -> IO Response
-localResourceImportResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right importRequest ->
-      localJsonResponse (Local.importLocalResource importRequest)
+localResourceImportResponse request =
+  decodeLocalJsonResponse request Local.importLocalResource
 
 localArchiveResponse :: Request -> IO Response
-localArchiveResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right archiveRequest ->
-      localJsonResponse (Local.archiveLocalDirectory archiveRequest)
+localArchiveResponse request =
+  decodeLocalJsonResponse request Local.archiveLocalDirectory
 
 localArchiveImportResponse :: Request -> IO Response
-localArchiveImportResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right importRequest ->
-      localJsonResponse (Local.importLocalArchive importRequest)
+localArchiveImportResponse request =
+  decodeLocalJsonResponse request Local.importLocalArchive
 
 minecraftCleanVersionResponse :: Request -> IO Response
-minecraftCleanVersionResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right cleanRequest ->
-      localJsonResponse (Local.cleanMinecraftVersion cleanRequest)
+minecraftCleanVersionResponse request =
+  decodeLocalJsonResponse request Local.cleanMinecraftVersion
 
 minecraftVersionStorageResponse :: Request -> IO Response
-minecraftVersionStorageResponse request = do
-  decoded <- decodeBody request
-  case decoded of
-    Left err ->
-      pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
-    Right storageRequest ->
-      localJsonResponse (Local.mutateMinecraftVersionStorage storageRequest)
+minecraftVersionStorageResponse request =
+  decodeLocalJsonResponse request Local.mutateMinecraftVersionStorage
+
+decodeLocalJsonResponse :: (FromJSON requestBody, ToJSON responseBody) => Request -> (requestBody -> IO responseBody) -> IO Response
+decodeLocalJsonResponse request handler =
+  decodeJsonBodyResponse request (localJsonResponse . handler)

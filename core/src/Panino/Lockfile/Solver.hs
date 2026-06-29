@@ -91,7 +91,13 @@ import Panino.Lockfile.Types
   , LockfileVerifyResponse(..)
   , PaninoLockfile(..)
   , ResolvedPackage(..)
+  , SolverReadiness(..)
   , SolverResult(..)
+  , blockedSolverResult
+  , classifySolverResult
+  , readySolverResult
+  , readySolverResultLockfile
+  , readySolverResultPlan
   , resolvedPackageKey
   , solveRequestTargetGameDirPath
   )
@@ -163,17 +169,18 @@ solveLockfile request =
         if null blockedReasons
           then LockfileSolveReady
           else LockfileSolveBlocked
-   in SolverResult
-        { solverResultStatus = status
-        , solverResultLockfile = Just lockfile
-        , solverResultTypedPlan = typedPlan
-        , solverResultChangeset = changeset
-        , solverResultWarnings = warnings
-        , solverResultBlockedReasons = blockedReasons
-        , solverResultConflicts = conflicts
-        , solverResultExplain = explain
-        , solverResultDiagnostics = diagnostics
-        }
+   in canonicalSolverResult
+        SolverResult
+          { solverResultStatus = status
+          , solverResultLockfile = Just lockfile
+          , solverResultTypedPlan = typedPlan
+          , solverResultChangeset = changeset
+          , solverResultWarnings = warnings
+          , solverResultBlockedReasons = blockedReasons
+          , solverResultConflicts = conflicts
+          , solverResultExplain = explain
+          , solverResultDiagnostics = diagnostics
+          }
   where
     existingRootPackageIds packages
       | solveRequestUpdatePolicy request == LockfileRelock = []
@@ -205,26 +212,38 @@ data LockfileApplyReadiness
 
 lockfileApplyReadiness :: LockfileApplyRequest -> LockfileApplyReadiness
 lockfileApplyReadiness request =
-  case lockfileApplyReadyLockfile request of
-    Left rejection -> LockfileApplyRejected rejection
-    Right readyLockfile ->
-      case requireExecutableInstallPlan (solverResultTypedPlan (applyRequestResult request)) of
-        Left blockedPlan -> LockfileApplyPlanBlocked blockedPlan
-        Right executablePlan ->
-          LockfileApplyReady
-            ReadyLockfileApply
-              { readyLockfileApplyLockfile = readyLockfile
-              , readyLockfileApplyPlan = executablePlan
-              }
+  case solverResultLockfile rawResult of
+    Nothing -> LockfileApplyRejected LockfileApplyLockfileMissing
+    Just lockfile
+      | solverResultStatus rawResult /= LockfileSolveReady -> LockfileApplyRejected LockfileApplySolverBlocked
+      | lockfileFingerprint lockfile /= applyRequestSolverFingerprint request -> LockfileApplyRejected LockfileApplySolverFingerprintMismatch
+      | otherwise ->
+          case classifySolverResult rawResult of
+            SolverResultReady readyResult ->
+              LockfileApplyReady
+                ReadyLockfileApply
+                  { readyLockfileApplyLockfile = ReadyLockfile (readySolverResultLockfile readyResult)
+                  , readyLockfileApplyPlan = readySolverResultPlan readyResult
+                  }
+            SolverResultBlocked _ ->
+              case requireExecutableInstallPlan (solverResultTypedPlan rawResult) of
+                Left blockedPlan -> LockfileApplyPlanBlocked blockedPlan
+                Right _ -> LockfileApplyRejected LockfileApplySolverBlocked
+  where
+    rawResult = applyRequestResult request
 
 lockfileApplyReadyLockfile :: LockfileApplyRequest -> Either LockfileApplyRejection ReadyLockfile
 lockfileApplyReadyLockfile request =
-  case solverResultLockfile (applyRequestResult request) of
-    Nothing -> Left LockfileApplyLockfileMissing
-    Just lockfile
-      | solverResultStatus (applyRequestResult request) /= LockfileSolveReady -> Left LockfileApplySolverBlocked
-      | lockfileFingerprint lockfile /= applyRequestSolverFingerprint request -> Left LockfileApplySolverFingerprintMismatch
-      | otherwise -> Right (ReadyLockfile lockfile)
+  case lockfileApplyReadiness request of
+    LockfileApplyRejected rejection -> Left rejection
+    LockfileApplyPlanBlocked _ -> Left LockfileApplySolverBlocked
+    LockfileApplyReady readyApply -> Right (readyLockfileApplyLockfile readyApply)
+
+canonicalSolverResult :: SolverResult -> SolverResult
+canonicalSolverResult result =
+  case classifySolverResult result of
+    SolverResultReady readyResult -> readySolverResult readyResult
+    SolverResultBlocked blockedResult -> blockedSolverResult blockedResult
 
 lockfileLaunchBlockedReasons :: LockfileVerifyResponse -> [Text]
 lockfileLaunchBlockedReasons response =

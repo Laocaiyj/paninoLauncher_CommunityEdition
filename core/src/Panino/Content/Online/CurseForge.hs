@@ -55,6 +55,7 @@ import Panino.Content.Online.Types
   , OnlineSearchPage(..)
   , mkContentProjectResponse
   )
+import Panino.Core.Types (projectIdText)
 
 curseForgeSearch :: Manager -> ContentSearchRequest -> IO OnlineSearchPage
 curseForgeSearch manager request = do
@@ -88,15 +89,17 @@ curseForgeProject manager request = do
   void (forkIO (recover () (prefetchCurseForgeDependencies manager key (curseData fileResponse))))
   pure (mkContentProjectResponse (curseProjectToOnline (curseData projectResponse)) (map (curseFileToOnline (contentProjectId request)) (curseData fileResponse)))
   where
+    projectIdValue =
+      projectIdText (contentProjectId request)
     projectAction key =
       fetchJson manager
         =<< coreRequest
-          ("https://api.curseforge.com/v1/mods/" <> Text.unpack (contentProjectId request))
+          ("https://api.curseforge.com/v1/mods/" <> Text.unpack projectIdValue)
           [("x-api-key", key)]
     filesAction key =
       fetchJson manager
         =<< coreRequest
-          ("https://api.curseforge.com/v1/mods/" <> Text.unpack (contentProjectId request) <> "/files" <> curseForgeFilesQuery (contentProjectQuery request))
+          ("https://api.curseforge.com/v1/mods/" <> Text.unpack projectIdValue <> "/files" <> curseForgeFilesQuery (contentProjectQuery request))
           [("x-api-key", key)]
 
 prefetchCurseForgeDependencies :: Manager -> Text -> [CurseFileResponse] -> IO ()

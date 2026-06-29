@@ -227,7 +227,7 @@ resolveCurseForgeProject state layout request entry = do
         (stateHttpManager state)
         ContentProjectRequest
           { contentProjectSource = "curseForge"
-          , contentProjectId = onlineProjectIdText project
+          , contentProjectId = projectId project
           , contentProjectQuery = performancePackSearchRequest request entry
           , contentProjectCurseForgeApiKey = packInstallCurseForgeAPIKey request
           }

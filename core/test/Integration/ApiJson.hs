@@ -8,17 +8,28 @@ import Data.Aeson
   ( decode
   , eitherDecode
   , encode
+  , object
+  , toJSON
+  , (.=)
   )
 import Data.Either (isLeft)
 import qualified Data.Text as Text
 import Integration.LoaderShaderFixtureServer
   ( modrinthProjectJson
   )
+import Panino.Api.Response
+  ( apiError
+  , apiErrorMessage
+  )
 import Panino.Api.Types
   ( DownloadRuntimeOptions(..)
   , InstallRequest(..)
   , LaunchRequest(..)
   , TaskProgress(..)
+  )
+import Panino.Content.Online.Types
+  ( ContentProjectRequest(..)
+  , MinecraftPackageRequest(..)
   )
 import Panino.Content.Online.Modrinth
   ( ModrinthDependency(..)
@@ -35,6 +46,26 @@ import TestSupport (assertEqual)
 
 assertApiJsonContracts :: IO ()
 assertApiJsonContracts = do
+  assertEqual
+    "api error encoder keeps simple wire shape"
+    (object ["error" .= ("missing_game_dir" :: Text.Text)])
+    (toJSON (apiError "missing_game_dir"))
+  assertEqual
+    "api error encoder keeps message wire shape"
+    (object ["error" .= ("invalid_json" :: Text.Text), "message" .= ("bad json" :: Text.Text)])
+    (toJSON (apiErrorMessage "invalid_json" "bad json"))
+  assertEqual
+    "content project request keeps projectId wire string with typed field"
+    (Right ("modrinth", "sodium"))
+    ( (\request -> (contentProjectSource request, projectIdText (contentProjectId request)))
+        <$> eitherDecode "{\"source\":\"modrinth\",\"projectId\":\"sodium\",\"query\":{\"source\":\"modrinth\"}}"
+    )
+  assertEqual
+    "minecraft package request keeps url wire string with typed field"
+    (Right ("1.21.7", "https://piston-meta.mojang.com/v1/packages/example/1.21.7.json"))
+    ( (\request -> (minecraftPackageId request, urlText (minecraftPackageUrl request)))
+        <$> eitherDecode "{\"id\":\"1.21.7\",\"url\":\"https://piston-meta.mojang.com/v1/packages/example/1.21.7.json\"}"
+    )
   assertEqual
     "modrinth project endpoint accepts id"
     (Right "sodium")
