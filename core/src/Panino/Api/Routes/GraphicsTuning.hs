@@ -68,8 +68,10 @@ import Panino.Graphics.Tuning.Types
 import Panino.Core.Types
   ( GameDir
   , gameDirFromPath
+  , gameDirFromText
   , gameDirPath
   )
+import Panino.Core.WireText (parseOptionalWireTextField)
 import Panino.Platform.Hardware (detectGraphicsHardwareTier)
 import System.Directory
   ( createDirectoryIfMissing
@@ -88,7 +90,7 @@ instance FromJSON GraphicsTuningRollbackRequest where
   parseJSON =
     withObject "GraphicsTuningRollbackRequest" $ \obj ->
       GraphicsTuningRollbackRequest
-        <$> (obj .:? "gameDir" >>= pure . (>>= gameDirFromPath))
+        <$> parseOptionalWireTextField obj "gameDir" gameDirFromText
         <*> obj .:? "backupPath"
 
 graphicsTuningResolveResponse :: Request -> IO Response

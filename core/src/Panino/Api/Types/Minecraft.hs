@@ -20,7 +20,6 @@ import qualified Data.Aeson.Key as Key
 import Data.Aeson.Types (Parser)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Panino.Api.Types.Download
   ( DownloadRuntimeOptions
   , mergeDownloadRuntimeOptions
@@ -28,10 +27,11 @@ import Panino.Api.Types.Download
 import Panino.Core.Types
   ( GameDir
   , VersionId
-  , gameDirFromPath
+  , gameDirFromText
   , gameDirPath
   , versionIdText
   )
+import Panino.Core.WireText (parseOptionalWireTextField)
 import Panino.Launch.Tuning.Types
   ( JvmTuningPolicy
   , MemoryPolicy
@@ -138,6 +138,5 @@ launchRequestGameDirPath =
   fmap gameDirPath . launchRequestGameDir
 
 parseOptionalGameDir :: Object -> Text -> Parser (Maybe GameDir)
-parseOptionalGameDir objectValue key = do
-  raw <- objectValue .:? Key.fromText key
-  pure (raw >>= gameDirFromPath . Text.unpack)
+parseOptionalGameDir objectValue key =
+  parseOptionalWireTextField objectValue (Key.fromText key) gameDirFromText

@@ -44,9 +44,10 @@ import Panino.Performance.Profile.Types
   )
 import Panino.Core.Types
   ( GameDir
-  , gameDirFromPath
+  , gameDirFromText
   , gameDirPath
   )
+import Panino.Core.WireText (parseOptionalWireTextField)
 
 data GraphicsTuningProfile
   = GraphicsProfileClarity
@@ -335,7 +336,7 @@ instance FromJSON GraphicsTuningRequest where
     withObject "GraphicsTuningRequest" $ \obj ->
       GraphicsTuningRequest
         <$> obj .:? "instanceId"
-        <*> (obj .:? "gameDir" >>= pure . (>>= gameDirFromPath))
+        <*> parseOptionalWireTextField obj "gameDir" gameDirFromText
         <*> obj .:? "minecraftVersion"
         <*> obj .:? "loader"
         <*> obj .:? "hardwareTier" .!= GraphicsHardwareUnknown
