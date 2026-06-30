@@ -65,7 +65,7 @@ import Panino.Api.Response (jsonResponse)
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Core.Types
   ( GameDir
-  , gameDirFromPath
+  , gameDirFromText
   , gameDirPath
   )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
@@ -400,7 +400,7 @@ withGameDirQuery :: Request -> (GameDir -> IO Response) -> IO Response
 withGameDirQuery request action =
   case lookup "gameDir" (queryPairs request) of
     Just (Just value) ->
-      case gameDirFromPath (Text.unpack value) of
+      case gameDirFromText value of
         Just gameDir -> action gameDir
         Nothing -> pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))
     _ -> pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))

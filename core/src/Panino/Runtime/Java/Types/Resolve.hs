@@ -24,10 +24,11 @@ import qualified Data.Text as Text
 import Panino.Core.Types
   ( GameDir
   , VersionId
-  , gameDirFromPath
+  , gameDirFromText
   , urlText
   , versionIdText
   )
+import Panino.Core.WireText (parseOptionalWireTextField)
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Runtime.Java.Types.Catalog (JavaRuntimeDownloadSpec(..))
 
@@ -68,9 +69,8 @@ instance FromJSON JavaRuntimeResolveRequest where
         <*> (obj .:? "customPath" <|> obj .:? "java")
 
 parseOptionalGameDir :: Object -> Parser (Maybe GameDir)
-parseOptionalGameDir obj = do
-  raw <- obj .:? "gameDir"
-  pure (raw >>= gameDirFromPath . Text.unpack)
+parseOptionalGameDir obj =
+  parseOptionalWireTextField obj "gameDir" gameDirFromText
 
 data JavaRuntimeResolveResponse = JavaRuntimeResolveResponse
   { resolveResponseMinecraftVersion :: VersionId
