@@ -33,6 +33,7 @@ import Panino.Api.Routes.PerformancePack.Types
   , PerformancePackPlanFile(..)
   , PerformancePackRollbackRequest(..)
   , PerformancePackRollbackResult(..)
+  , packRollbackGameDirPath
   )
 import System.Directory
   ( doesFileExist
@@ -50,7 +51,7 @@ performancePackRollbackResponse request = do
     Left err ->
       pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
     Right rollbackRequest -> do
-      let lockfilePath = fromMaybe (packRollbackGameDir rollbackRequest </> "downloads" </> "performance-pack-lock.json") (packRollbackLockfilePath rollbackRequest)
+      let lockfilePath = fromMaybe (packRollbackGameDirPath rollbackRequest </> "downloads" </> "performance-pack-lock.json") (packRollbackLockfilePath rollbackRequest)
       lockfileResult <- try (BL.readFile lockfilePath)
       case lockfileResult of
         Left (err :: SomeException) ->
@@ -93,7 +94,7 @@ data RollbackOutcome
 
 rollbackPerformancePackFile :: PerformancePackRollbackRequest -> PerformancePackPlanFile -> IO RollbackOutcome
 rollbackPerformancePackFile request file =
-  if not (isSafePerformancePackTarget (packRollbackGameDir request) targetPath)
+  if not (isSafePerformancePackTarget (packRollbackGameDirPath request) targetPath)
     then pure (RollbackSkipped ("Skipped non-mods path: " <> Text.pack targetPath))
     else do
       exists <- doesFileExist targetPath

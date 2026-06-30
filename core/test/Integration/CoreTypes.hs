@@ -69,6 +69,36 @@ import Panino.Api.Types
   , taskStateFromText
   , taskStateText
   )
+import Panino.Api.Routes.PerformancePack.Types
+  ( PerformancePackInstallRequest
+  , PerformancePackPlanFile
+  , PerformancePackRollbackRequest
+  , packInstallGameDirPath
+  , packInstallSource
+  , packPlanFileProjectIdText
+  , packPlanFileSha1Text
+  , packRollbackGameDirPath
+  )
+import Panino.Api.Routes.Performance
+  ( PerformanceApplyRequest
+  , PerformanceCandidateRequest
+  , PerformanceProfileRequest
+  , PerformanceRollbackRequest
+  , PerformanceSessionEndRequest
+  , PerformanceSessionSampleRequest
+  , PerformanceSessionStartRequest
+  , applyRequestGameDirPath
+  , candidateRequestGameDirPath
+  , profileRequestGameDirPath
+  , rollbackRequestGameDirPath
+  , sessionEndGameDirPath
+  , sessionSampleGameDirPath
+  , sessionStartGameDirPath
+  )
+import Panino.Graphics.Tuning.Types
+  ( GraphicsTuningRequest
+  , graphicsRequestGameDirPath
+  )
 import Panino.Install.Plan.Types
   ( InstallNodeAction(..)
   , InstallNodePhase(..)
@@ -85,6 +115,10 @@ import Panino.Install.Plan.Types
   , installRollbackActionText
   , installVerificationStatusFromText
   , installVerificationStatusText
+  )
+import Panino.Launch.Tuning.Types
+  ( JvmTuningRequest
+  , tuningRequestGameDirPath
   )
 import Panino.Lockfile.Types
   ( LockfileApplyRejection(..)
@@ -234,6 +268,9 @@ assertCoreTypes = do
   assertLockfileWireShape
   assertMinecraftRequestWireShape
   assertContentApiWireShape
+  assertTuningApiWireShape
+  assertPerformanceApiWireShape
+  assertPerformancePackWireShape
   assertMojangManifestWireShape
   assertEqual
     "core typed toml escapes strings"
@@ -421,6 +458,93 @@ assertContentApiWireShape = do
       assertEqual "content update resource project id decodes from JSON string" (Just "sodium") (projectIdText <$> (updateResourceProjectId resource :: Maybe ProjectId))
       assertEqual "content update resource remote release id decodes from JSON string" (Just "new-release") (versionIdText <$> (updateResourceRemoteReleaseId resource :: Maybe VersionId))
       assertEqual "content update resource remote url decodes from JSON string" (Just "https://cdn.example.com/sodium-new.jar") (urlText <$> updateResourceRemoteUrl resource)
+
+assertPerformancePackWireShape :: IO ()
+assertPerformancePackWireShape = do
+  case eitherDecode "{\"gameDir\":\"/tmp/mc\",\"minecraftVersion\":\"1.21.5\",\"loader\":\"fabric\"}" :: Either String PerformancePackInstallRequest of
+    Left err ->
+      assertEqual ("performance pack install request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "performance pack install game dir decodes from JSON string" "/tmp/mc" (packInstallGameDirPath request)
+      assertEqual "performance pack install source default remains modrinth" "modrinth" (packInstallSource request)
+  case eitherDecode "{\"source\":\"modrinth\",\"projectId\":\"Sodium\",\"fileName\":\"sodium.jar\",\"targetPath\":\"mods/sodium.jar\",\"sha1\":\"ABCDEF\",\"size\":42}" :: Either String PerformancePackPlanFile of
+    Left err ->
+      assertEqual ("performance pack plan file json decodes: " <> err) True False
+    Right file -> do
+      let encodedFile = BL8.unpack (encode file)
+      assertEqual "performance pack plan project id decodes from JSON string" "Sodium" (packPlanFileProjectIdText file)
+      assertEqual "performance pack plan sha1 normalizes from JSON string" (Just "abcdef") (packPlanFileSha1Text file)
+      assertContains "performance pack plan projectId stays a JSON string" "\"projectId\":\"Sodium\"" encodedFile
+      assertContains "performance pack plan sha1 stays a JSON string" "\"sha1\":\"abcdef\"" encodedFile
+  case eitherDecode "{\"gameDir\":\"/tmp/mc\",\"lockfilePath\":\"/tmp/mc/downloads/performance-pack-lock.json\"}" :: Either String PerformancePackRollbackRequest of
+    Left err ->
+      assertEqual ("performance pack rollback request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance pack rollback game dir decodes from JSON string" "/tmp/mc" (packRollbackGameDirPath request)
+
+assertTuningApiWireShape :: IO ()
+assertTuningApiWireShape = do
+  case eitherDecode "{\"gameDir\":\"/tmp/tune\"}" :: Either String JvmTuningRequest of
+    Left err ->
+      assertEqual ("jvm tuning request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "jvm tuning request game dir decodes from JSON string" (Just "/tmp/tune") (tuningRequestGameDirPath request)
+      assertContains "jvm tuning request gameDir stays a JSON string" "\"gameDir\":\"/tmp/tune\"" (BL8.unpack (encode request))
+  case eitherDecode "{\"gameDir\":\"\"}" :: Either String JvmTuningRequest of
+    Left err ->
+      assertEqual ("jvm tuning request empty gameDir decodes as missing: " <> err) True False
+    Right request ->
+      assertEqual "jvm tuning request empty gameDir remains missing" Nothing (tuningRequestGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/graphics\"}" :: Either String GraphicsTuningRequest of
+    Left err ->
+      assertEqual ("graphics tuning request json decodes: " <> err) True False
+    Right request -> do
+      assertEqual "graphics tuning request game dir decodes from JSON string" (Just "/tmp/graphics") (graphicsRequestGameDirPath request)
+      assertContains "graphics tuning request gameDir stays a JSON string" "\"gameDir\":\"/tmp/graphics\"" (BL8.unpack (encode request))
+  case eitherDecode "{\"gameDir\":\"\"}" :: Either String GraphicsTuningRequest of
+    Left err ->
+      assertEqual ("graphics tuning request empty gameDir decodes as missing: " <> err) True False
+    Right request ->
+      assertEqual "graphics tuning request empty gameDir remains missing" Nothing (graphicsRequestGameDirPath request)
+
+assertPerformanceApiWireShape :: IO ()
+assertPerformanceApiWireShape = do
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\"}" :: Either String PerformanceProfileRequest of
+    Left err ->
+      assertEqual ("performance profile request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance profile request game dir decodes from JSON string" "/tmp/perf" (profileRequestGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\"}" :: Either String PerformanceCandidateRequest of
+    Left err ->
+      assertEqual ("performance candidate request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance candidate request game dir decodes from JSON string" "/tmp/perf" (candidateRequestGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\",\"profile\":{}}" :: Either String PerformanceApplyRequest of
+    Left err ->
+      assertEqual ("performance apply request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance apply request game dir decodes from JSON string" "/tmp/perf" (applyRequestGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\"}" :: Either String PerformanceRollbackRequest of
+    Left err ->
+      assertEqual ("performance rollback request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance rollback request game dir decodes from JSON string" "/tmp/perf" (rollbackRequestGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\"}" :: Either String PerformanceSessionStartRequest of
+    Left err ->
+      assertEqual ("performance session start request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance session start game dir decodes from JSON string" "/tmp/perf" (sessionStartGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\",\"launchSessionId\":\"launch-1\"}" :: Either String PerformanceSessionEndRequest of
+    Left err ->
+      assertEqual ("performance session end request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance session end game dir decodes from JSON string" "/tmp/perf" (sessionEndGameDirPath request)
+  case eitherDecode "{\"gameDir\":\"/tmp/perf\",\"launchSessionId\":\"launch-1\"}" :: Either String PerformanceSessionSampleRequest of
+    Left err ->
+      assertEqual ("performance session sample request json decodes: " <> err) True False
+    Right request ->
+      assertEqual "performance session sample game dir decodes from JSON string" "/tmp/perf" (sessionSampleGameDirPath request)
+  assertEqual "performance request empty gameDir is rejected" True (isLeft (eitherDecode "{\"gameDir\":\"\"}" :: Either String PerformanceProfileRequest))
 
 assertMinecraftRequestWireShape :: IO ()
 assertMinecraftRequestWireShape = do

@@ -23,6 +23,7 @@ import Panino.Api.Routes.PerformancePack.Types
   , PerformancePackPlan(..)
   , ResolvedPerformanceDownload(..)
   , ResolvedPerformancePackPlan(..)
+  , packInstallGameDirPath
   )
 import Panino.Api.Routes.Tasks (taskIsCancelled)
 import Panino.Api.Server.State (ServerState(..))
@@ -51,7 +52,7 @@ runPerformancePackInstallTask :: ServerState -> TaskSnapshot -> PerformancePackI
 runPerformancePackInstallTask state task request resolved = do
   let plan = resolvedPerformancePlan resolved
       jobs = map resolvedPerformanceDownloadJob (resolvedPerformanceDownloads resolved)
-  createDirectoryIfMissing True (packInstallGameDir request </> "mods")
+  createDirectoryIfMissing True (packInstallGameDirPath request </> "mods")
   before <- traverse targetExisted jobs
   result <-
     try $

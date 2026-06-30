@@ -13,6 +13,7 @@ module Panino.Graphics.Tuning.Types
   , RetinaPolicy(..)
   , ResolvedGraphicsTuning(..)
   , defaultGraphicsTuningRequest
+  , graphicsRequestGameDirPath
   , inferGraphicsHardwareTier
   , parseGraphicsHardwareTier
   , parseGraphicsTuningProfile
@@ -40,6 +41,11 @@ import Panino.Performance.Profile.Types
   ( AdaptiveApplyMode(..)
   , PerformanceConfidence(..)
   , PerformanceEvidence
+  )
+import Panino.Core.Types
+  ( GameDir
+  , gameDirFromPath
+  , gameDirPath
   )
 
 data GraphicsTuningProfile
@@ -305,7 +311,7 @@ type GraphicsOptionOverride = Map Text Text
 
 data GraphicsTuningRequest = GraphicsTuningRequest
   { graphicsRequestInstanceId :: Maybe Text
-  , graphicsRequestGameDir :: Maybe FilePath
+  , graphicsRequestGameDir :: Maybe GameDir
   , graphicsRequestMinecraftVersion :: Maybe Text
   , graphicsRequestLoader :: Maybe Text
   , graphicsRequestHardwareTier :: GraphicsHardwareTier
@@ -329,7 +335,7 @@ instance FromJSON GraphicsTuningRequest where
     withObject "GraphicsTuningRequest" $ \obj ->
       GraphicsTuningRequest
         <$> obj .:? "instanceId"
-        <*> obj .:? "gameDir"
+        <*> (obj .:? "gameDir" >>= pure . (>>= gameDirFromPath))
         <*> obj .:? "minecraftVersion"
         <*> obj .:? "loader"
         <*> obj .:? "hardwareTier" .!= GraphicsHardwareUnknown
@@ -459,6 +465,10 @@ defaultGraphicsTuningRequest =
     , graphicsRequestManualOverrides = mempty
     , graphicsRequestDryRun = True
     }
+
+graphicsRequestGameDirPath :: GraphicsTuningRequest -> Maybe FilePath
+graphicsRequestGameDirPath =
+  fmap gameDirPath . graphicsRequestGameDir
 
 normalizedIdentifier :: Text -> Text
 normalizedIdentifier =

@@ -22,7 +22,6 @@ import Data.Aeson
   , object
   , withObject
   , (.:?)
-  , (.!=)
   , (.=)
   )
 import qualified Data.ByteString as BS
@@ -64,6 +63,12 @@ import Panino.Graphics.Tuning.Types
   , OptionsPatch(..)
   , OptionsPatchChange(..)
   , ResolvedGraphicsTuning(..)
+  , graphicsRequestGameDirPath
+  )
+import Panino.Core.Types
+  ( GameDir
+  , gameDirFromPath
+  , gameDirPath
   )
 import Panino.Platform.Hardware (detectGraphicsHardwareTier)
 import System.Directory
@@ -75,7 +80,7 @@ import System.FilePath
   )
 
 data GraphicsTuningRollbackRequest = GraphicsTuningRollbackRequest
-  { rollbackGraphicsGameDir :: FilePath
+  { rollbackGraphicsGameDir :: Maybe GameDir
   , rollbackGraphicsBackupPath :: Maybe FilePath
   } deriving (Eq, Show)
 
@@ -83,13 +88,13 @@ instance FromJSON GraphicsTuningRollbackRequest where
   parseJSON =
     withObject "GraphicsTuningRollbackRequest" $ \obj ->
       GraphicsTuningRollbackRequest
-        <$> obj .:? "gameDir" .!= ""
+        <$> (obj .:? "gameDir" >>= pure . (>>= gameDirFromPath))
         <*> obj .:? "backupPath"
 
 graphicsTuningResolveResponse :: Request -> IO Response
 graphicsTuningResolveResponse request =
   decodeJsonBodyResponse request $ \tuningRequest ->
-    case graphicsRequestGameDir tuningRequest of
+    case graphicsRequestGameDirPath tuningRequest of
       Nothing ->
         pure (apiErrorResponse status400 (apiError "missing_game_dir"))
       Just gameDir -> do
@@ -99,7 +104,7 @@ graphicsTuningResolveResponse request =
 graphicsTuningApplyResponse :: Request -> IO Response
 graphicsTuningApplyResponse request =
   decodeJsonBodyResponse request $ \tuningRequest ->
-    case graphicsRequestGameDir tuningRequest of
+    case graphicsRequestGameDirPath tuningRequest of
       Nothing ->
         pure (apiErrorResponse status400 (apiError "missing_game_dir"))
       Just gameDir -> do
@@ -125,12 +130,12 @@ graphicsTuningApplyResponse request =
 graphicsTuningRollbackResponse :: Request -> IO Response
 graphicsTuningRollbackResponse request =
   decodeJsonBodyResponse request $ \rollbackRequest ->
-    if null (rollbackGraphicsGameDir rollbackRequest)
-      then pure (apiErrorResponse status400 (apiError "missing_game_dir"))
-      else do
+    case rollbackGraphicsGameDirPath rollbackRequest of
+      Nothing ->
+        pure (apiErrorResponse status400 (apiError "missing_game_dir"))
+      Just gameDir -> do
         now <- getCurrentTime
-        let gameDir = rollbackGraphicsGameDir rollbackRequest
-            optionsFile = optionsPath gameDir
+        let optionsFile = optionsPath gameDir
             backupFile = maybe (optionsFile <> ".panino-backup") id (rollbackGraphicsBackupPath rollbackRequest)
         rolledBack <- try (rollbackOptionsFile now optionsFile backupFile)
         case rolledBack of
@@ -155,7 +160,7 @@ readGraphicsTuningForEnvironment request gameDir = do
   let resolved =
         recommendGraphicsTuning
           request
-            { graphicsRequestGameDir = Just gameDir
+            { graphicsRequestGameDir = gameDirFromPath gameDir
             , graphicsRequestHardwareTier = hardwareTier
             }
           options
@@ -218,6 +223,10 @@ appendGraphicsTuningEvent gameDir event = do
   let directory = gameDir </> "downloads"
   createDirectoryIfMissing True directory
   BL.appendFile (directory </> "graphics-tuning-events.jsonl") (encode event <> BL.singleton 10)
+
+rollbackGraphicsGameDirPath :: GraphicsTuningRollbackRequest -> Maybe FilePath
+rollbackGraphicsGameDirPath =
+  fmap gameDirPath . rollbackGraphicsGameDir
 
 allowInitialOptionsFileCreate :: GraphicsTuningRequest -> FilePath -> ResolvedGraphicsTuning -> ResolvedGraphicsTuning
 allowInitialOptionsFileCreate request optionsFile resolved =

@@ -36,6 +36,7 @@ import Panino.Graphics.Tuning.Types
   , OptionsPatchChange(..)
   , ResolvedGraphicsTuning(..)
   , RetinaPolicy(..)
+  , graphicsRequestGameDirPath
   , renderGraphicsHardwareTier
   , renderRetinaPolicy
   )
@@ -87,7 +88,7 @@ recommendGraphicsTuning request currentOptions =
     patch =
       buildOptionsPatchForVersion
         (graphicsRequestMinecraftVersion request)
-        (optionsPath <$> graphicsRequestGameDir request)
+        (optionsPath <$> graphicsRequestGameDirPath request)
         recommended
         currentOptions
     warnings =

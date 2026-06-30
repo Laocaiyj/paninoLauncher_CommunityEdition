@@ -9,6 +9,11 @@ module Panino.Api.Routes.PerformancePack.Types
   , PerformancePackRollbackResult(..)
   , ResolvedPerformanceDownload(..)
   , ResolvedPerformancePackPlan(..)
+  , packInstallGameDirPath
+  , packPlanFileProjectIdText
+  , packPlanFileSha1Text
+  , packPlanGameDirPath
+  , packRollbackGameDirPath
   ) where
 
 import Data.Aeson
@@ -23,11 +28,19 @@ import Data.Aeson
   )
 import Data.Text (Text)
 import Panino.Api.Types (DownloadRuntimeOptions(..))
+import Panino.Core.Types
+  ( GameDir
+  , ProjectId
+  , Sha1
+  , gameDirPath
+  , projectIdText
+  , sha1Text
+  )
 import Panino.Download.Manager (DownloadJob)
 import qualified Panino.Install.Plan.Types as Plan
 
 data PerformancePackInstallRequest = PerformancePackInstallRequest
-  { packInstallGameDir :: FilePath
+  { packInstallGameDir :: GameDir
   , packInstallMinecraftVersion :: Text
   , packInstallLoader :: Text
   , packInstallIncludeOptional :: Bool
@@ -48,10 +61,14 @@ instance FromJSON PerformancePackInstallRequest where
         <*> obj .:? "source" .!= "modrinth"
         <*> obj .:? "curseForgeAPIKey"
 
+packInstallGameDirPath :: PerformancePackInstallRequest -> FilePath
+packInstallGameDirPath =
+  gameDirPath . packInstallGameDir
+
 data PerformancePackPlan = PerformancePackPlan
   { packPlanStatus :: Text
   , packPlanTitle :: Text
-  , packPlanGameDir :: FilePath
+  , packPlanGameDir :: GameDir
   , packPlanLockfilePath :: FilePath
   , packPlanFiles :: [PerformancePackPlanFile]
   , packPlanBlockedReasons :: [Text]
@@ -72,12 +89,16 @@ instance ToJSON PerformancePackPlan where
       , "typedPlan" .= packPlanTypedPlan plan
       ]
 
+packPlanGameDirPath :: PerformancePackPlan -> FilePath
+packPlanGameDirPath =
+  gameDirPath . packPlanGameDir
+
 data PerformancePackPlanFile = PerformancePackPlanFile
   { packPlanFileSource :: Text
-  , packPlanFileProjectId :: Text
+  , packPlanFileProjectId :: ProjectId
   , packPlanFileName :: FilePath
   , packPlanFileTargetPath :: FilePath
-  , packPlanFileSha1 :: Maybe Text
+  , packPlanFileSha1 :: Maybe Sha1
   , packPlanFileSize :: Maybe Integer
   } deriving (Eq, Show)
 
@@ -103,6 +124,14 @@ instance FromJSON PerformancePackPlanFile where
         <*> obj .:? "sha1"
         <*> obj .:? "size"
 
+packPlanFileProjectIdText :: PerformancePackPlanFile -> Text
+packPlanFileProjectIdText =
+  projectIdText . packPlanFileProjectId
+
+packPlanFileSha1Text :: PerformancePackPlanFile -> Maybe Text
+packPlanFileSha1Text =
+  fmap sha1Text . packPlanFileSha1
+
 data ResolvedPerformancePackPlan = ResolvedPerformancePackPlan
   { resolvedPerformancePlan :: PerformancePackPlan
   , resolvedPerformanceDownloads :: [ResolvedPerformanceDownload]
@@ -123,7 +152,7 @@ instance FromJSON PerformancePackLockfile where
       PerformancePackLockfile <$> obj .:? "files" .!= []
 
 data PerformancePackRollbackRequest = PerformancePackRollbackRequest
-  { packRollbackGameDir :: FilePath
+  { packRollbackGameDir :: GameDir
   , packRollbackLockfilePath :: Maybe FilePath
   } deriving (Eq, Show)
 
@@ -133,6 +162,10 @@ instance FromJSON PerformancePackRollbackRequest where
       PerformancePackRollbackRequest
         <$> obj .: "gameDir"
         <*> obj .:? "lockfilePath"
+
+packRollbackGameDirPath :: PerformancePackRollbackRequest -> FilePath
+packRollbackGameDirPath =
+  gameDirPath . packRollbackGameDir
 
 data PerformancePackRollbackResult = PerformancePackRollbackResult
   { packRollbackResultRolledBack :: Bool

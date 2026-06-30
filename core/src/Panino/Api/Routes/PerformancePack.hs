@@ -35,6 +35,7 @@ import Panino.Api.Routes.PerformancePack.Types
   , ResolvedPerformancePackPlan(..)
   , packPlanBlockedReasons
   , packPlanTitle
+  , packInstallGameDirPath
   , resolvedPerformancePlan
   )
 import Panino.Api.Routes.Tasks (startTaskWithGameDirContext)
@@ -68,6 +69,6 @@ performancePackInstallResponse state request = do
               (object ["error" .= ("performance_pack_plan_blocked" :: Text), "plan" .= plan])
         else do
           task <-
-            startTaskWithGameDirContext state "performance-pack-install" (packPlanTitle plan) (Just (packInstallGameDir installRequest)) $ \taskSnapshot ->
+            startTaskWithGameDirContext state "performance-pack-install" (packPlanTitle plan) (Just (packInstallGameDirPath installRequest)) $ \taskSnapshot ->
               runPerformancePackInstallTask state taskSnapshot installRequest resolved
           pure (jsonResponse status202 (TaskAccepted task))

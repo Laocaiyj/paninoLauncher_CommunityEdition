@@ -18,6 +18,7 @@ import Panino.Api.Routes.GraphicsTuning
   , writeGraphicsTuningDiagnostics
   , writeGraphicsTuningRollbackEvent
   )
+import Panino.Core.Types (gameDirFromPath)
 import Panino.Graphics.Tuning.Options
   ( applyOptionsPatch
   , applyOptionsPatchToFile
@@ -285,7 +286,7 @@ assertGraphicsTuningApiHelpers = do
   resolved <-
     readGraphicsTuningForEnvironment
       defaultGraphicsTuningRequest
-        { graphicsRequestGameDir = Just gameDir
+        { graphicsRequestGameDir = gameDirFromPath gameDir
         , graphicsRequestHardwareTier = GraphicsHardwareMBase
         , graphicsRequestDisplayScale = Just 2
         , graphicsRequestIsBuiltinDisplay = Just True
@@ -336,7 +337,7 @@ assertGraphicsTuningApiHelpers = do
   missingResolved <-
     readGraphicsTuningForEnvironment
       defaultGraphicsTuningRequest
-        { graphicsRequestGameDir = Just missingGameDir
+        { graphicsRequestGameDir = gameDirFromPath missingGameDir
         , graphicsRequestHardwareTier = GraphicsHardwareMBase
         }
       missingGameDir

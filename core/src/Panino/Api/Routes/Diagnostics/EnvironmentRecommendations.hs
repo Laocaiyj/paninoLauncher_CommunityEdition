@@ -21,6 +21,7 @@ import Panino.Graphics.Tuning.Types
   , GraphicsTuningRequest(..)
   , ResolvedGraphicsTuning
   )
+import Panino.Core.Types (gameDirFromPath)
 import Panino.Launch.Tuning.Recommend (recommendJvmTuning)
 import Panino.Launch.Tuning.Types
   ( JvmTuningPolicy(..)
@@ -39,7 +40,7 @@ environmentJvmTuning context memory requiredMajor =
     recommendJvmTuning
       JvmTuningRequest
         { tuningRequestInstanceId = Nothing
-        , tuningRequestGameDir = environmentContextGameDir context
+        , tuningRequestGameDir = environmentContextGameDir context >>= gameDirFromPath
         , tuningRequestPolicy = fromMaybe JvmTuningAuto (environmentContextJvmProfile context)
         , tuningRequestMemoryPolicy =
             fromMaybe
@@ -70,7 +71,7 @@ environmentGraphicsTuning context (Just gameDir) =
     <$> readGraphicsTuningForEnvironment
       GraphicsTuningRequest
         { graphicsRequestInstanceId = Nothing
-        , graphicsRequestGameDir = Just gameDir
+        , graphicsRequestGameDir = gameDirFromPath gameDir
         , graphicsRequestMinecraftVersion = environmentContextVersion context
         , graphicsRequestLoader = environmentContextLoader context
         , graphicsRequestHardwareTier =

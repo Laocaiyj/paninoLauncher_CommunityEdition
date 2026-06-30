@@ -2,7 +2,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Panino.Api.Routes.Performance
-  ( performanceEvidenceResponse
+  ( PerformanceApplyRequest
+  , PerformanceCandidateRequest
+  , PerformanceProfileRequest
+  , PerformanceRollbackRequest
+  , PerformanceSessionEndRequest
+  , PerformanceSessionSampleRequest
+  , PerformanceSessionStartRequest
+  , performanceEvidenceResponse
   , performanceExperimentsResponse
   , performanceProfileApplyResponse
   , performanceProfileCandidateResponse
@@ -11,6 +18,13 @@ module Panino.Api.Routes.Performance
   , performanceSessionEndResponse
   , performanceSessionSampleResponse
   , performanceSessionStartResponse
+  , applyRequestGameDirPath
+  , candidateRequestGameDirPath
+  , profileRequestGameDirPath
+  , rollbackRequestGameDirPath
+  , sessionEndGameDirPath
+  , sessionSampleGameDirPath
+  , sessionStartGameDirPath
   ) where
 
 import Data.Aeson
@@ -49,6 +63,11 @@ import Network.Wai
 import Panino.Api.Params (decodeBody)
 import Panino.Api.Response (jsonResponse)
 import Panino.Api.Server.State (ServerState(..))
+import Panino.Core.Types
+  ( GameDir
+  , gameDirFromPath
+  , gameDirPath
+  )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
 import Panino.Diagnostics.Types (Diagnostic)
 import Panino.Performance.Candidate
@@ -102,7 +121,7 @@ import Panino.Performance.Telemetry.Types
 import System.Exit (ExitCode(..))
 
 data PerformanceProfileRequest = PerformanceProfileRequest
-  { profileRequestGameDir :: FilePath
+  { profileRequestGameDir :: GameDir
   , profileRequestFingerprint :: InstanceFingerprint
   , profileRequestKnobs :: PerformanceKnobs
   , profileRequestEvidence :: [PerformanceEvidence]
@@ -118,7 +137,7 @@ instance FromJSON PerformanceProfileRequest where
         <*> obj .:? "evidence" .!= []
 
 data PerformanceCandidateRequest = PerformanceCandidateRequest
-  { candidateRequestGameDir :: FilePath
+  { candidateRequestGameDir :: GameDir
   , candidateRequestBaselineProfileId :: Maybe Text
   , candidateRequestBudget :: CandidateBudget
   } deriving (Eq, Show)
@@ -135,7 +154,7 @@ instance FromJSON PerformanceCandidateRequest where
             )
 
 data PerformanceApplyRequest = PerformanceApplyRequest
-  { applyRequestGameDir :: FilePath
+  { applyRequestGameDir :: GameDir
   , applyRequestProfile :: PerformanceProfile
   } deriving (Eq, Show)
 
@@ -147,7 +166,7 @@ instance FromJSON PerformanceApplyRequest where
         <*> obj .: "profile"
 
 data PerformanceRollbackRequest = PerformanceRollbackRequest
-  { rollbackRequestGameDir :: FilePath
+  { rollbackRequestGameDir :: GameDir
   , rollbackRequestRef :: Text
   } deriving (Eq, Show)
 
@@ -159,7 +178,7 @@ instance FromJSON PerformanceRollbackRequest where
         <*> obj .:? "rollbackRef" .!= "rollback-applied"
 
 data PerformanceSessionStartRequest = PerformanceSessionStartRequest
-  { sessionStartGameDir :: FilePath
+  { sessionStartGameDir :: GameDir
   , sessionStartFingerprint :: InstanceFingerprint
   , sessionStartBaselineProfileId :: Maybe Text
   , sessionStartCandidateProfileId :: Maybe Text
@@ -175,7 +194,7 @@ instance FromJSON PerformanceSessionStartRequest where
         <*> obj .:? "candidateProfileId"
 
 data PerformanceSessionEndRequest = PerformanceSessionEndRequest
-  { sessionEndGameDir :: FilePath
+  { sessionEndGameDir :: GameDir
   , sessionEndLaunchSessionId :: Text
   , sessionEndExitCode :: Int
   , sessionEndSamples :: [MemorySample]
@@ -193,7 +212,7 @@ instance FromJSON PerformanceSessionEndRequest where
         <*> obj .:? "systemMemoryBytes"
 
 data PerformanceSessionSampleRequest = PerformanceSessionSampleRequest
-  { sessionSampleGameDir :: FilePath
+  { sessionSampleGameDir :: GameDir
   , sessionSampleLaunchSessionId :: Text
   , sessionSampleFrame :: Maybe CompanionFrameSample
   } deriving (Eq, Show)
@@ -214,12 +233,12 @@ performanceProfileResolveResponse request = do
     Right profileRequest -> do
       let baseline =
             baselineProfile
-              (profileRequestGameDir profileRequest)
+              (profileRequestGameDirPath profileRequest)
               (profileRequestFingerprint profileRequest)
               (profileRequestKnobs profileRequest)
               (profileRequestEvidence profileRequest)
-      storeProfile (profileRequestGameDir profileRequest) baseline
-      pure (jsonResponse status200 (recommendationFromProfiles (profileRequestGameDir profileRequest) baseline Nothing))
+      storeProfile (profileRequestGameDirPath profileRequest) baseline
+      pure (jsonResponse status200 (recommendationFromProfiles (profileRequestGameDirPath profileRequest) baseline Nothing))
 
 performanceProfileCandidateResponse :: Request -> IO Response
 performanceProfileCandidateResponse request = do
@@ -229,28 +248,28 @@ performanceProfileCandidateResponse request = do
     Right candidateRequest -> do
       baseline <-
         case candidateRequestBaselineProfileId candidateRequest of
-          Just ident -> readProfile (candidateRequestGameDir candidateRequest) ident
+          Just ident -> readProfile (candidateRequestGameDirPath candidateRequest) ident
           Nothing -> pure Nothing
       case baseline of
         Nothing ->
           pure (jsonResponse status404 (object ["error" .= ("profile_not_found" :: Text)]))
         Just profile -> do
           let rawCandidate = generateCandidate (candidateRequestBudget candidateRequest) profile
-          cooldown <- readProfileCooldown (candidateRequestGameDir candidateRequest) (profileId rawCandidate)
+          cooldown <- readProfileCooldown (candidateRequestGameDirPath candidateRequest) (profileId rawCandidate)
           let candidate =
                 rawCandidate
                   { profileCooldownUntil = formatCooldownUntil <$> cooldown
                   }
-          recent <- listRecentSessions (candidateRequestGameDir candidateRequest) 1
+          recent <- listRecentSessions (candidateRequestGameDirPath candidateRequest) 1
           let decision = checkSafetyGate defaultPerformanceObjective (case recent of item:_ -> Just item; [] -> Nothing) candidate
-          storeProfile (candidateRequestGameDir candidateRequest) candidate
+          storeProfile (candidateRequestGameDirPath candidateRequest) candidate
           let diagnostics = performanceSafetyDiagnostics (safetyReasons decision)
           pure $
             jsonResponse status200 $
               object
                 [ "candidate" .= candidate
                 , "safetyGate" .= decision
-                , "recommendation" .= recommendationFromProfiles (candidateRequestGameDir candidateRequest) profile (Just candidate)
+                , "recommendation" .= recommendationFromProfiles (candidateRequestGameDirPath candidateRequest) profile (Just candidate)
                 , "diagnostic" .= case diagnostics of item:_ -> Just item; [] -> Nothing
                 , "diagnostics" .= diagnostics
                 ]
@@ -261,7 +280,7 @@ performanceProfileApplyResponse request = do
   case decoded of
     Left err -> invalidJson (Text.pack err)
     Right applyRequest -> do
-      applied <- applyProfile (applyRequestGameDir applyRequest) (applyRequestProfile applyRequest)
+      applied <- applyProfile (applyRequestGameDirPath applyRequest) (applyRequestProfile applyRequest)
       pure (jsonResponse status200 (object ["applied" .= True, "profile" .= applied, "rollbackRef" .= profileRollbackRefValue applied]))
 
 performanceProfileRollbackResponse :: Request -> IO Response
@@ -270,7 +289,7 @@ performanceProfileRollbackResponse request = do
   case decoded of
     Left err -> invalidJson (Text.pack err)
     Right rollbackRequest -> do
-      restored <- rollbackProfile (rollbackRequestGameDir rollbackRequest) (rollbackRequestRef rollbackRequest)
+      restored <- rollbackProfile (rollbackRequestGameDirPath rollbackRequest) (rollbackRequestRef rollbackRequest)
       pure $
         jsonResponse status200 $
           object
@@ -286,7 +305,7 @@ performanceSessionStartResponse request = do
     Right startRequest -> do
       session <-
         beginPerformanceSession
-          (sessionStartGameDir startRequest)
+          (sessionStartGameDirPath startRequest)
           (sessionStartFingerprint startRequest)
           (sessionStartBaselineProfileId startRequest)
           (sessionStartCandidateProfileId startRequest)
@@ -300,7 +319,7 @@ performanceSessionSampleResponse request = do
   case decoded of
     Left err -> invalidJson (Text.pack err)
     Right sampleRequest -> do
-      loaded <- readPerformanceSession (sessionSampleGameDir sampleRequest) (sessionSampleLaunchSessionId sampleRequest)
+      loaded <- readPerformanceSession (sessionSampleGameDirPath sampleRequest) (sessionSampleLaunchSessionId sampleRequest)
       case loaded of
         Left err -> pure (jsonResponse status404 (object ["error" .= ("session_not_found" :: Text), "message" .= Text.pack err]))
         Right session -> do
@@ -325,7 +344,7 @@ performanceSessionEndResponse request = do
   case decoded of
     Left err -> invalidJson (Text.pack err)
     Right endRequest -> do
-      loaded <- readPerformanceSession (sessionEndGameDir endRequest) (sessionEndLaunchSessionId endRequest)
+      loaded <- readPerformanceSession (sessionEndGameDirPath endRequest) (sessionEndLaunchSessionId endRequest)
       case loaded of
         Left err -> pure (jsonResponse status404 (object ["error" .= ("session_not_found" :: Text), "message" .= Text.pack err]))
         Right session -> do
@@ -336,7 +355,7 @@ performanceSessionEndResponse request = do
               (sessionEndSystemMemoryBytes endRequest)
               (sessionEndSamples endRequest)
               Nothing
-          recordFailedCandidateCooldown (sessionEndGameDir endRequest) completed
+          recordFailedCandidateCooldown (sessionEndGameDirPath endRequest) completed
           let diagnostics = performanceSessionEndDiagnostics endRequest
           if null diagnostics
             then pure (jsonResponse status200 completed)
@@ -354,7 +373,7 @@ performanceSessionEndResponse request = do
 performanceExperimentsResponse :: ServerState -> Request -> IO Response
 performanceExperimentsResponse _ request =
   withGameDirQuery request $ \gameDir -> do
-    sessions <- listRecentSessions gameDir 20
+    sessions <- listRecentSessions (gameDirPath gameDir) 20
     let latestBaseline = find (isNothing . sessionCandidateProfileId) sessions
         latestCandidate = find (isJust . sessionCandidateProfileId) sessions
         latestResult = completeExperiment defaultPerformanceObjective <$> latestBaseline <*> latestCandidate
@@ -363,23 +382,27 @@ performanceExperimentsResponse _ request =
 performanceEvidenceResponse :: ServerState -> Request -> [Text] -> IO Response
 performanceEvidenceResponse _ request _ =
   withGameDirQuery request $ \gameDir -> do
-    sessions <- listRecentSessions gameDir 5
+    let gameDirText = gameDirPath gameDir
+    sessions <- listRecentSessions gameDirText 5
     pure $
       jsonResponse status200 $
         object
           [ "gameDir" .= gameDir
           , "sessions" .= sessions
-          , "diagnosticPaths" .= [gameDir <> "/.panino/performance/sessions", gameDir <> "/.panino/performance/profiles"]
+          , "diagnosticPaths" .= [gameDirText <> "/.panino/performance/sessions", gameDirText <> "/.panino/performance/profiles"]
           ]
 
 invalidJson :: Text -> IO Response
 invalidJson err =
   pure (jsonResponse status400 (object ["error" .= ("invalid_json" :: Text), "message" .= err]))
 
-withGameDirQuery :: Request -> (FilePath -> IO Response) -> IO Response
+withGameDirQuery :: Request -> (GameDir -> IO Response) -> IO Response
 withGameDirQuery request action =
   case lookup "gameDir" (queryPairs request) of
-    Just (Just value) -> action (Text.unpack value)
+    Just (Just value) ->
+      case gameDirFromPath (Text.unpack value) of
+        Just gameDir -> action gameDir
+        Nothing -> pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))
     _ -> pure (jsonResponse status400 (object ["error" .= ("missing_game_dir" :: Text)]))
 
 queryPairs :: Request -> [(Text, Maybe Text)]
@@ -399,6 +422,34 @@ exitCodeFromInt value = ExitFailure value
 formatCooldownUntil :: FormatTime time => time -> Text
 formatCooldownUntil =
   Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ"
+
+profileRequestGameDirPath :: PerformanceProfileRequest -> FilePath
+profileRequestGameDirPath =
+  gameDirPath . profileRequestGameDir
+
+candidateRequestGameDirPath :: PerformanceCandidateRequest -> FilePath
+candidateRequestGameDirPath =
+  gameDirPath . candidateRequestGameDir
+
+applyRequestGameDirPath :: PerformanceApplyRequest -> FilePath
+applyRequestGameDirPath =
+  gameDirPath . applyRequestGameDir
+
+rollbackRequestGameDirPath :: PerformanceRollbackRequest -> FilePath
+rollbackRequestGameDirPath =
+  gameDirPath . rollbackRequestGameDir
+
+sessionStartGameDirPath :: PerformanceSessionStartRequest -> FilePath
+sessionStartGameDirPath =
+  gameDirPath . sessionStartGameDir
+
+sessionEndGameDirPath :: PerformanceSessionEndRequest -> FilePath
+sessionEndGameDirPath =
+  gameDirPath . sessionEndGameDir
+
+sessionSampleGameDirPath :: PerformanceSessionSampleRequest -> FilePath
+sessionSampleGameDirPath =
+  gameDirPath . sessionSampleGameDir
 
 recordFailedCandidateCooldown :: FilePath -> PerformanceSession -> IO ()
 recordFailedCandidateCooldown gameDir session =

@@ -52,7 +52,6 @@ import Panino.Api.Server.State (ServerState(..))
 import Panino.Api.Types
   ( LaunchRequest(..)
   , TaskSnapshot
-  , launchRequestGameDirPath
   , launchRequestVersionText
   )
 import Panino.Diagnostics.Types
@@ -211,9 +210,9 @@ resolveLaunchJvmTuning layout versionJson request = do
           then launchRequestJvmArgs request
           else launchRequestCustomJvmArgs request
       tuningRequest =
-        JvmTuningRequest
+          JvmTuningRequest
           { tuningRequestInstanceId = launchRequestInstanceId request
-          , tuningRequestGameDir = launchRequestGameDirPath request
+          , tuningRequestGameDir = launchRequestGameDir request
           , tuningRequestPolicy = fromMaybe JvmTuningAuto (launchRequestJvmProfile request)
           , tuningRequestMemoryPolicy = memoryPolicy
           , tuningRequestSystemMemoryBytes = systemMemory

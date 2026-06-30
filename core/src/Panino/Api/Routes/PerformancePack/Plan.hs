@@ -20,6 +20,7 @@ import Data.Maybe
   ( fromMaybe
   , listToMaybe
   )
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Api.Routes.PerformancePack.Types
@@ -28,6 +29,9 @@ import Panino.Api.Routes.PerformancePack.Types
   , PerformancePackPlanFile(..)
   , ResolvedPerformanceDownload(..)
   , ResolvedPerformancePackPlan(..)
+  , packInstallGameDirPath
+  , packPlanFileProjectIdText
+  , packPlanFileSha1Text
   )
 import Panino.Api.Server.State (ServerState(..))
 import Panino.Content.Online
@@ -49,9 +53,9 @@ import Panino.CoreLogic.Determinism
   , stableSortPackages
   )
 import Panino.Core.Types
-  ( projectIdText
+  ( ProjectId
+  , projectIdFromText
   , sha1FromText
-  , sha1Text
   , urlText
   )
 import Panino.Download.Manager (DownloadJob(..))
@@ -78,8 +82,8 @@ import System.FilePath
 
 buildPerformancePackPlan :: ServerState -> PerformancePackInstallRequest -> IO ResolvedPerformancePackPlan
 buildPerformancePackPlan state request = do
-  layout <- mkLayout (Just (packInstallGameDir request))
-  modFiles <- performanceModFileNames (Just (packInstallGameDir request))
+  layout <- mkLayout (Just (packInstallGameDirPath request))
+  modFiles <- performanceModFileNames (Just (packInstallGameDirPath request))
   let recommendation =
         recommendPerformancePack
           (Just (packInstallLoader request))
@@ -128,7 +132,7 @@ performancePackTypedPlan request downloads blockedReasons skipped =
       , Plan.typedPlanFingerprint = ""
       , Plan.typedPlanKind = "performancePack"
       , Plan.typedPlanTitle = "Apple Silicon performance pack"
-      , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (Just (packInstallGameDir request))
+      , Plan.typedPlanTargetGameDir = Just (packInstallGameDir request)
       , Plan.typedPlanSource = Just (packInstallSource request)
       , Plan.typedPlanStatus = ""
       , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing
@@ -209,10 +213,10 @@ resolvedDownloadFromModrinth layout resolved =
       planFile =
         PerformancePackPlanFile
           { packPlanFileSource = "modrinth"
-          , packPlanFileProjectId = projectIdText (resolvedModrinthProject resolved)
+          , packPlanFileProjectId = resolvedModrinthProject resolved
           , packPlanFileName = jobLabel job
           , packPlanFileTargetPath = jobTargetPath job
-          , packPlanFileSha1 = sha1Text <$> jobSha1 job
+          , packPlanFileSha1 = jobSha1 job
           , packPlanFileSize = fromIntegral <$> jobSize job
           }
    in ResolvedPerformanceDownload job planFile
@@ -246,10 +250,10 @@ resolveCurseForgeProject state layout request entry = do
         planFile =
           PerformancePackPlanFile
             { packPlanFileSource = "curseForge"
-            , packPlanFileProjectId = onlineProjectIdText project
+            , packPlanFileProjectId = projectIdFromWireText (onlineProjectIdText project)
             , packPlanFileName = safeFileName
             , packPlanFileTargetPath = jobTargetPath job
-            , packPlanFileSha1 = sha1Text <$> jobSha1 job
+            , packPlanFileSha1 = jobSha1 job
             , packPlanFileSize = fromIntegral <$> jobSize job
             }
     pure [ResolvedPerformanceDownload job planFile]
@@ -305,10 +309,10 @@ performanceDownloadKey download =
   Text.intercalate
     "|"
     [ packPlanFileSource file
-    , packPlanFileProjectId file
+    , packPlanFileProjectIdText file
     , Text.pack (packPlanFileName file)
     , Text.pack (packPlanFileTargetPath file)
-    , fromMaybe "" (packPlanFileSha1 file)
+    , fromMaybe "" (packPlanFileSha1Text file)
     , urlText (jobUrl job)
     ]
   where
@@ -322,3 +326,7 @@ normalizedPackSource =
 normalizeLookupText :: Text -> Text
 normalizeLookupText =
   Text.toLower . Text.filter (/= ' ') . Text.replace "-" "" . Text.replace "_" "" . Text.strip
+
+projectIdFromWireText :: Text -> ProjectId
+projectIdFromWireText value =
+  fromMaybe (fromString (Text.unpack value)) (projectIdFromText value)

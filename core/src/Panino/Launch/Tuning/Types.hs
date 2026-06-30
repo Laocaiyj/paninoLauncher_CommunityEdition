@@ -17,6 +17,7 @@ module Panino.Launch.Tuning.Types
   , renderJvmTuningPolicy
   , renderMemoryPolicy
   , renderPackScale
+  , tuningRequestGameDirPath
   ) where
 
 import Data.Aeson
@@ -34,6 +35,11 @@ import Data.Char (isAlphaNum)
 import Data.Int (Int64)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Panino.Core.Types
+  ( GameDir
+  , gameDirFromPath
+  , gameDirPath
+  )
 import Panino.Performance.Profile.Types
   ( AdaptiveApplyMode(..)
   , PerformanceConfidence(..)
@@ -198,7 +204,7 @@ instance FromJSON JvmTuningAction where
 
 data JvmTuningRequest = JvmTuningRequest
   { tuningRequestInstanceId :: Maybe Text
-  , tuningRequestGameDir :: Maybe FilePath
+  , tuningRequestGameDir :: Maybe GameDir
   , tuningRequestPolicy :: JvmTuningPolicy
   , tuningRequestMemoryPolicy :: MemoryPolicy
   , tuningRequestSystemMemoryBytes :: Maybe Int64
@@ -223,7 +229,7 @@ instance FromJSON JvmTuningRequest where
     withObject "JvmTuningRequest" $ \obj ->
       JvmTuningRequest
         <$> obj .:? "instanceId"
-        <*> obj .:? "gameDir"
+        <*> (obj .:? "gameDir" >>= pure . (>>= gameDirFromPath))
         <*> (obj .:? "policy" .!= JvmTuningAuto)
         <*> obj .:? "memoryPolicy" .!= MemoryPolicyAuto
         <*> obj .:? "systemMemoryBytes"
@@ -359,6 +365,10 @@ defaultJvmTuningRequest =
     , tuningRequestCustomMemoryMb = Nothing
     , tuningRequestCustomJvmArgs = []
     }
+
+tuningRequestGameDirPath :: JvmTuningRequest -> Maybe FilePath
+tuningRequestGameDirPath =
+  fmap gameDirPath . tuningRequestGameDir
 
 data JvmTuningApplyRequest = JvmTuningApplyRequest
   { applyTuningScope :: Text
