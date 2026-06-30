@@ -7,7 +7,11 @@ module Integration.MinecraftPlan
 import Data.Aeson
   ( eitherDecode
   , encode
+  , object
+  , toJSON
+  , (.=)
   )
+import Data.Int (Int64)
 import qualified Data.Text as Text
 import Panino.Core.Types
   ( sha1FromText
@@ -33,6 +37,7 @@ import Panino.Minecraft.InstallPlanGraph
   , installPlanGraphNodes
   , installPlanGraphTypedPlan
   )
+import qualified Panino.Minecraft.InstallPlanGraph.Types as Graph
 import TestFixtures
   ( testLayout
   , testVersionJson
@@ -63,6 +68,35 @@ assertMinecraftInstallPlanGraph = do
   assertEqual "install plan graph exposes typed plan" "test" (typedPlanKind (installPlanGraphTypedPlan planGraph))
   assertEqual "install plan graph json is typed plan" (Right (installPlanGraphTypedPlan planGraph)) (eitherDecode (encode planGraph))
   assertEqual "install plan graph typed summary" 1 (installSummaryDownloadNodes (typedPlanSummary (installPlanGraphTypedPlan planGraph)))
+  let legacyGraphNode =
+        Graph.InstallPlanNode
+          { Graph.installPlanNodeId = "legacy-node"
+          , Graph.installPlanNodeKind = "library"
+          , Graph.installPlanNodeLabel = "Legacy node"
+          , Graph.installPlanNodeTargetPath = "/tmp/mc/libraries/legacy.jar"
+          , Graph.installPlanNodeUrlCandidates = ["https://example.invalid/legacy.jar"]
+          , Graph.installPlanNodeSha1 = Just "abc"
+          , Graph.installPlanNodeSize = Just 123
+          , Graph.installPlanNodeDependencies = ["minecraft"]
+          , Graph.installPlanNodePhase = "libraries"
+          , Graph.installPlanNodeRequired = True
+          , Graph.installPlanNodeBlockedReason = Nothing
+          }
+      legacyGraphNodeJson =
+        object
+          [ "id" .= ("legacy-node" :: Text.Text)
+          , "kind" .= ("library" :: Text.Text)
+          , "label" .= ("Legacy node" :: Text.Text)
+          , "targetPath" .= ("/tmp/mc/libraries/legacy.jar" :: FilePath)
+          , "urlCandidates" .= ["https://example.invalid/legacy.jar" :: Text.Text]
+          , "sha1" .= Just ("abc" :: Text.Text)
+          , "size" .= Just (123 :: Int64)
+          , "dependencies" .= ["minecraft" :: Text.Text]
+          , "phase" .= ("libraries" :: Text.Text)
+          , "required" .= True
+          , "blockedReason" .= (Nothing :: Maybe Text.Text)
+          ]
+  assertEqual "install plan legacy graph node keeps string url and sha1 JSON" legacyGraphNodeJson (toJSON legacyGraphNode)
 
   let assetGraph =
         downloadJobsInstallPlanGraph

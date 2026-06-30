@@ -33,7 +33,8 @@ import Panino.Content.Local.Types
   , JavaCheckResponse(..)
   )
 import Panino.Core.Types
-  ( urlFromText
+  ( urlString
+  , urlText
   )
 import Panino.Download.Manager
   ( DownloadJob(..)
@@ -197,7 +198,7 @@ downloadRuntimeArchive manager appRoot request spec sha256 isCancelled onProgres
             , runtimeDownloadArch spec
             , runtimeDownloadImageType spec
             ]
-            <> archiveExtension (runtimeDownloadUrl spec)
+            <> archiveExtension (urlText (runtimeDownloadUrl spec))
       archivePath = downloadsDir </> archiveName
       options = downloadOptionsFromRuntime (installRuntimeDownload request)
   createDirectoryIfMissing True downloadsDir
@@ -208,7 +209,7 @@ downloadRuntimeArchive manager appRoot request spec sha256 isCancelled onProgres
       isCancelled
       [ DownloadJob
           { jobLabel = "Java " <> show (runtimeDownloadFeatureVersion spec) <> " runtime"
-          , jobUrl = urlFromText (runtimeDownloadUrl spec)
+          , jobUrl = runtimeDownloadUrl spec
           , jobTargetPath = archivePath
           , jobSha1 = Nothing
           , jobSize = Nothing
@@ -236,7 +237,7 @@ installArchive appRoot request spec sha256 archivePath = do
           (runtimeDownloadOs spec)
           (runtimeDownloadArch spec)
           (runtimeDownloadImageType spec)
-          (runtimeDownloadUrl spec)
+          (urlText (runtimeDownloadUrl spec))
           (Just sha256)
           staging
       applyDefaultRuntimeSelection appRoot (installRuntimeSetDefault request) runtime
@@ -245,7 +246,7 @@ installArchive appRoot request spec sha256 archivePath = do
 
 installMojangRuntime :: Manager -> FilePath -> JavaRuntimeInstallRequest -> JavaRuntimeDownloadSpec -> IO Bool -> (DownloadProgress -> IO ()) -> IO JavaManagedRuntime
 installMojangRuntime manager appRoot request spec isCancelled onProgress = do
-  manifest <- fetchJson manager =<< coreRequestWithTimeout LongMetadata (Text.unpack (runtimeDownloadUrl spec)) []
+  manifest <- fetchJson manager =<< coreRequestWithTimeout LongMetadata (urlString (runtimeDownloadUrl spec)) []
   let stagingRoot = managedJavaRoot appRoot </> "staging"
       staging =
         stagingRoot
@@ -287,7 +288,7 @@ installMojangRuntime manager appRoot request spec isCancelled onProgress = do
           (runtimeDownloadOs spec)
           (runtimeDownloadArch spec)
           (runtimeDownloadImageType spec)
-          (runtimeDownloadUrl spec)
+          (urlText (runtimeDownloadUrl spec))
           Nothing
           staging
       applyDefaultRuntimeSelection appRoot (installRuntimeSetDefault request) runtime

@@ -8,6 +8,7 @@ import Panino.Minecraft.Types
   ( JavaVersion(..)
   , VersionJson(..)
   )
+import Panino.Core.Types (urlText)
 import Panino.Runtime.Java.Catalog (runtimeDownloadSpec)
 import Panino.Runtime.Java.Requirements
   ( fallbackJavaMajorVersion
@@ -44,4 +45,4 @@ assertJavaRequirements = do
   assertEqual
     "adoptium arm64 jre catalog url"
     "https://api.adoptium.net/v3/binary/latest/21/ga/mac/aarch64/jre/hotspot/normal/eclipse"
-    (runtimeDownloadUrl (runtimeDownloadSpec 21 "mac" "aarch64" "jre"))
+    (urlText (runtimeDownloadUrl (runtimeDownloadSpec 21 "mac" "aarch64" "jre")))

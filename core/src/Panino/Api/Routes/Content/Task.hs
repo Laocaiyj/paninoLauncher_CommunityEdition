@@ -178,19 +178,19 @@ emitContentPlanNodeProgress state task typedPlan result =
 
 contentInstallPlanGraphPath :: ContentInstallRequest -> ContentInstallPlanResponse -> FilePath
 contentInstallPlanGraphPath request plan =
-  case contentInstallGameDir request of
+  case contentInstallGameDirPath request of
     Just gameDir -> gameDir </> "downloads" </> "install-plan-graph.json"
     Nothing -> contentPlanTargetDir plan </> "install-plan-graph.json"
 
 contentInstallExecutionPath :: ContentInstallRequest -> ContentInstallPlanResponse -> FilePath
 contentInstallExecutionPath request plan =
-  case contentInstallGameDir request of
+  case contentInstallGameDirPath request of
     Just gameDir -> gameDir </> "downloads" </> "install-plan-execution.json"
     Nothing -> contentPlanTargetDir plan </> "install-plan-execution.json"
 
 contentInstallLockfilePath :: ContentInstallRequest -> ContentInstallPlanResponse -> FilePath
 contentInstallLockfilePath request plan =
-  case contentInstallGameDir request of
+  case contentInstallGameDirPath request of
     Just gameDir -> gameDir </> "downloads" </> "content-install-lock.json"
     Nothing -> contentPlanTargetDir plan </> "content-install-lock.json"
 

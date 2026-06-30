@@ -25,6 +25,7 @@ import Panino.Core.Types
   ( GameDir
   , VersionId
   , gameDirFromPath
+  , urlText
   , versionIdText
   )
 import qualified Panino.Install.Plan.Types as Plan
@@ -134,7 +135,7 @@ javaRuntimeTypedPlan response =
               , Plan.installNodePhase = "runtime"
               , Plan.installNodeLabel = "Download Java " <> Text.pack (show (runtimeDownloadFeatureVersion spec))
               , Plan.installNodeTargetPath = Nothing
-              , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts [runtimeDownloadUrl spec]
+              , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts [urlText (runtimeDownloadUrl spec)]
               , Plan.installNodeSha1 = Nothing
               , Plan.installNodeSize = Nothing
               , Plan.installNodeRequired = True

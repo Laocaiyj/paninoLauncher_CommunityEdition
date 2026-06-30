@@ -1,6 +1,7 @@
 module Panino.Core.WireText
   ( WireText(..)
   , parseWireTextJSON
+  , parseWireTextMaybeJSON
   , toWireTextJSON
   ) where
 
@@ -23,3 +24,10 @@ toWireTextJSON =
 parseWireTextJSON :: WireText a => Value -> Parser a
 parseWireTextJSON value =
   parseWireText <$> (parseJSON value :: Parser Text)
+
+parseWireTextMaybeJSON :: String -> (Text -> Maybe a) -> Value -> Parser a
+parseWireTextMaybeJSON label build value = do
+  raw <- parseJSON value
+  case build raw of
+    Just parsed -> pure parsed
+    Nothing -> fail (label <> " must not be empty")

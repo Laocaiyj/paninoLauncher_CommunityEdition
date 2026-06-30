@@ -122,6 +122,14 @@ data LaunchObservation
   = LaunchStillRunning JavaProcessLaunch
   | LaunchExitedDuringGrace JavaRunResult
 
+data PreparedLaunch = PreparedLaunch
+  { preparedLaunchLayout :: MinecraftLayout
+  , preparedLaunchVersionJson :: VersionJson
+  , preparedLaunchJavaPath :: FilePath
+  , preparedLaunchJavaArgs :: [String]
+  , preparedLaunchHooks :: LaunchHookSession
+  }
+
 launchTaskOutcomeText :: LaunchTaskOutcome -> Text
 launchTaskOutcomeText outcome =
   case outcome of
@@ -130,6 +138,11 @@ launchTaskOutcomeText outcome =
 
 runLaunchTask :: ServerState -> TaskSnapshot -> LaunchRequest -> IO Text
 runLaunchTask state task request = do
+  prepared <- prepareLaunchTask state task request
+  launchTaskOutcomeText <$> startPreparedLaunch state task prepared
+
+prepareLaunchTask :: ServerState -> TaskSnapshot -> LaunchRequest -> IO PreparedLaunch
+prepareLaunchTask state task request = do
   layout <- requestLayout state (launchRequestGameDir request)
   ensureLayout layout
   versionJson <-
@@ -149,9 +162,25 @@ runLaunchTask state task request = do
           }
       javaArgs = buildJavaArguments layout versionJson (classpathJars layout versionJson) profile
   writeLaunchJvmDiagnostics layout tuning javaArgs
-  _ <- async (runBestEffortLaunchChecks layout versionJson)
+  pure
+    PreparedLaunch
+      { preparedLaunchLayout = layout
+      , preparedLaunchVersionJson = versionJson
+      , preparedLaunchJavaPath = javaPath
+      , preparedLaunchJavaArgs = javaArgs
+      , preparedLaunchHooks = hooks
+      }
+
+startPreparedLaunch :: ServerState -> TaskSnapshot -> PreparedLaunch -> IO LaunchTaskOutcome
+startPreparedLaunch state task prepared = do
+  _ <- async (runBestEffortLaunchChecks (preparedLaunchLayout prepared) (preparedLaunchVersionJson prepared))
   launch <- startJavaProcessWithTelemetry javaPath (minecraftRoot layout) javaArgs
-  launchTaskOutcomeText <$> observeStartedLaunch state task layout hooks launch
+  observeStartedLaunch state task layout hooks launch
+  where
+    layout = preparedLaunchLayout prepared
+    javaPath = preparedLaunchJavaPath prepared
+    javaArgs = preparedLaunchJavaArgs prepared
+    hooks = preparedLaunchHooks prepared
 
 resolveLaunchJavaPath :: ServerState -> TaskSnapshot -> MinecraftLayout -> LaunchRequest -> (DownloadProgress -> IO ()) -> IO FilePath
 resolveLaunchJavaPath state task layout request onProgress =

@@ -45,6 +45,10 @@ import Panino.Net.Http
   , coreRequestWithTimeout
   , fetchJson
   )
+import Panino.Core.Types
+  ( Url
+  , urlFromText
+  )
 import Panino.Runtime.Java.Types
   ( JavaRuntimeCatalogItem(..)
   , JavaRuntimeDownloadSpec(..)
@@ -111,8 +115,8 @@ runtimeDownloadSpec featureVersion runtimeOs runtimeArch imageType =
     , runtimeDownloadOs = runtimeOs
     , runtimeDownloadArch = runtimeArch
     , runtimeDownloadImageType = imageType
-    , runtimeDownloadUrl = url
-    , runtimeDownloadChecksumUrl = Just (url <> ".sha256.txt")
+    , runtimeDownloadUrl = urlFromText url
+    , runtimeDownloadChecksumUrl = Just (urlFromText (url <> ".sha256.txt"))
     , runtimeDownloadSha256 = Nothing
     }
   where
@@ -281,7 +285,7 @@ zuluArch value =
     other -> other
 
 data ZuluPackage = ZuluPackage
-  { zuluPackageDownloadUrl :: Text
+  { zuluPackageDownloadUrl :: Url
   , zuluPackageSha256 :: Maybe Text
   } deriving (Eq, Show)
 
@@ -357,7 +361,7 @@ findMojangEntry _ _ _ =
 
 data MojangRuntimeEntry = MojangRuntimeEntry
   { mojangEntryVersionName :: Text
-  , mojangEntryManifestUrl :: Text
+  , mojangEntryManifestUrl :: Url
   , mojangEntryManifestSha1 :: Text
   } deriving (Eq, Show)
 

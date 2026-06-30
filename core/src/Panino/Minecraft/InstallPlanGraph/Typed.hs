@@ -30,6 +30,10 @@ import Panino.CoreLogic.Determinism
   , stableSortPlanNodes
   , stableTextSet
   )
+import Panino.Core.Types
+  ( sha1Text
+  , urlText
+  )
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Minecraft.InstallPlanGraph.Types
   ( InstallPlanGraph(..)
@@ -59,7 +63,7 @@ installPlanNodeKey node =
     [ installPlanNodePhase node
     , installPlanNodeKind node
     , installPlanNodeTargetPathText node
-    , fromMaybe "" (installPlanNodeSha1 node)
+    , fromMaybe "" (sha1Text <$> installPlanNodeSha1 node)
     , installPlanNodeId node
     ]
 
@@ -210,8 +214,8 @@ typedNodeFromLegacy node =
     , Plan.installNodePhase = Plan.installNodePhaseFromText (installPlanNodePhase node)
     , Plan.installNodeLabel = installPlanNodeLabel node
     , Plan.installNodeTargetPath = Just (installPlanNodeTargetPath node)
-    , Plan.installNodeSourceUrls = Plan.installNodeSourceUrlsFromTexts (installPlanNodeUrlCandidates node)
-    , Plan.installNodeSha1 = Plan.installNodeSha1FromText (installPlanNodeSha1 node)
+    , Plan.installNodeSourceUrls = installPlanNodeUrlCandidates node
+    , Plan.installNodeSha1 = installPlanNodeSha1 node
     , Plan.installNodeSize = installPlanNodeSize node
     , Plan.installNodeRequired = installPlanNodeRequired node
     , Plan.installNodeDependsOn = installPlanNodeDependencies node
@@ -308,8 +312,8 @@ compactNodeFingerprint node =
     , installPlanNodeKind node
     , installPlanNodeLabel node
     , installPlanNodeTargetPathText node
-    , Text.intercalate "," (installPlanNodeUrlCandidates node)
-    , fromMaybe "" (installPlanNodeSha1 node)
+    , Text.intercalate "," (map urlText (installPlanNodeUrlCandidates node))
+    , fromMaybe "" (sha1Text <$> installPlanNodeSha1 node)
     , maybe "" (Text.pack . show) (installPlanNodeSize node)
     , Text.intercalate "," (installPlanNodeDependencies node)
     , fromMaybe "" (installPlanNodeBlockedReason node)

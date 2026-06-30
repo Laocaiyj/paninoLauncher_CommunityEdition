@@ -28,6 +28,7 @@ import Panino.Content.Online.Types
   )
 import Panino.Core.Types
   ( Sha1
+  , gameDirPath
   , projectIdText
   , sha1FromText
   , sha1Text
@@ -60,7 +61,7 @@ buildContentInstallPlanBundle :: ServerState -> ContentInstallRequest -> IO Cont
 buildContentInstallPlanBundle state request = do
   directoryPreflight <- contentInstallDirectoryPreflight request
   let targetSubdir = Text.unpack (contentInstallTargetSubdir request)
-      targetDir = maybe "" (</> targetSubdir) (contentInstallGameDir request)
+      targetDir = maybe "" (</> targetSubdir) (contentInstallGameDirPath request)
   initiallyResolvedDependencies <- resolveInstallDependencies targetDir (contentInstallDependencies request)
   dependencyExpansion <- expandContentInstallDependencies state request targetDir initiallyResolvedDependencies
   let files = dedupeContentFiles (contentInstallFiles request <> dependencyExpansionFiles dependencyExpansion)
@@ -334,13 +335,13 @@ contentInstallDirectoryPreflight request =
     Nothing ->
       pure (ContentInstallDirectoryPreflight ["game_dir_required"] [])
     Just gameDir
-      | null gameDir ->
+      | null gameDirFilePath ->
           pure (ContentInstallDirectoryPreflight ["game_dir_required"] [])
       | otherwise -> do
-          directoryExists <- doesDirectoryExist gameDir
-          versionIds <- if directoryExists then installedVersionIdsInGameDir gameDir else pure []
+          directoryExists <- doesDirectoryExist gameDirFilePath
+          versionIds <- if directoryExists then installedVersionIdsInGameDir gameDirFilePath else pure []
           let targetSubdir = Text.unpack (contentInstallTargetSubdir request)
-              knownInstance = find (samePath gameDir . contentTargetInstanceGameDir) (contentInstallInstances request)
+              knownInstance = find (samePath gameDirFilePath . contentTargetInstanceGameDir) (contentInstallInstances request)
               targetVersion =
                 case knownInstance of
                   Just instanceValue -> Just (contentTargetInstanceMinecraftVersion instanceValue)
@@ -359,7 +360,7 @@ contentInstallDirectoryPreflight request =
               blockedReasons =
                 concat
                   [ ["game_dir_not_found" | not directoryExists]
-                  , ["not_panino_isolated_instance_dir" | directoryExists && not (isPaninoIsolatedInstanceDir gameDir)]
+                  , ["not_panino_isolated_instance_dir" | directoryExists && not (isPaninoIsolatedInstanceDir gameDirFilePath)]
                   , ["version_files_missing" | directoryExists && null versionIds]
                   , ["minecraft_version_mismatch" | directoryExists && not (null versionIds) && not versionCompatible]
                   , ["loader_required_for_mod" | directoryExists && targetSubdir == "mods" && null (contentInstallLoaders request)]
@@ -372,6 +373,8 @@ contentInstallDirectoryPreflight request =
                   , ["shader_support_not_verified" | directoryExists && targetSubdir == "shaderpacks" && null (contentInstallLoaders request)]
                   ]
           pure (ContentInstallDirectoryPreflight blockedReasons warnings)
+      where
+        gameDirFilePath = gameDirPath gameDir
 
 resolveInstallDependencies :: FilePath -> [ContentInstallDependency] -> IO [ContentInstallDependency]
 resolveInstallDependencies targetDir dependencies = do

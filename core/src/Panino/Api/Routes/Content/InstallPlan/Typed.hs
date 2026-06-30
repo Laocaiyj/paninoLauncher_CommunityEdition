@@ -42,7 +42,7 @@ contentTypedInstallPlan request targetDir sourceFiles plannedFiles dependencies 
       , Plan.typedPlanFingerprint = ""
       , Plan.typedPlanKind = "content"
       , Plan.typedPlanTitle = contentInstallProjectTitle request
-      , Plan.typedPlanTargetGameDir = Plan.typedPlanTargetGameDirFromPath (contentInstallGameDir request)
+      , Plan.typedPlanTargetGameDir = contentInstallGameDir request
       , Plan.typedPlanSource = Just (contentInstallSource request)
       , Plan.typedPlanStatus = ""
       , Plan.typedPlanSummary = Plan.InstallPlanSummary 0 0 0 0 0 Nothing

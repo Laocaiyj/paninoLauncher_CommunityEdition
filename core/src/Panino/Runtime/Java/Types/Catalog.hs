@@ -17,6 +17,7 @@ import Data.Aeson
   )
 import Data.Text (Text)
 import Data.Time (UTCTime)
+import Panino.Core.Types (Url)
 
 data JavaRuntimeDownloadSpec = JavaRuntimeDownloadSpec
   { runtimeDownloadProvider :: Text
@@ -25,8 +26,8 @@ data JavaRuntimeDownloadSpec = JavaRuntimeDownloadSpec
   , runtimeDownloadOs :: Text
   , runtimeDownloadArch :: Text
   , runtimeDownloadImageType :: Text
-  , runtimeDownloadUrl :: Text
-  , runtimeDownloadChecksumUrl :: Maybe Text
+  , runtimeDownloadUrl :: Url
+  , runtimeDownloadChecksumUrl :: Maybe Url
   , runtimeDownloadSha256 :: Maybe Text
   } deriving (Eq, Show)
 

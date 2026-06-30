@@ -16,6 +16,7 @@ module Panino.Api.Types.Content
   , ContentUpdatePlanResponse(..)
   , ContentTargetCandidate(..)
   , ContentTargetInstance(..)
+  , contentInstallGameDirPath
   , contentPlanActionFromText
   , contentPlanActionText
   , contentUpdateModeFromText
@@ -43,10 +44,12 @@ import Panino.Api.Types.Download
   , mergeDownloadRuntimeOptions
   )
 import Panino.Core.Types
-  ( ProjectId
+  ( GameDir
+  , ProjectId
   , Sha1
   , Url
   , VersionId
+  , gameDirPath
   )
 import Panino.Core.WireText
   ( WireText(..)
@@ -203,7 +206,7 @@ data ContentInstallRequest = ContentInstallRequest
   , contentInstallProjectTitle :: Text
   , contentInstallProjectType :: Maybe Text
   , contentInstallReleaseId :: VersionId
-  , contentInstallGameDir :: Maybe FilePath
+  , contentInstallGameDir :: Maybe GameDir
   , contentInstallTargetSubdir :: Text
   , contentInstallFiles :: [ContentInstallFile]
   , contentInstallDependencies :: [ContentInstallDependency]
@@ -234,6 +237,10 @@ instance FromJSON ContentInstallRequest where
         <*> (fromMaybe [] <$> objectValue .:? "loaders")
         <*> (fromMaybe [] <$> objectValue .:? "instances")
         <*> pure (mergeDownloadRuntimeOptions legacyConcurrency legacyRetryCount legacyStrategy nestedDownload)
+
+contentInstallGameDirPath :: ContentInstallRequest -> Maybe FilePath
+contentInstallGameDirPath =
+  fmap gameDirPath . contentInstallGameDir
 
 data ContentInstallPlanFile = ContentInstallPlanFile
   { contentPlanFileName :: Text

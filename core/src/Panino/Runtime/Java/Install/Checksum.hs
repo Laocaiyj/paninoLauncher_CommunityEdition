@@ -17,6 +17,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.HTTP.Client (Manager)
 import Panino.Content.Local.Path (removePathIfExists)
+import Panino.Core.Types (urlString)
 import Panino.Net.Http
   ( RequestTimeoutClass(..)
   , coreRequestWithTimeout
@@ -37,7 +38,7 @@ fetchRuntimeSha256 manager spec =
       case runtimeDownloadChecksumUrl spec of
         Nothing -> fail "java_runtime_checksum_missing: provider did not expose checksum URL"
         Just url -> do
-          text <- fetchText manager =<< coreRequestWithTimeout LongMetadata (Text.unpack url) []
+          text <- fetchText manager =<< coreRequestWithTimeout LongMetadata (urlString url) []
           maybe
             (fail "java_runtime_checksum_missing: checksum response did not contain SHA-256")
             pure

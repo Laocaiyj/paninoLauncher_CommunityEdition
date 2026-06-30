@@ -35,7 +35,6 @@ import Panino.Download.Manager (DownloadJob(..))
 import Panino.Core.Types
   ( sha1Text
   , urlString
-  , urlText
   )
 import qualified Panino.Install.Plan.Types as Plan
 import Panino.Minecraft.InstallPlanGraph.Typed
@@ -283,8 +282,8 @@ jobNode job =
     , installPlanNodeKind = jobKind job
     , installPlanNodeLabel = Text.pack (jobLabel job)
     , installPlanNodeTargetPath = jobTargetPath job
-    , installPlanNodeUrlCandidates = [urlText (jobUrl job)]
-    , installPlanNodeSha1 = sha1Text <$> jobSha1 job
+    , installPlanNodeUrlCandidates = [jobUrl job]
+    , installPlanNodeSha1 = jobSha1 job
     , installPlanNodeSize = jobSize job
     , installPlanNodeDependencies = []
     , installPlanNodePhase = jobPhase job

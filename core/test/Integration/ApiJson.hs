@@ -42,6 +42,9 @@ import Panino.Core.Types
   , urlText
   , versionIdText
   )
+import Panino.Runtime.Java.Types
+  ( JavaRuntimeDownloadSpec(..)
+  )
 import TestSupport (assertEqual)
 
 assertApiJsonContracts :: IO ()
@@ -65,6 +68,12 @@ assertApiJsonContracts = do
     (Right ("1.21.7", "https://piston-meta.mojang.com/v1/packages/example/1.21.7.json"))
     ( (\request -> (minecraftPackageId request, urlText (minecraftPackageUrl request)))
         <$> eitherDecode "{\"id\":\"1.21.7\",\"url\":\"https://piston-meta.mojang.com/v1/packages/example/1.21.7.json\"}"
+    )
+  assertEqual
+    "java runtime download spec keeps url wire strings with typed fields"
+    (Right ("https://example.invalid/java.tar.gz", Just "https://example.invalid/java.tar.gz.sha256.txt"))
+    ( (\spec -> (urlText (runtimeDownloadUrl spec), urlText <$> runtimeDownloadChecksumUrl spec))
+        <$> eitherDecode "{\"featureVersion\":21,\"url\":\"https://example.invalid/java.tar.gz\",\"checksumUrl\":\"https://example.invalid/java.tar.gz.sha256.txt\"}"
     )
   assertEqual
     "modrinth project endpoint accepts id"

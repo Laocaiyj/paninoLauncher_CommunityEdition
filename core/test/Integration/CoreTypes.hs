@@ -52,6 +52,7 @@ import Panino.Api.Types
   , InstallRequest(..)
   , LaunchRequest(..)
   , TaskKind(..)
+  , contentInstallGameDirPath
   , contentPlanActionFromText
   , contentPlanActionText
   , contentUpdateModeFromText
@@ -403,12 +404,13 @@ assertContentApiWireShape = do
   assertContains "content dependency version id stays a JSON string" "\"versionId\":\"fabric-version\"" encodedDependency
   assertContains "content update lock old sha stays a JSON string" "\"oldSha1\":\"oldsha\"" encodedLockEntry
   assertContains "content update lock new release id stays a JSON string" "\"newReleaseId\":\"new-release\"" encodedLockEntry
-  case eitherDecode "{\"source\":\"modrinth\",\"projectId\":\"sodium\",\"projectTitle\":\"Sodium\",\"releaseId\":\"version-1\",\"targetSubdir\":\"mods\",\"files\":[{\"fileName\":\"sodium.jar\",\"url\":\"https://cdn.example.com/sodium.jar\",\"sha1\":\"abcdef\"}],\"dependencies\":[{\"projectId\":\"fabric-api\",\"versionId\":\"fabric-version\",\"name\":\"Fabric API\",\"required\":true,\"sha1\":\"feedface\"}]}" :: Either String ContentInstallRequest of
+  case eitherDecode "{\"source\":\"modrinth\",\"projectId\":\"sodium\",\"projectTitle\":\"Sodium\",\"releaseId\":\"version-1\",\"gameDir\":\"/tmp/mc\",\"targetSubdir\":\"mods\",\"files\":[{\"fileName\":\"sodium.jar\",\"url\":\"https://cdn.example.com/sodium.jar\",\"sha1\":\"abcdef\"}],\"dependencies\":[{\"projectId\":\"fabric-api\",\"versionId\":\"fabric-version\",\"name\":\"Fabric API\",\"required\":true,\"sha1\":\"feedface\"}]}" :: Either String ContentInstallRequest of
     Left err ->
       assertEqual ("content install request json decodes: " <> err) True False
     Right request -> do
       assertEqual "content install request project id decodes from JSON string" (Just "sodium") (projectIdText <$> (contentInstallProjectId request :: Maybe ProjectId))
       assertEqual "content install request release id decodes from JSON string" "version-1" (versionIdText (contentInstallReleaseId request :: VersionId))
+      assertEqual "content install request game dir decodes from JSON string" (Just "/tmp/mc") (contentInstallGameDirPath request)
       assertEqual "content install request file url decodes from JSON string" ["https://cdn.example.com/sodium.jar"] (map (urlText . contentFileUrl) (contentInstallFiles request))
       assertEqual "content install request dependency sha decodes from JSON string" [Just "feedface"] (map (fmap sha1Text . contentDependencySha1) (contentInstallDependencies request))
       assertEqual "content install request download defaults remain available" (DownloadRuntimeOptions Nothing Nothing Nothing) (contentInstallDownload request)

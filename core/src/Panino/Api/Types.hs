@@ -15,6 +15,7 @@ module Panino.Api.Types
   , ContentUpdatePlanResponse(..)
   , ContentTargetCandidate(..)
   , ContentTargetInstance(..)
+  , contentInstallGameDirPath
   , contentPlanActionFromText
   , contentPlanActionText
   , contentUpdateModeFromText

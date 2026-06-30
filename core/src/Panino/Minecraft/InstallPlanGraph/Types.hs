@@ -12,6 +12,10 @@ import Data.Aeson
   )
 import Data.Int (Int64)
 import Data.Text (Text)
+import Panino.Core.Types
+  ( Sha1
+  , Url
+  )
 import qualified Panino.Install.Plan.Types as Plan
 
 data InstallPlanGraph = InstallPlanGraph
@@ -33,8 +37,8 @@ data InstallPlanNode = InstallPlanNode
   , installPlanNodeKind :: Text
   , installPlanNodeLabel :: Text
   , installPlanNodeTargetPath :: FilePath
-  , installPlanNodeUrlCandidates :: [Text]
-  , installPlanNodeSha1 :: Maybe Text
+  , installPlanNodeUrlCandidates :: [Url]
+  , installPlanNodeSha1 :: Maybe Sha1
   , installPlanNodeSize :: Maybe Int64
   , installPlanNodeDependencies :: [Text]
   , installPlanNodePhase :: Text

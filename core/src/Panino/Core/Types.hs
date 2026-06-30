@@ -26,14 +26,13 @@ module Panino.Core.Types
 import Data.Aeson
   ( FromJSON(..)
   , ToJSON(..)
-  , withText
   )
-import Data.Aeson.Types (Parser)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Core.WireText
   ( WireText(..)
+  , parseWireTextMaybeJSON
   , toWireTextJSON
   )
 
@@ -176,42 +175,42 @@ instance ToJSON GameDir where
 
 instance FromJSON GameDir where
   parseJSON =
-    withText "GameDir" (parseNonEmpty "GameDir" (gameDirFromPath . Text.unpack))
+    parseWireTextMaybeJSON "GameDir" (gameDirFromPath . Text.unpack)
 
 instance ToJSON VersionId where
   toJSON = toWireTextJSON
 
 instance FromJSON VersionId where
   parseJSON =
-    withText "VersionId" (parseNonEmpty "VersionId" versionIdFromText)
+    parseWireTextMaybeJSON "VersionId" versionIdFromText
 
 instance ToJSON ProjectId where
   toJSON = toWireTextJSON
 
 instance FromJSON ProjectId where
   parseJSON =
-    withText "ProjectId" (parseNonEmpty "ProjectId" projectIdFromText)
+    parseWireTextMaybeJSON "ProjectId" projectIdFromText
 
 instance ToJSON Sha1 where
   toJSON = toWireTextJSON
 
 instance FromJSON Sha1 where
   parseJSON =
-    withText "Sha1" (parseNonEmpty "Sha1" sha1FromText)
+    parseWireTextMaybeJSON "Sha1" sha1FromText
 
 instance ToJSON Url where
   toJSON = toWireTextJSON
 
 instance FromJSON Url where
   parseJSON =
-    withText "Url" (parseNonEmpty "Url" (fmap Url . nonEmptyText))
+    parseWireTextMaybeJSON "Url" (fmap urlFromText . nonEmptyText)
 
 instance ToJSON RelativePath where
   toJSON = toWireTextJSON
 
 instance FromJSON RelativePath where
   parseJSON =
-    withText "RelativePath" (parseNonEmpty "RelativePath" (relativePathFromFilePath . Text.unpack))
+    parseWireTextMaybeJSON "RelativePath" (relativePathFromFilePath . Text.unpack)
 
 nonEmptyText :: Text -> Maybe Text
 nonEmptyText value =
@@ -222,9 +221,3 @@ nonEmptyString :: String -> Maybe String
 nonEmptyString value =
   let trimmed = Text.unpack (Text.strip (Text.pack value))
    in if null trimmed then Nothing else Just trimmed
-
-parseNonEmpty :: String -> (Text -> Maybe a) -> Text -> Parser a
-parseNonEmpty label build value =
-  case build value of
-    Just parsed -> pure parsed
-    Nothing -> fail (label <> " must not be empty")

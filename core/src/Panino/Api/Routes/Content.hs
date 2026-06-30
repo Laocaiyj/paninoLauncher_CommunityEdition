@@ -79,7 +79,7 @@ contentInstallResponse state request = do
       if null (contentPlanBlockedReasons plan)
         then do
           task <-
-            startTaskWithGameDirContext state "content-install" (contentInstallProjectTitle contentRequest) (contentInstallGameDir contentRequest) $ \taskSnapshot ->
+            startTaskWithGameDirContext state "content-install" (contentInstallProjectTitle contentRequest) (contentInstallGameDirPath contentRequest) $ \taskSnapshot ->
               runContentInstallTask state taskSnapshot contentRequest planBundle
           pure (jsonResponse status202 (TaskAccepted task))
         else

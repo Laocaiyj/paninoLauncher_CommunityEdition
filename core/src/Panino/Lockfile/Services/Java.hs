@@ -28,7 +28,6 @@ import Panino.CoreLogic.Hashing (sha1File)
 import Panino.Core.Types
   ( VersionId
   , projectIdFromText
-  , urlFromText
   , versionIdFromText
   )
 import Panino.Diagnostics.Classify (diagnosticFromBlockedReason)
@@ -166,7 +165,7 @@ javaRuntimePackage response =
     , resolvedPackageTargetPath = Nothing
     , resolvedPackageHashes = maybe packageHashesEmpty runtimeDownloadHashes (resolveResponseDownload response)
     , resolvedPackageSize = Nothing
-    , resolvedPackageDownloadUrls = maybe [] ((: []) . urlFromText . runtimeDownloadUrl) (resolveResponseDownload response)
+    , resolvedPackageDownloadUrls = maybe [] ((: []) . runtimeDownloadUrl) (resolveResponseDownload response)
     , resolvedPackageGameVersions = [resolveResponseMinecraftVersion response]
     , resolvedPackageLoaders = []
     , resolvedPackageJavaMajor = Just (resolveResponseRequiredMajorVersion response)
