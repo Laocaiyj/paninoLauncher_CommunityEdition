@@ -40,7 +40,7 @@ import Panino.Api.Server.State
   )
 import Panino.Core.Types
   ( GameDir
-  , gameDirFromPath
+  , gameDirFromText
   , gameDirPath
   )
 import Panino.Install.Plan.Executor
@@ -256,4 +256,4 @@ queryGameDir :: Text -> Request -> Maybe GameDir
 queryGameDir key request =
   lookup (Text.encodeUtf8 key) (queryString request)
     >>= id
-    >>= gameDirFromPath . Text.unpack . Text.decodeUtf8
+    >>= gameDirFromText . Text.decodeUtf8
