@@ -1,5 +1,6 @@
 module Panino.Core.WireText
   ( WireText(..)
+  , parseOptionalWireTextField
   , parseWireTextJSON
   , parseWireTextMaybeJSON
   , toWireTextJSON
@@ -7,9 +8,12 @@ module Panino.Core.WireText
 
 import Data.Aeson
   ( FromJSON(..)
+  , Object
   , ToJSON(..)
   , Value
+  , (.:?)
   )
+import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
 import Data.Text (Text)
 
@@ -31,3 +35,8 @@ parseWireTextMaybeJSON label build value = do
   case build raw of
     Just parsed -> pure parsed
     Nothing -> fail (label <> " must not be empty")
+
+parseOptionalWireTextField :: Object -> Key -> (Text -> Maybe a) -> Parser (Maybe a)
+parseOptionalWireTextField objectValue key build = do
+  raw <- objectValue .:? key
+  pure (raw >>= build)

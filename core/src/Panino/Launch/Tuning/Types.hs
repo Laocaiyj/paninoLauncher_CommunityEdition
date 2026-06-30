@@ -37,9 +37,9 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Panino.Core.Types
   ( GameDir
-  , gameDirFromPath
   , gameDirPath
   )
+import Panino.Core.WireText (parseOptionalWireTextField)
 import Panino.Performance.Profile.Types
   ( AdaptiveApplyMode(..)
   , PerformanceConfidence(..)
@@ -229,7 +229,7 @@ instance FromJSON JvmTuningRequest where
     withObject "JvmTuningRequest" $ \obj ->
       JvmTuningRequest
         <$> obj .:? "instanceId"
-        <*> (obj .:? "gameDir" >>= pure . (>>= gameDirFromPath))
+        <*> parseOptionalWireTextField obj "gameDir" (gameDirFromPath . Text.unpack)
         <*> (obj .:? "policy" .!= JvmTuningAuto)
         <*> obj .:? "memoryPolicy" .!= MemoryPolicyAuto
         <*> obj .:? "systemMemoryBytes"

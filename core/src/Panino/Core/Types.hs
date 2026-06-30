@@ -8,6 +8,7 @@ module Panino.Core.Types
   , Url
   , VersionId
   , gameDirFromPath
+  , gameDirFromText
   , gameDirPath
   , projectIdFromText
   , projectIdText
@@ -100,6 +101,10 @@ gameDirFromPath :: FilePath -> Maybe GameDir
 gameDirFromPath path =
   GameDir <$> nonEmptyString path
 
+gameDirFromText :: Text -> Maybe GameDir
+gameDirFromText =
+  gameDirFromPath . Text.unpack
+
 gameDirPath :: GameDir -> FilePath
 gameDirPath (GameDir path) = path
 
@@ -175,7 +180,7 @@ instance ToJSON GameDir where
 
 instance FromJSON GameDir where
   parseJSON =
-    parseWireTextMaybeJSON "GameDir" (gameDirFromPath . Text.unpack)
+    parseWireTextMaybeJSON "GameDir" gameDirFromText
 
 instance ToJSON VersionId where
   toJSON = toWireTextJSON
